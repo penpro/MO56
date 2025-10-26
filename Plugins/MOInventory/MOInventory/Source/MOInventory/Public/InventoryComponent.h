@@ -27,6 +27,18 @@ class MOINVENTORY_API UInventoryComponent : public UActorComponent
 public:
     UInventoryComponent();
 
+    /** Hard cap on distinct stacks (simple example) */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    int32 MaxStacks = 128;
+
+    /** Add Count of Item. Returns true if added. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool TryAddItem(UItemData* Item, int32 Count = 1);
+
+    /** Current count of Item in inventory */
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    int32 GetCount(UItemData* Item) const;
+
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     int32 AddItem(UItemData* Item, int32 Count);
 
@@ -57,4 +69,7 @@ protected:
 private:
     int32 AddToExistingStacks(UItemData* Item, int32 Count);
     int32 AddToEmptySlots(UItemData* Item, int32 Count);
+    /** Very simple: map Item asset -> quantity */
+    UPROPERTY()
+    TMap<TObjectPtr<UItemData>, int32> Stacks;
 };

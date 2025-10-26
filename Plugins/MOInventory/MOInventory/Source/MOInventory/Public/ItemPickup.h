@@ -1,4 +1,7 @@
 #pragma once
+
+// ItemPickup.h
+
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interactable.h"
@@ -21,6 +24,10 @@ protected:
 
     UPROPERTY(EditAnywhere, Category = "Pickup")
     TObjectPtr<UItemData> Item;
+
+    /** Which item this pickup gives */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pickup")
+    UItemData* ItemData = nullptr;
 
     UPROPERTY(EditAnywhere, Category = "Pickup", meta = (ClampMin = "1"))
     int32 Quantity = 1;

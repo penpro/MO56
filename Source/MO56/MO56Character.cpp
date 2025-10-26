@@ -16,6 +16,8 @@
 
 #include "Interactable.h"
 
+#include "InventoryComponent.h" // from MOInventory
+
 AMO56Character::AMO56Character()
 {
 	// Set size for collision capsule
@@ -52,6 +54,8 @@ AMO56Character::AMO56Character()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+
+	Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 }
 
 

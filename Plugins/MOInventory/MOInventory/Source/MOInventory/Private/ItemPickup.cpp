@@ -10,7 +10,10 @@ AItemPickup::AItemPickup()
 {
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
     SetRootComponent(Mesh);
-    Mesh->SetCollisionProfileName(UCollisionProfile::PhysicsActor_ProfileName);
+
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Mesh->SetCollisionObjectType(ECC_WorldDynamic);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Block);
 }
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)
@@ -33,5 +36,10 @@ void AItemPickup::Interact_Implementation(AActor* Interactor)
 
 FText AItemPickup::GetInteractText_Implementation() const
 {
+    if (ItemData)
+    {
+        return FText::FromString(
+            FString::Printf(TEXT("Pick up %s x%d"), *ItemData->GetName(), Quantity));
+    }
     return FText::FromString(TEXT("Pick up"));
 }

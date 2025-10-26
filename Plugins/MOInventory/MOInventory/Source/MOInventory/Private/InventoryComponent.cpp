@@ -28,6 +28,33 @@ int32 FItemStack::MaxStack() const
     return FMath::Max(1, MaxFromItem);
 }
 
+bool UInventoryComponent::TryAddItem(UItemData* Item, int32 Count)
+{
+    if (!Item || Count <= 0)
+    {
+        return false;
+    }
+
+    // Optional: enforce a max number of distinct stacks
+    if (!Stacks.Contains(Item) && Stacks.Num() >= MaxStacks)
+    {
+        return false;
+    }
+
+    int32& Current = Stacks.FindOrAdd(Item);
+    Current += Count;
+    return true;
+}
+
+int32 UInventoryComponent::GetCount(UItemData* Item) const
+{
+    if (!Item) return 0;
+    if (const int32* Ptr = Stacks.Find(Item))
+    {
+        return *Ptr;
+    }
+    return 0;
+}
 int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
