@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+// MO56.Build.cs
 
 using UnrealBuildTool;
 
@@ -18,7 +19,9 @@ public class MO56 : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"UMG",
-			"Slate"
+            "MOInventory",
+
+            "Slate"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

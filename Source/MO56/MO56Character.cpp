@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+// MO56Character.cpp
 
 #include "MO56Character.h"
 #include "Engine/LocalPlayer.h"
@@ -10,7 +11,10 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+
 #include "MO56.h"
+
+#include "Interactable.h"
 
 AMO56Character::AMO56Character()
 {
@@ -50,25 +54,24 @@ AMO56Character::AMO56Character()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+
 void AMO56Character::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Set up action bindings
-	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
-		// Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
-
-		// Moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMO56Character::Move);
-		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AMO56Character::Look);
-
-		// Looking
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AMO56Character::Look);
-	}
-	else
+	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		UE_LOG(LogMO56, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+		// Existing bindings...
+		EIC->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+		EIC->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AMO56Character::Move);
+		EIC->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AMO56Character::Look);
+		EIC->BindAction(LookAction, ETriggerEvent::Triggered, this, &AMO56Character::Look);
+
+		// Interact binding (press E)
+		if (InteractAction)
+		{
+			EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &AMO56Character::OnInteract);
+		}
 	}
 }
 
@@ -88,6 +91,73 @@ void AMO56Character::Look(const FInputActionValue& Value)
 
 	// route the input
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
+}
+
+void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
+{
+	FVector ViewLoc; FRotator ViewRot;
+
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->GetPlayerViewPoint(ViewLoc, ViewRot);   // pawn viewpoint (good)
+	}
+	else if (FollowCamera)
+	{
+		ViewLoc = FollowCamera->GetComponentLocation();   // backup
+		ViewRot = FollowCamera->GetComponentRotation();
+	}
+	else
+	{
+		return;
+	}
+
+	const float TraceDist = 600.f; // give yourself more room
+	const FVector End = ViewLoc + ViewRot.Vector() * TraceDist;
+
+	// Ignore self, return simple first
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(InteractTrace), /*bTraceComplex*/ false, this);
+	Params.AddIgnoredActor(this);
+
+	// What kinds of things can we hit?
+	FCollisionObjectQueryParams ObjParams;
+	ObjParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	ObjParams.AddObjectTypesToQuery(ECC_Pawn); // if NPCs can be interactables
+
+	FHitResult Hit;
+	bool bHit = false;
+
+	// --- Option A: line trace by object type (simple + clear) ---
+	bHit = GetWorld()->LineTraceSingleByObjectType(Hit, ViewLoc, End, ObjParams, Params);
+
+	// --- Option B: small sphere sweep (uncomment to try more forgiving detection) ---
+	// const float Radius = 18.f;
+	// const FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
+	// bHit = GetWorld()->SweepSingleByObjectType(Hit, ViewLoc, End, FQuat::Identity, ObjParams, Shape, Params);
+	// DrawDebugSphere(GetWorld(), End, Radius, 12, FColor::Cyan, false, 2.f, 0, 1.f);
+
+	DrawDebugLine(GetWorld(), ViewLoc, End, bHit ? FColor::Green : FColor::Red, false, 2.f, 0, 1.f);
+
+	if (!bHit)
+	{
+		UE_LOG(LogMO56, Log, TEXT("Interact trace MISS  Start:%s  End:%s"),
+			*ViewLoc.ToString(), *End.ToString());
+		return;
+	}
+
+	AActor* HitActor = Hit.GetActor();
+	UE_LOG(LogMO56, Log, TEXT("Interact trace HIT %s at %s"),
+		*GetNameSafe(HitActor), *Hit.ImpactPoint.ToString());
+
+	if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+	{
+		IInteractable::Execute_Interact(HitActor, this);
+		UE_LOG(LogMO56, Log, TEXT("IInteractable::Interact executed on %s"), *GetNameSafe(HitActor));
+	}
+	else
+	{
+		UE_LOG(LogMO56, Log, TEXT("Hit actor does not implement Interactable"));
+	}
 }
 
 void AMO56Character::DoMove(float Right, float Forward)

@@ -10,6 +10,7 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UInputMappingContext;
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -49,6 +50,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* MouseLookAction;
 
+
 public:
 
 	/** Constructor */
@@ -61,13 +63,22 @@ protected:
 
 protected:
 
+        
+
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
 
+	/** Called for interaction input */
+	void OnInteract(const FInputActionValue& Value);
+
 public:
+
+	/** Interact Input Action */
+	UPROPERTY(EditAnywhere, Category = "Input|Actions")
+	UInputAction* InteractAction = nullptr;    
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
