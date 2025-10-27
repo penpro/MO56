@@ -16,6 +16,8 @@
 
 #include "Interactable.h"
 
+#include "DrawDebugHelpers.h"
+
 #include "InventoryComponent.h" // from MOInventory
 
 AMO56Character::AMO56Character()

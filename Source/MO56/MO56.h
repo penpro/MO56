@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Logging/LogMacros.h"
 
 /** Main log category used across the project */
 DECLARE_LOG_CATEGORY_EXTERN(LogMO56, Log, All);

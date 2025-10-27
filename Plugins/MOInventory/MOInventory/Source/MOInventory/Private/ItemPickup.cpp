@@ -1,10 +1,10 @@
-
-
 #include "ItemPickup.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/CollisionProfile.h"  
+#include "Engine/CollisionProfile.h"
+#include "Engine/DataTable.h"
 #include "InventoryComponent.h"
-#include "ItemData.h"
+#include "MOItems/Public/ItemData.h"
+#include "MOItems/Public/ItemTableRow.h"
 
 AItemPickup::AItemPickup()
 {
@@ -16,6 +16,64 @@ AItemPickup::AItemPickup()
     Mesh->SetCollisionResponseToAllChannels(ECR_Block);
 }
 
+void AItemPickup::ApplyRow(const FItemTableRow* Row)
+{
+    if (!Row) return;
+
+    // Resolve and cache the gameplay asset
+    UItemData* LoadedItem = Row->ItemAsset.LoadSynchronous();
+    Item = LoadedItem;
+
+    // Visuals
+    if (UStaticMesh* SM = Row->StaticMesh.LoadSynchronous())
+    {
+        Mesh->SetStaticMesh(SM);
+    }
+    // If you prefer skeletal meshes, you can add an optional SkeletalMeshComponent
+    // when Row->SkeletalMesh is set.
+
+    // Optionally clamp quantity by stack size
+    if (Item)
+    {
+        const int32 MaxStack = (Row->MaxStackOverride > 0) ? Row->MaxStackOverride
+                                                          : FMath::Max(1, Item->MaxStackSize);
+        Quantity = FMath::Clamp(Quantity, 1, MaxStack);
+    }
+}
+
+void AItemPickup::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+
+    if (ItemTable && !ItemRowName.IsNone())
+    {
+        if (const FItemTableRow* Row =
+            ItemTable->FindRow<FItemTableRow>(ItemRowName, TEXT("ItemPickup")))
+        {
+            ApplyRow(Row);
+        }
+    }
+}
+
+#if WITH_EDITOR
+void AItemPickup::RefreshFromRow()
+{
+    if (ItemTable && !ItemRowName.IsNone())
+    {
+        if (const FItemTableRow* Row = ItemTable->FindRow<FItemTableRow>(ItemRowName, TEXT("RefreshFromRow")))
+        {
+            ApplyRow(Row);
+        }
+    }
+}
+#endif
+
+TArray<FName> AItemPickup::GetItemRowNames() const
+{
+    if (!ItemTable) return {};
+    return ItemTable->GetRowNames();
+}
+
 void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
     if (!Interactor || !Item || Quantity <= 0) return;
@@ -23,23 +81,21 @@ void AItemPickup::Interact_Implementation(AActor* Interactor)
     if (UInventoryComponent* Inv = Interactor->FindComponentByClass<UInventoryComponent>())
     {
         const int32 Added = Inv->AddItem(Item, Quantity);
-        if (Added >= Quantity)
-        {
-            Destroy();
-        }
-        else if (Added > 0)
-        {
-            Quantity -= Added; // partial pickup
-        }
+        if (Added >= Quantity) { Destroy(); }
+        else if (Added > 0)    { Quantity -= Added; }
     }
 }
 
 FText AItemPickup::GetInteractText_Implementation() const
 {
-    if (ItemData)
+    if (Item)
     {
-        return FText::FromString(
-            FString::Printf(TEXT("Pick up %s x%d"), *ItemData->GetName(), Quantity));
+        const FString Name = Item->DisplayName.IsEmpty() ? Item->GetName() : Item->DisplayName.ToString();
+        return FText::FromString(FString::Printf(TEXT("Pick up %s x%d"), *Name, Quantity));
+    }
+    if (!ItemRowName.IsNone())
+    {
+        return FText::FromString(FString::Printf(TEXT("Pick up %s x%d"), *ItemRowName.ToString(), Quantity));
     }
     return FText::FromString(TEXT("Pick up"));
 }
