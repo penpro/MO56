@@ -51,4 +51,11 @@ public:
     // Editor dropdown provider for RowName
     UFUNCTION()
     TArray<FName> GetItemRowNames() const;
+
+private:
+    void DoPickup(AActor* Interactor);
+
+    UFUNCTION(Server, Reliable)
+    void Server_Interact(AActor* Interactor);
+
 };

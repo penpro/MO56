@@ -74,6 +74,30 @@ TArray<FName> AItemPickup::GetItemRowNames() const
     return ItemTable->GetRowNames();
 }
 
+void AItemPickup::DoPickup(AActor* Interactor)
+{
+    if (!Interactor || !Item || Quantity <= 0) return;
+
+    if (UInventoryComponent* Inv = Interactor->FindComponentByClass<UInventoryComponent>())
+    {
+        const int32 Added = Inv->AddItem(Item, Quantity);
+        if (Added >= Quantity)
+        {
+            Destroy();
+        }
+        else if (Added > 0)
+        {
+            Quantity -= Added; // partial stack taken
+        }
+    }
+}
+
+void AItemPickup::Server_Interact_Implementation(AActor* Interactor)
+{
+    DoPickup(Interactor);
+
+}
+
 void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
     if (!Interactor || !Item || Quantity <= 0) return;

@@ -21,6 +21,8 @@ struct MOINVENTORY_API FItemStack
     int32 MaxStack() const; // defined in .cpp
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryChanged);
+
 UCLASS(ClassGroup = (Inventory), meta = (BlueprintSpawnableComponent))
 class MOINVENTORY_API UInventoryComponent : public UActorComponent
 {
@@ -28,6 +30,9 @@ class MOINVENTORY_API UInventoryComponent : public UActorComponent
 
 public:
     UInventoryComponent();
+
+    UPROPERTY(BlueprintAssignable)
+    FOnInventoryChanged OnInventoryChanged;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
     int32 MaxSlots = 24;

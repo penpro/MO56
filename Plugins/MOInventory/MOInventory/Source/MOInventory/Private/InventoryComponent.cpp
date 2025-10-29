@@ -19,6 +19,7 @@ int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
     int32 Remaining = Count;
     Remaining -= AddToExistingStacks(Item, Remaining);
     Remaining -= AddToEmptySlots(Item, Remaining);
+    OnInventoryChanged.Broadcast();
     return Count - Remaining;
 }
 
@@ -80,6 +81,7 @@ int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
             }
         }
     }
+    OnInventoryChanged.Broadcast();
     return Removed;
 }
 
