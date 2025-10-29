@@ -120,40 +120,18 @@ void AItemPickup::Server_Interact_Implementation(AActor* Interactor)
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
-    if (!Interactor || !Item || Quantity <= 0) return;
-
-    UInventoryComponent* InventoryComponent = nullptr;
-
-	UE_LOG(LogTemp, Display, TEXT("interact called on ItemPickup"));
-
-    if (APawn* PawnInteractor = Cast<APawn>(Interactor))
-    {
-        InventoryComponent = PawnInteractor->FindComponentByClass<UInventoryComponent>();
-    }
-
-    if (!InventoryComponent)
-    {
-        InventoryComponent = Interactor->FindComponentByClass<UInventoryComponent>();
-    }
-
-    if (!InventoryComponent)
+    if (!Interactor || !Item || Quantity <= 0)
     {
         return;
     }
 
-    const int32 Added = InventoryComponent->AddItem(Item, Quantity);
-    if (Added <= 0)
+    if (HasAuthority())
     {
-        return;
-    }
-
-    if (Added >= Quantity)
-    {
-        Destroy();
+        DoPickup(Interactor);
     }
     else
     {
-        Quantity -= Added;
+        Server_Interact(Interactor);
     }
 }
 
