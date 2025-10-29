@@ -22,6 +22,8 @@
 #include "InventoryComponent.h" // from MOInventory
 #include "UI/HUDWidget.h"
 
+DEFINE_LOG_CATEGORY(LogTemplateCharacter);
+
 AMO56Character::AMO56Character()
 {
 	// Set size for collision capsule

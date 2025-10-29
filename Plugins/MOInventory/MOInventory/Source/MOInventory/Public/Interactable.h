@@ -20,8 +20,10 @@ public:
     // Called when something tries to interact
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interact")
     void Interact(AActor* Interactor);
+    virtual void Interact_Implementation(AActor* Interactor) {}
 
     // The on-screen prompt, e.g. "Press E to interact"
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interact")
     FText GetInteractText() const;
+    virtual FText GetInteractText_Implementation() const { return FText::GetEmpty(); }
 };
