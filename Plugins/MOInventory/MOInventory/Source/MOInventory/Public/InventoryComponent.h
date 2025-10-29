@@ -5,6 +5,7 @@
 #include "InventoryComponent.generated.h"
 
 class UItemData;
+class UInventoryComponent;
 
 USTRUCT(BlueprintType)
 struct MOINVENTORY_API FItemStack
@@ -36,6 +37,10 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
     int32 MaxSlots = 24;
+
+    /** Broadcast whenever the inventory contents change. */
+    UPROPERTY(BlueprintAssignable, Category = "Inventory")
+    FOnInventoryUpdated OnInventoryUpdated;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     int32 AddItem(UItemData* Item, int32 Count);

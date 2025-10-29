@@ -2,6 +2,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/DataTable.h"
+#include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
 #include "MOItems/Public/ItemData.h"
 #include "MOItems/Public/ItemTableRow.h"
@@ -102,11 +103,36 @@ void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
     if (!Interactor || !Item || Quantity <= 0) return;
 
-    if (UInventoryComponent* Inv = Interactor->FindComponentByClass<UInventoryComponent>())
+    UInventoryComponent* InventoryComponent = nullptr;
+
+    if (APawn* PawnInteractor = Cast<APawn>(Interactor))
     {
-        const int32 Added = Inv->AddItem(Item, Quantity);
-        if (Added >= Quantity) { Destroy(); }
-        else if (Added > 0)    { Quantity -= Added; }
+        InventoryComponent = PawnInteractor->FindComponentByClass<UInventoryComponent>();
+    }
+
+    if (!InventoryComponent)
+    {
+        InventoryComponent = Interactor->FindComponentByClass<UInventoryComponent>();
+    }
+
+    if (!InventoryComponent)
+    {
+        return;
+    }
+
+    const int32 Added = InventoryComponent->AddItem(Item, Quantity);
+    if (Added <= 0)
+    {
+        return;
+    }
+
+    if (Added >= Quantity)
+    {
+        Destroy();
+    }
+    else
+    {
+        Quantity -= Added;
     }
 }
 
