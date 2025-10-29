@@ -89,7 +89,11 @@ protected:
 	void Look(const FInputActionValue& Value);
 
 	/** Called for interaction input */
-	void OnInteract(const FInputActionValue& Value);
+        void OnInteract(const FInputActionValue& Value);
+
+protected:
+        UFUNCTION(Server, Reliable)
+        void Server_Interact(AActor* HitActor);
 
 public:
 
