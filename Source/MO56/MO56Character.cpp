@@ -19,6 +19,7 @@
 #include "DrawDebugHelpers.h"
 
 #include "InventoryComponent.h" // from MOInventory
+#include "Blueprint/UserWidget.h"
 
 AMO56Character::AMO56Character()
 {
@@ -58,6 +59,22 @@ AMO56Character::AMO56Character()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 
 	Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+}
+
+
+void AMO56Character::BeginPlay()
+{
+        Super::BeginPlay();
+
+        if (HUDWidgetClass)
+        {
+                HUDWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), HUDWidgetClass);
+
+                if (HUDWidgetInstance)
+                {
+                        HUDWidgetInstance->AddToViewport();
+                }
+        }
 }
 
 
