@@ -204,13 +204,35 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
 
         if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
         {
-                IInteractable::Execute_Interact(HitActor, this);
-                // UE_LOG(LogMO56, Log, TEXT("IInteractable::Interact executed on %s"), *GetNameSafe(HitActor));
+                if (HasAuthority())
+                {
+                        IInteractable::Execute_Interact(HitActor, this);
+                        // UE_LOG(LogMO56, Log, TEXT("IInteractable::Interact executed on %s"), *GetNameSafe(HitActor));
+                }
+                else
+                {
+                        Server_Interact(HitActor);
+                }
         }
         else
         {
                 // UE_LOG(LogMO56, Log, TEXT("Hit actor does not implement Interactable"));
         }
+}
+
+void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
+{
+        if (!HitActor)
+        {
+                return;
+        }
+
+        if (!HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+        {
+                return;
+        }
+
+        IInteractable::Execute_Interact(HitActor, this);
 }
 
 void AMO56Character::HandleInventoryUpdated(UInventoryComponent* UpdatedInventory)
