@@ -77,6 +77,8 @@ TArray<FName> AItemPickup::GetItemRowNames() const
 
 bool AItemPickup::DoPickup(AActor* Interactor)
 {
+
+	UE_LOG(LogTemp, Display, TEXT("DoPickup called on ItemPickup"));
     if (!Interactor || !Item || Quantity <= 0)
     {
         return false;
