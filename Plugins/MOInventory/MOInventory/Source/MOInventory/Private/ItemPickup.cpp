@@ -126,6 +126,7 @@ bool AItemPickup::DoPickup(AActor* Interactor)
 
 void AItemPickup::Server_Interact_Implementation(AActor* Interactor)
 {
+	UE_LOG(LogTemp, Display, TEXT("Server_Interact called on ItemPickup"));
     DoPickup(Interactor);
 
 }

@@ -199,7 +199,7 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
         }
 
         AActor* HitActor = Hit.GetActor();
-        // UE_LOG(LogMO56, Log, TEXT("Interact trace HIT %s at %s"),
+         //UE_LOG(LogMO56, Log, TEXT("Interact trace HIT %s at %s")),
         //       *GetNameSafe(HitActor), *Hit.ImpactPoint.ToString());
 
         if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
