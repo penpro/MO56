@@ -13,6 +13,7 @@ class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
 class UInventoryComponent; // forward declare
+class UUserWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -23,7 +24,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 UCLASS(abstract)
 class AMO56Character : public ACharacter
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -57,8 +58,13 @@ protected:
 
 public:
 
-	/** Constructor */
-	AMO56Character();	
+        /** Constructor */
+        AMO56Character();
+
+protected:
+
+        /** Called when the game starts or when spawned */
+        virtual void BeginPlay() override;
 
 protected:
 
@@ -80,9 +86,17 @@ protected:
 
 public:
 
-	/** Interact Input Action */
-	UPROPERTY(EditAnywhere, Category = "Input|Actions")
-	UInputAction* InteractAction = nullptr;    
+        /** Interact Input Action */
+        UPROPERTY(EditAnywhere, Category = "Input|Actions")
+        UInputAction* InteractAction = nullptr;
+
+        /** Widget class for HUD */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UUserWidget> HUDWidgetClass;
+
+        /** Instance of the HUD widget */
+        UPROPERTY(Transient)
+        TObjectPtr<class UUserWidget> HUDWidgetInstance;
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
