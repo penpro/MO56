@@ -19,7 +19,7 @@
 #include "DrawDebugHelpers.h"
 
 #include "InventoryComponent.h" // from MOInventory
-#include "UI/HUDWidget.h"
+#include "Blueprint/UserWidget.h"
 
 AMO56Character::AMO56Character()
 {
@@ -68,18 +68,12 @@ void AMO56Character::BeginPlay()
 
         if (HUDWidgetClass)
         {
-                HUDWidgetInstance = CreateWidget<UHUDWidget>(GetWorld(), HUDWidgetClass);
+                HUDWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), HUDWidgetClass);
 
                 if (HUDWidgetInstance)
                 {
                         HUDWidgetInstance->AddToViewport();
                 }
-        }
-
-        if (Inventory)
-        {
-                Inventory->OnInventoryUpdated.AddDynamic(this, &AMO56Character::HandleInventoryUpdated);
-                HandleInventoryUpdated(Inventory);
         }
 }
 
@@ -187,11 +181,6 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
         {
                 // UE_LOG(LogMO56, Log, TEXT("Hit actor does not implement Interactable"));
         }
-}
-
-void AMO56Character::HandleInventoryUpdated(UInventoryComponent* UpdatedInventory)
-{
-        OnInventoryUpdated(UpdatedInventory);
 }
 
 void AMO56Character::DoMove(float Right, float Forward)
