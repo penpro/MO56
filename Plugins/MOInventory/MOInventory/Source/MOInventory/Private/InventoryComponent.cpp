@@ -33,7 +33,7 @@ int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
     const int32 Added = Count - Remaining;
     if (Added > 0)
     {
-        OnInventoryUpdated.Broadcast(this);
+        OnInventoryUpdated.Broadcast();
     }
     return Added;
 }
@@ -100,7 +100,7 @@ int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
     }
     if (Removed > 0)
     {
-        OnInventoryUpdated.Broadcast(this);
+        OnInventoryUpdated.Broadcast();
     }
     return Removed;
 }

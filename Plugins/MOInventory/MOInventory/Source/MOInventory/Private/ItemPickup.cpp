@@ -26,8 +26,10 @@ void AItemPickup::ApplyRow(const FItemTableRow* Row)
     if (!Row) return;
 
     // Resolve and cache the gameplay asset
-    UItemData* LoadedItem = Row->ItemAsset.LoadSynchronous();
-    Item = LoadedItem;
+    if (UItemData* LoadedItem = Row->ItemAsset.LoadSynchronous())
+    {
+        Item = LoadedItem;
+    }
 
     // Visuals
     if (UStaticMesh* SM = Row->StaticMesh.LoadSynchronous())
@@ -81,8 +83,8 @@ TArray<FName> AItemPickup::GetItemRowNames() const
 
 bool AItemPickup::DoPickup(AActor* Interactor)
 {
-
-	UE_LOG(LogTemp, Display, TEXT("DoPickup called on ItemPickup"));
+    UE_LOG(LogTemp, Display, TEXT("DoPickup: Item=%s Qty=%d Interactor=%s"),
+        *GetNameSafe(Item), Quantity, *GetNameSafe(Interactor));
     if (!Interactor || !Item || Quantity <= 0)
     {
         return false;
@@ -106,6 +108,7 @@ bool AItemPickup::DoPickup(AActor* Interactor)
     }
 
     const int32 Added = InventoryComponent->AddItem(Item, Quantity);
+    UE_LOG(LogTemp, Display, TEXT("DoPickup: Added=%d"), Added);
     if (Added <= 0)
     {
         return false;
@@ -116,26 +119,21 @@ bool AItemPickup::DoPickup(AActor* Interactor)
         Destroy();
         return true;
     }
-    else
-    {
-        Quantity -= Added; // partial stack taken
-    }
 
+    Quantity -= Added; // partial stack taken
     return false;
 }
 
 void AItemPickup::Server_Interact_Implementation(AActor* Interactor)
 {
-	UE_LOG(LogTemp, Display, TEXT("Server_Interact called on ItemPickup"));
+    UE_LOG(LogTemp, Display, TEXT("Pickup::Server_Interact"));
     DoPickup(Interactor);
-
 }
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
-
-    UE_LOG(LogTemp, Display, TEXT("interact called on ItemPickup"));
-    if (!Interactor || !Item || Quantity <= 0)
+    UE_LOG(LogTemp, Display, TEXT("Pickup::Interact (HasAuthority=%d)"), HasAuthority());
+    if (!Interactor || Quantity <= 0)
     {
         return;
     }
