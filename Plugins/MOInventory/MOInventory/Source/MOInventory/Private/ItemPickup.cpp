@@ -124,6 +124,8 @@ void AItemPickup::Interact_Implementation(AActor* Interactor)
 
     UInventoryComponent* InventoryComponent = nullptr;
 
+	UE_LOG(LogTemp, Display, TEXT("interact called on ItemPickup"));
+
     if (APawn* PawnInteractor = Cast<APawn>(Interactor))
     {
         InventoryComponent = PawnInteractor->FindComponentByClass<UInventoryComponent>();
