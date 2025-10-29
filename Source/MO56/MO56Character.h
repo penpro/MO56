@@ -13,7 +13,7 @@ class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
 class UInventoryComponent; // forward declare
-class UUserWidget;
+class UHUDWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -65,6 +65,13 @@ protected:
 
         /** Called when the game starts or when spawned */
         virtual void BeginPlay() override;
+        virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+        UFUNCTION()
+        void HandleInventoryUpdated(class UInventoryComponent* UpdatedInventory);
+
+        UFUNCTION(BlueprintImplementableEvent, Category = "Inventory")
+        void OnInventoryUpdated(class UInventoryComponent* UpdatedInventory);
 
 protected:
 
@@ -92,11 +99,11 @@ public:
 
         /** Widget class for HUD */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-        TSubclassOf<class UUserWidget> HUDWidgetClass;
+        TSubclassOf<class UHUDWidget> HUDWidgetClass;
 
         /** Instance of the HUD widget */
         UPROPERTY(Transient)
-        TObjectPtr<class UUserWidget> HUDWidgetInstance;
+        TObjectPtr<class UHUDWidget> HUDWidgetInstance;
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")

@@ -1,10 +1,20 @@
 #include "InventoryComponent.h"
 #include "ItemData.h"
 
+#if WITH_EDITOR
+#include "UObject/UnrealType.h"
+#endif
+
 UInventoryComponent::UInventoryComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
-    Slots.SetNum(MaxSlots);
+    EnsureSlotCapacity();
+}
+
+void UInventoryComponent::InitializeComponent()
+{
+    Super::InitializeComponent();
+    EnsureSlotCapacity();
 }
 
 int32 FItemStack::MaxStack() const
@@ -16,6 +26,7 @@ int32 FItemStack::MaxStack() const
 int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
+    EnsureSlotCapacity();
     int32 Remaining = Count;
     Remaining -= AddToExistingStacks(Item, Remaining);
     Remaining -= AddToEmptySlots(Item, Remaining);
@@ -25,7 +36,6 @@ int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
         OnInventoryUpdated.Broadcast(this);
     }
     return Added;
-    return Count - Remaining;
 }
 
 int32 UInventoryComponent::AddToExistingStacks(UItemData* Item, int32 Count)
@@ -50,6 +60,7 @@ int32 UInventoryComponent::AddToExistingStacks(UItemData* Item, int32 Count)
 int32 UInventoryComponent::AddToEmptySlots(UItemData* Item, int32 Count)
 {
     int32 Added = 0;
+    EnsureSlotCapacity();
     const int32 Max = FItemStack{ Item, 0 }.MaxStack();
     for (FItemStack& Slot : Slots)
     {
@@ -69,6 +80,7 @@ int32 UInventoryComponent::AddToEmptySlots(UItemData* Item, int32 Count)
 int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
+    EnsureSlotCapacity();
     int32 Removed = 0;
     for (FItemStack& Slot : Slots)
     {
@@ -103,3 +115,25 @@ int32 UInventoryComponent::CountItem(UItemData* Item) const
     }
     return Total;
 }
+
+void UInventoryComponent::EnsureSlotCapacity()
+{
+    const int32 DesiredSlots = FMath::Max(1, MaxSlots);
+    if (Slots.Num() != DesiredSlots)
+    {
+        Slots.SetNum(DesiredSlots);
+    }
+}
+
+#if WITH_EDITOR
+void UInventoryComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+    Super::PostEditChangeProperty(PropertyChangedEvent);
+
+    if (PropertyChangedEvent.Property &&
+        PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UInventoryComponent, MaxSlots))
+    {
+        EnsureSlotCapacity();
+    }
+}
+#endif
