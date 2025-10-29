@@ -19,7 +19,7 @@
 #include "DrawDebugHelpers.h"
 
 #include "InventoryComponent.h" // from MOInventory
-#include "UI/HUDWidget.h"
+#include "Blueprint/UserWidget.h"
 
 AMO56Character::AMO56Character()
 {
@@ -68,7 +68,7 @@ void AMO56Character::BeginPlay()
 
         if (HUDWidgetClass)
         {
-                HUDWidgetInstance = CreateWidget<UHUDWidget>(GetWorld(), HUDWidgetClass);
+                HUDWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), HUDWidgetClass);
 
                 if (HUDWidgetInstance)
                 {
