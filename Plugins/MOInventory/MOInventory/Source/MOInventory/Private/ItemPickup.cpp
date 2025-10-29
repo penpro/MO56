@@ -120,6 +120,8 @@ void AItemPickup::Server_Interact_Implementation(AActor* Interactor)
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
+
+    UE_LOG(LogTemp, Display, TEXT("interact called on ItemPickup"));
     if (!Interactor || !Item || Quantity <= 0)
     {
         return;
