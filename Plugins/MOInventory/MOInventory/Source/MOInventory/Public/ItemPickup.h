@@ -25,14 +25,14 @@ protected:
     UPROPERTY(EditAnywhere, Category="Pickup|Data")
     UDataTable* ItemTable = nullptr;
 
-    UPROPERTY(EditAnywhere, Category="Pickup|Data", meta=(GetOptions="GetItemRowNames"))
+    UPROPERTY(EditAnywhere, ReplicatedUsing=OnRep_ItemRowName, Category="Pickup|Data", meta=(GetOptions="GetItemRowNames"))
     FName ItemRowName;
 
     // Resolved gameplay item from the row (used by inventory)
     UPROPERTY(VisibleInstanceOnly, Category="Pickup|Resolved")
     TObjectPtr<UItemData> Item = nullptr;
 
-    UPROPERTY(EditAnywhere, Category="Pickup", meta=(ClampMin="1"))
+    UPROPERTY(EditAnywhere, ReplicatedUsing=OnRep_Quantity, Category="Pickup", meta=(ClampMin="1"))
     int32 Quantity = 1;
 
 #if WITH_EDITOR
@@ -48,6 +48,8 @@ public:
     virtual void Interact_Implementation(AActor* Interactor) override;
     virtual FText GetInteractText_Implementation() const override;
 
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
     // Editor dropdown provider for RowName
     UFUNCTION()
     TArray<FName> GetItemRowNames() const;
@@ -61,5 +63,11 @@ private:
 
     UFUNCTION(Server, Reliable)
     void Server_Interact(AActor* Interactor);
+
+    UFUNCTION()
+    void OnRep_ItemRowName();
+
+    UFUNCTION()
+    void OnRep_Quantity();
 
 };
