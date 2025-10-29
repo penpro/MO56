@@ -8,6 +8,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
@@ -19,6 +20,7 @@
 #include "DrawDebugHelpers.h"
 
 #include "InventoryComponent.h" // from MOInventory
+#include "UI/HUDWidget.h"
 
 AMO56Character::AMO56Character()
 {
@@ -58,6 +60,51 @@ AMO56Character::AMO56Character()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 
 	Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+}
+
+
+void AMO56Character::BeginPlay()
+{
+        Super::BeginPlay();
+
+        if (HUDWidgetClass)
+        {
+                if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                {
+                        HUDWidgetInstance = CreateWidget<UHUDWidget>(PC, HUDWidgetClass);
+                }
+                else
+                {
+                        HUDWidgetInstance = CreateWidget<UHUDWidget>(GetWorld(), HUDWidgetClass);
+                }
+
+                if (HUDWidgetInstance)
+                {
+                        HUDWidgetInstance->AddToViewport();
+                }
+        }
+
+        if (Inventory)
+        {
+                Inventory->OnInventoryUpdated.AddDynamic(this, &AMO56Character::HandleInventoryUpdated);
+                HandleInventoryUpdated(Inventory);
+        }
+}
+
+void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+        if (Inventory)
+        {
+                Inventory->OnInventoryUpdated.RemoveDynamic(this, &AMO56Character::HandleInventoryUpdated);
+        }
+
+        if (HUDWidgetInstance)
+        {
+                HUDWidgetInstance->RemoveFromParent();
+                HUDWidgetInstance = nullptr;
+        }
+
+        Super::EndPlay(EndPlayReason);
 }
 
 
@@ -142,28 +189,33 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
 	// bHit = GetWorld()->SweepSingleByObjectType(Hit, ViewLoc, End, FQuat::Identity, ObjParams, Shape, Params);
 	// DrawDebugSphere(GetWorld(), End, Radius, 12, FColor::Cyan, false, 2.f, 0, 1.f);
 
-	DrawDebugLine(GetWorld(), ViewLoc, End, bHit ? FColor::Green : FColor::Red, false, 2.f, 0, 1.f);
+        // DrawDebugLine(GetWorld(), ViewLoc, End, bHit ? FColor::Green : FColor::Red, false, 2.f, 0, 1.f);
 
-	if (!bHit)
-	{
-		UE_LOG(LogMO56, Log, TEXT("Interact trace MISS  Start:%s  End:%s"),
-			*ViewLoc.ToString(), *End.ToString());
-		return;
-	}
+        if (!bHit)
+        {
+                // UE_LOG(LogMO56, Log, TEXT("Interact trace MISS  Start:%s  End:%s"),
+                //       *ViewLoc.ToString(), *End.ToString());
+                return;
+        }
 
-	AActor* HitActor = Hit.GetActor();
-	UE_LOG(LogMO56, Log, TEXT("Interact trace HIT %s at %s"),
-		*GetNameSafe(HitActor), *Hit.ImpactPoint.ToString());
+        AActor* HitActor = Hit.GetActor();
+        // UE_LOG(LogMO56, Log, TEXT("Interact trace HIT %s at %s"),
+        //       *GetNameSafe(HitActor), *Hit.ImpactPoint.ToString());
 
-	if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
-	{
-		IInteractable::Execute_Interact(HitActor, this);
-		UE_LOG(LogMO56, Log, TEXT("IInteractable::Interact executed on %s"), *GetNameSafe(HitActor));
-	}
-	else
-	{
-		UE_LOG(LogMO56, Log, TEXT("Hit actor does not implement Interactable"));
-	}
+        if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+        {
+                IInteractable::Execute_Interact(HitActor, this);
+                // UE_LOG(LogMO56, Log, TEXT("IInteractable::Interact executed on %s"), *GetNameSafe(HitActor));
+        }
+        else
+        {
+                // UE_LOG(LogMO56, Log, TEXT("Hit actor does not implement Interactable"));
+        }
+}
+
+void AMO56Character::HandleInventoryUpdated(UInventoryComponent* UpdatedInventory)
+{
+        OnInventoryUpdated(UpdatedInventory);
 }
 
 void AMO56Character::DoMove(float Right, float Forward)

@@ -5,6 +5,8 @@
 #include "InventoryComponent.generated.h"
 
 class UItemData;
+class UInventoryComponent;
+struct FPropertyChangedEvent;
 
 USTRUCT(BlueprintType)
 struct MOINVENTORY_API FItemStack
@@ -21,6 +23,8 @@ struct MOINVENTORY_API FItemStack
     int32 MaxStack() const; // defined in .cpp
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FInventoryUpdatedSignature, UInventoryComponent*, InventoryComponent);
+
 UCLASS(ClassGroup = (Inventory), meta = (BlueprintSpawnableComponent))
 class MOINVENTORY_API UInventoryComponent : public UActorComponent
 {
@@ -29,8 +33,14 @@ class MOINVENTORY_API UInventoryComponent : public UActorComponent
 public:
     UInventoryComponent();
 
+    virtual void InitializeComponent() override;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
     int32 MaxSlots = 24;
+
+    /** Broadcast whenever the inventory contents change. */
+    UPROPERTY(BlueprintAssignable, Category = "Inventory")
+    FInventoryUpdatedSignature OnInventoryUpdated;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     int32 AddItem(UItemData* Item, int32 Count);
@@ -50,4 +60,9 @@ private:
 
     int32 AddToExistingStacks(UItemData* Item, int32 Count);
     int32 AddToEmptySlots(UItemData* Item, int32 Count);
+    void EnsureSlotCapacity();
+
+#if WITH_EDITOR
+    virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 };
