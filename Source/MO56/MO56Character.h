@@ -68,10 +68,10 @@ protected:
         virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
         UFUNCTION()
-        void HandleInventoryUpdated(class UInventoryComponent* UpdatedInventory);
+        void HandleInventoryUpdated();
 
         UFUNCTION(BlueprintImplementableEvent, Category = "Inventory")
-        void OnInventoryUpdated(class UInventoryComponent* UpdatedInventory);
+        void OnInventoryUpdated();
 
 protected:
 

@@ -87,7 +87,7 @@ void AMO56Character::BeginPlay()
         if (Inventory)
         {
                 Inventory->OnInventoryUpdated.AddDynamic(this, &AMO56Character::HandleInventoryUpdated);
-                HandleInventoryUpdated(Inventory);
+                HandleInventoryUpdated();
         }
 }
 
@@ -209,23 +209,17 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
 
         const bool bImplementsInteractable = HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
 
-        if (bImplementsInteractable)
+        if (HasAuthority())
         {
-                if (HasAuthority())
+                if (bImplementsInteractable)
                 {
+                        UE_LOG(LogMO56, Display, TEXT("Character: Interact on server -> %s"), *GetNameSafe(HitActor));
                         IInteractable::Execute_Interact(HitActor, this);
-                        // UE_LOG(LogMO56, Log, TEXT("IInteractable::Interact executed on %s"), *GetNameSafe(HitActor));
-                }
-                else
-                {
-                        Server_Interact(HitActor);
                 }
         }
-        else if (!HasAuthority() && HitActor->GetIsReplicated())
+        else
         {
-                // In some cases (e.g. dynamically loaded classes) the client might not be aware that
-                // the actor implements the interface even though the server is.  Let the server make
-                // the final decision so that interactions such as item pickups still succeed.
+                UE_LOG(LogMO56, Display, TEXT("Character: Interact on client -> RPC to server (%s)"), *GetNameSafe(HitActor));
                 Server_Interact(HitActor);
         }
 }
@@ -237,17 +231,18 @@ void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
                 return;
         }
 
-        if (!HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+        const bool bImplementsInteractable = HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
+        UE_LOG(LogMO56, Display, TEXT("Character::Server_Interact -> %s (Implements=%d)"),
+                *GetNameSafe(HitActor), bImplementsInteractable);
+        if (bImplementsInteractable)
         {
-                return;
+                IInteractable::Execute_Interact(HitActor, this);
         }
-
-        IInteractable::Execute_Interact(HitActor, this);
 }
 
-void AMO56Character::HandleInventoryUpdated(UInventoryComponent* UpdatedInventory)
+void AMO56Character::HandleInventoryUpdated()
 {
-        OnInventoryUpdated(UpdatedInventory);
+        OnInventoryUpdated();
 }
 
 void AMO56Character::DoMove(float Right, float Forward)

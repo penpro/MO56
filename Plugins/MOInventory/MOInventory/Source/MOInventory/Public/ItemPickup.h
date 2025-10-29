@@ -28,8 +28,8 @@ protected:
     UPROPERTY(EditAnywhere, ReplicatedUsing=OnRep_ItemRowName, Category="Pickup|Data", meta=(GetOptions="GetItemRowNames"))
     FName ItemRowName;
 
-    // Resolved gameplay item from the row (used by inventory)
-    UPROPERTY(VisibleInstanceOnly, Category="Pickup|Resolved")
+    // Editable so child BPs (e.g., BP_ApplePickup) can set it directly
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pickup")
     TObjectPtr<UItemData> Item = nullptr;
 
     UPROPERTY(EditAnywhere, ReplicatedUsing=OnRep_Quantity, Category="Pickup", meta=(ClampMin="1"))
