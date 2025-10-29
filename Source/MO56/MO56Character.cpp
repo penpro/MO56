@@ -202,7 +202,14 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
          //UE_LOG(LogMO56, Log, TEXT("Interact trace HIT %s at %s")),
         //       *GetNameSafe(HitActor), *Hit.ImpactPoint.ToString());
 
-        if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+        if (!HitActor)
+        {
+                return;
+        }
+
+        const bool bImplementsInteractable = HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
+
+        if (bImplementsInteractable)
         {
                 if (HasAuthority())
                 {
@@ -214,9 +221,12 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
                         Server_Interact(HitActor);
                 }
         }
-        else
+        else if (!HasAuthority() && HitActor->GetIsReplicated())
         {
-                // UE_LOG(LogMO56, Log, TEXT("Hit actor does not implement Interactable"));
+                // In some cases (e.g. dynamically loaded classes) the client might not be aware that
+                // the actor implements the interface even though the server is.  Let the server make
+                // the final decision so that interactions such as item pickups still succeed.
+                Server_Interact(HitActor);
         }
 }
 
