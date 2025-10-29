@@ -275,13 +275,11 @@ void APlatformingCharacter::DoJumpEnd()
 	StopJumping();
 }
 
-void APlatformingCharacter::DashMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+void APlatformingCharacter::DashMontageEnded(UAnimMontage* /*Montage*/, bool /*bInterrupted*/)
 {
-	// if the montage was interrupted, end the dash
-	if (bInterrupted)
-	{
-		EndDash();
-	}
+        // No matter how the montage ends, ensure we exit the dash state and restore movement settings.
+        // The dash keeps gravity disabled, so failing to call EndDash() would leave the character floating.
+        EndDash();
 }
 
 void APlatformingCharacter::EndDash()
