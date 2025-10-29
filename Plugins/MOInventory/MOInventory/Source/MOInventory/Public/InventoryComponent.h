@@ -5,6 +5,7 @@
 #include "InventoryComponent.generated.h"
 
 class UItemData;
+class UInventoryComponent;
 
 USTRUCT(BlueprintType)
 struct MOINVENTORY_API FItemStack
@@ -21,6 +22,8 @@ struct MOINVENTORY_API FItemStack
     int32 MaxStack() const; // defined in .cpp
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FInventoryUpdatedSignature, UInventoryComponent*, InventoryComponent);
+
 UCLASS(ClassGroup = (Inventory), meta = (BlueprintSpawnableComponent))
 class MOINVENTORY_API UInventoryComponent : public UActorComponent
 {
@@ -31,6 +34,10 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
     int32 MaxSlots = 24;
+
+    /** Broadcast whenever the inventory contents change. */
+    UPROPERTY(BlueprintAssignable, Category = "Inventory")
+    FInventoryUpdatedSignature OnInventoryUpdated;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     int32 AddItem(UItemData* Item, int32 Count);
