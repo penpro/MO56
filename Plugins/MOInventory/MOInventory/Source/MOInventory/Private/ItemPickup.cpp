@@ -108,15 +108,7 @@ void AItemPickup::DoPickup(AActor* Interactor)
     }
     else
     {
-        const int32 Added = Inv->AddItem(Item, Quantity);
-        if (Added >= Quantity)
-        {
-            Destroy();
-        }
-        else if (Added > 0)
-        {
-            Quantity -= Added; // partial stack taken
-        }
+        Quantity -= Added; // partial stack taken
     }
 }
 
