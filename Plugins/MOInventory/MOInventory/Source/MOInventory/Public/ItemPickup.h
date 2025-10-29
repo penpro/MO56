@@ -53,7 +53,11 @@ public:
     TArray<FName> GetItemRowNames() const;
 
 private:
-    void DoPickup(AActor* Interactor);
+    /**
+     * Tries to move the pickup into the interacting actor's inventory.
+     * @return true if the full stack was transferred and the pickup should be destroyed on the server.
+     */
+    bool DoPickup(AActor* Interactor);
 
     UFUNCTION(Server, Reliable)
     void Server_Interact(AActor* Interactor);
