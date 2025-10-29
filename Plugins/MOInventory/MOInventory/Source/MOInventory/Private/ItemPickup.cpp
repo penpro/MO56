@@ -4,6 +4,7 @@
 #include "Engine/DataTable.h"
 #include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
+#include "Net/UnrealNetwork.h"
 #include "MOItems/Public/ItemData.h"
 #include "MOItems/Public/ItemTableRow.h"
 
@@ -15,6 +16,9 @@ AItemPickup::AItemPickup()
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     Mesh->SetCollisionObjectType(ECC_WorldDynamic);
     Mesh->SetCollisionResponseToAllChannels(ECR_Block);
+
+    bReplicates = true;
+    SetReplicateMovement(true);
 }
 
 void AItemPickup::ApplyRow(const FItemTableRow* Row)
@@ -143,6 +147,30 @@ void AItemPickup::Interact_Implementation(AActor* Interactor)
     {
         Server_Interact(Interactor);
     }
+}
+
+void AItemPickup::OnRep_ItemRowName()
+{
+    if (ItemTable && !ItemRowName.IsNone())
+    {
+        if (const FItemTableRow* Row = ItemTable->FindRow<FItemTableRow>(ItemRowName, TEXT("OnRep_ItemRowName")))
+        {
+            ApplyRow(Row);
+        }
+    }
+}
+
+void AItemPickup::OnRep_Quantity()
+{
+    Quantity = FMath::Max(0, Quantity);
+}
+
+void AItemPickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    DOREPLIFETIME(AItemPickup, ItemRowName);
+    DOREPLIFETIME(AItemPickup, Quantity);
 }
 
 FText AItemPickup::GetInteractText_Implementation() const
