@@ -7,7 +7,7 @@
 class UTexture2D;
 class UStaticMesh;
 class USkeletalMesh;
-class AItemPickup;
+class AActor;
 
 UCLASS(BlueprintType)
 class MOITEMS_API UItemData : public UDataAsset
@@ -39,8 +39,8 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="World")
         FRotator WorldRotationOffset = FRotator::ZeroRotator;
 
-        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="World", meta=(AllowedClasses="ItemPickup"))
-        TSoftClassPtr<AItemPickup> PickupActorClass;
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="World", meta=(AllowedClasses="/Script/MOInventory.ItemPickup"))
+        TSoftClassPtr<AActor> PickupActorClass;
 
 public:
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override

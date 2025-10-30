@@ -205,10 +205,16 @@ bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
         return false;
     }
 
-    TSubclassOf<AItemPickup> PickupClass = nullptr;
+    UClass* PickupClass = nullptr;
     if (!ItemData->PickupActorClass.IsNull())
     {
         PickupClass = ItemData->PickupActorClass.LoadSynchronous();
+
+        if (PickupClass && !PickupClass->IsChildOf(AItemPickup::StaticClass()))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("PickupActorClass on %s is not an ItemPickup. Using default."), *ItemData->GetName());
+            PickupClass = nullptr;
+        }
     }
 
     if (!PickupClass)
