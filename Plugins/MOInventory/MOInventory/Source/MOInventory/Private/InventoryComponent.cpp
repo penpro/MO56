@@ -222,7 +222,14 @@ bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
         PickupClass = AItemPickup::StaticClass();
     }
 
-    const FVector SpawnLocation = OwnerActor->GetActorLocation() + OwnerActor->GetActorForwardVector() * 100.f + FVector(0.f, 0.f, 50.f);
+    constexpr float ForwardDropDistance = 100.f;
+    constexpr float DropHeightOffset = 50.f;
+    constexpr float DropSpreadRadius = 25.f;
+
+    FVector SpawnLocation = OwnerActor->GetActorLocation() + OwnerActor->GetActorForwardVector() * ForwardDropDistance + FVector(0.f, 0.f, DropHeightOffset);
+
+    const FVector2D RandomCircle = FMath::RandPointInCircle(DropSpreadRadius);
+    SpawnLocation += FVector(RandomCircle.X, RandomCircle.Y, 0.f);
     const FRotator SpawnRotation = OwnerActor->GetActorRotation();
 
     FActorSpawnParameters SpawnParams;
@@ -238,6 +245,7 @@ bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
 
     SpawnedPickup->SetItem(ItemData);
     SpawnedPickup->SetQuantity(Slot.Quantity);
+    SpawnedPickup->SetDropped(true);
 
     Slot.Item = nullptr;
     Slot.Quantity = 0;

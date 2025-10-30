@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "TimerManager.h"
 #include "Interactable.h"
 #include "ItemPickup.generated.h"
 
@@ -26,9 +27,16 @@ protected:
     UPROPERTY(EditAnywhere, ReplicatedUsing=OnRep_Quantity, Category="Pickup", meta=(ClampMin="1"))
     int32 Quantity = 1;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Pickup")
+    bool Dropped = false;
+
     virtual void OnConstruction(const FTransform& Transform) override;
+    virtual void BeginPlay() override;
 
     void ApplyItemVisuals();
+
+    void StartDropPhysics();
+    void FinishDropPhysics();
 
     UFUNCTION()
     void OnRep_Quantity();
@@ -44,4 +52,10 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Pickup")
     void SetQuantity(int32 NewQuantity);
+
+    UFUNCTION(BlueprintCallable, Category="Pickup")
+    void SetDropped(bool bNewDropped);
+
+private:
+    FTimerHandle DropPhysicsTimerHandle;
 };
