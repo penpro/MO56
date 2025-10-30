@@ -173,6 +173,71 @@ bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
     return true;
 }
 
+bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 TargetSlotIndex)
+{
+    EnsureSlotCapacity();
+
+    if (SourceSlotIndex == TargetSlotIndex)
+    {
+        return false;
+    }
+
+    if (!Slots.IsValidIndex(SourceSlotIndex) || !Slots.IsValidIndex(TargetSlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& SourceSlot = Slots[SourceSlotIndex];
+    if (SourceSlot.IsEmpty())
+    {
+        return false;
+    }
+
+    FItemStack& TargetSlot = Slots[TargetSlotIndex];
+    bool bInventoryChanged = false;
+
+    if (TargetSlot.IsEmpty())
+    {
+        TargetSlot = SourceSlot;
+        SourceSlot.Item = nullptr;
+        SourceSlot.Quantity = 0;
+        bInventoryChanged = true;
+    }
+    else if (TargetSlot.Item == SourceSlot.Item)
+    {
+        const int32 MaxStackSize = TargetSlot.MaxStack();
+        if (MaxStackSize > 0)
+        {
+            const int32 SpaceAvailable = FMath::Max(0, MaxStackSize - TargetSlot.Quantity);
+            if (SpaceAvailable > 0)
+            {
+                const int32 TransferAmount = FMath::Min(SpaceAvailable, SourceSlot.Quantity);
+                TargetSlot.Quantity += TransferAmount;
+                SourceSlot.Quantity -= TransferAmount;
+                bInventoryChanged = TransferAmount > 0;
+            }
+
+            if (SourceSlot.Quantity <= 0)
+            {
+                SourceSlot.Quantity = 0;
+                SourceSlot.Item = nullptr;
+            }
+        }
+    }
+    else
+    {
+        Swap(SourceSlot, TargetSlot);
+        bInventoryChanged = true;
+    }
+
+    if (bInventoryChanged)
+    {
+        OnInventoryUpdated.Broadcast();
+    }
+
+    return bInventoryChanged;
+}
+
 void UInventoryComponent::EnsureSlotCapacity()
 {
     const int32 DesiredSlots = FMath::Max(1, MaxSlots);
