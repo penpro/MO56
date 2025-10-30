@@ -124,8 +124,8 @@ void UInventoryWidget::RefreshInventory(UInventoryComponent* Inventory)
                 UUniformGridSlot* GridSlot = SlotsContainer->AddChildToUniformGrid (SlotWidget, Row, Col);
                 if (GridSlot)
                 {
-                        GridSlot->SetHorizontalAlignment(HAlign_Fill);
-                        GridSlot->SetVerticalAlignment(VAlign_Fill);
+                        GridSlot->SetHorizontalAlignment(HAlign_Center);
+                        GridSlot->SetVerticalAlignment(VAlign_Center);
                 }
         }
 }

@@ -13,14 +13,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/MyStuff/WBP_Inventory.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/WBP_Inventory.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/MyStuff/WBP_InventorySlot.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/WBP_InventorySlot.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/WBP_MO_HUD.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/WBP_MO_HUD.uasset" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/MO56/UI/InventorySlotWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/UI/InventorySlotWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/MO56/UI/InventorySlotWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/UI/InventorySlotWidget.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Source/MO56/UI/InventoryWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/UI/InventoryWidget.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Source/MO56/UI/InventoryWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/UI/InventoryWidget.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
