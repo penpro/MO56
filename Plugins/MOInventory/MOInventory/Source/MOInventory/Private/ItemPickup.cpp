@@ -23,6 +23,16 @@ void AItemPickup::OnConstruction(const FTransform& Transform)
     ApplyItemVisuals();
 }
 
+void AItemPickup::BeginPlay()
+{
+    Super::BeginPlay();
+
+    if (Dropped)
+    {
+        StartDropPhysics();
+    }
+}
+
 void AItemPickup::ApplyItemVisuals()
 {
     if (!Item) { Mesh->SetStaticMesh(nullptr); return; }
@@ -53,6 +63,48 @@ void AItemPickup::SetQuantity(int32 NewQuantity)
 {
     Quantity = FMath::Max(1, NewQuantity);
     OnRep_Quantity();
+}
+
+void AItemPickup::SetDropped(bool bNewDropped)
+{
+    if (bNewDropped)
+    {
+        StartDropPhysics();
+    }
+    else if (Dropped)
+    {
+        FinishDropPhysics();
+    }
+}
+
+void AItemPickup::StartDropPhysics()
+{
+    if (!Mesh)
+    {
+        return;
+    }
+
+    Dropped = true;
+
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Mesh->SetSimulatePhysics(true);
+
+    GetWorldTimerManager().ClearTimer(DropPhysicsTimerHandle);
+    GetWorldTimerManager().SetTimer(DropPhysicsTimerHandle, this, &AItemPickup::FinishDropPhysics, 3.f, false);
+}
+
+void AItemPickup::FinishDropPhysics()
+{
+    if (!Mesh)
+    {
+        Dropped = false;
+        return;
+    }
+
+    Mesh->SetSimulatePhysics(false);
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+    Dropped = false;
 }
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)
