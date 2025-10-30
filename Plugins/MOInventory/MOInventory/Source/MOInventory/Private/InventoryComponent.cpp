@@ -1,5 +1,9 @@
 #include "InventoryComponent.h"
 #include "ItemData.h"
+#include "ItemPickup.h"
+
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 #if WITH_EDITOR
 #include "UObject/UnrealType.h"
@@ -165,6 +169,69 @@ bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
     {
         return false;
     }
+
+    Slot.Item = nullptr;
+    Slot.Quantity = 0;
+
+    OnInventoryUpdated.Broadcast();
+    return true;
+}
+
+bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
+{
+    EnsureSlotCapacity();
+
+    if (!Slots.IsValidIndex(SlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& Slot = Slots[SlotIndex];
+    if (Slot.IsEmpty())
+    {
+        return false;
+    }
+
+    UWorld* World = GetWorld();
+    AActor* OwnerActor = GetOwner();
+    if (!World || !OwnerActor)
+    {
+        return false;
+    }
+
+    UItemData* ItemData = Slot.Item;
+    if (!ItemData)
+    {
+        return false;
+    }
+
+    TSubclassOf<AItemPickup> PickupClass = nullptr;
+    if (!ItemData->PickupActorClass.IsNull())
+    {
+        PickupClass = ItemData->PickupActorClass.LoadSynchronous();
+    }
+
+    if (!PickupClass)
+    {
+        PickupClass = AItemPickup::StaticClass();
+    }
+
+    const FVector SpawnLocation = OwnerActor->GetActorLocation() + OwnerActor->GetActorForwardVector() * 100.f + FVector(0.f, 0.f, 50.f);
+    const FRotator SpawnRotation = OwnerActor->GetActorRotation();
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = OwnerActor;
+    SpawnParams.Instigator = OwnerActor->GetInstigator();
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    AItemPickup* SpawnedPickup = World->SpawnActor<AItemPickup>(PickupClass, SpawnLocation, SpawnRotation, SpawnParams);
+    if (!SpawnedPickup)
+    {
+        return false;
+    }
+
+    SpawnedPickup->SetItem(ItemData);
+    SpawnedPickup->SetQuantity(Slot.Quantity);
 
     Slot.Item = nullptr;
     Slot.Quantity = 0;
