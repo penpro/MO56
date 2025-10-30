@@ -14,6 +14,7 @@ class UInputMappingContext;
 struct FInputActionValue;
 class UInventoryComponent; // forward declare
 class UHUDWidget;
+class UInventoryWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -105,9 +106,17 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UHUDWidget> HUDWidgetClass;
 
+        /** Widget class for the inventory display */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UInventoryWidget> InventoryWidgetClass;
+
         /** Instance of the HUD widget */
         UPROPERTY(Transient)
         TObjectPtr<class UHUDWidget> HUDWidgetInstance;
+
+        /** Instance of the inventory widget */
+        UPROPERTY(Transient)
+        TObjectPtr<class UInventoryWidget> InventoryWidgetInstance;
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
