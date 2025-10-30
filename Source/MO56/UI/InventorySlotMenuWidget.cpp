@@ -21,7 +21,7 @@ void UInventorySlotMenuWidget::DismissMenu()
 
 TSharedRef<SWidget> UInventorySlotMenuWidget::RebuildWidget()
 {
-        const FSlateBrush* BackgroundBrush = &FAppStyle::Get().GetBrush("Menu.Background");
+	const FSlateBrush* BackgroundBrush = FAppStyle::Get().GetBrush("Menu.Background");
 
         TSharedRef<SVerticalBox> MenuContent = SNew(SVerticalBox)
                 + SVerticalBox::Slot()
@@ -64,9 +64,9 @@ void UInventorySlotMenuWidget::NativeDestruct()
 {
         Super::NativeDestruct();
 
-        if (UInventorySlotWidget* Slot = OwningSlot.Get())
+        if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
-                Slot->NotifyContextMenuClosed(this);
+                SlotWidget->NotifyContextMenuClosed(this);
         }
 
         OwningSlot.Reset();
@@ -74,9 +74,9 @@ void UInventorySlotMenuWidget::NativeDestruct()
 
 FReply UInventorySlotMenuWidget::HandleSplitStackClicked()
 {
-        if (UInventorySlotWidget* Slot = OwningSlot.Get())
+        if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
-                if (Slot->HandleSplitStack())
+                if (SlotWidget->HandleSplitStack())
                 {
                         DismissMenu();
                 }
@@ -87,9 +87,9 @@ FReply UInventorySlotMenuWidget::HandleSplitStackClicked()
 
 FReply UInventorySlotMenuWidget::HandleDestroyItemClicked()
 {
-        if (UInventorySlotWidget* Slot = OwningSlot.Get())
+        if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
-                if (Slot->HandleDestroyItem())
+                if (SlotWidget->HandleDestroyItem())
                 {
                         DismissMenu();
                 }
@@ -100,9 +100,9 @@ FReply UInventorySlotMenuWidget::HandleDestroyItemClicked()
 
 bool UInventorySlotMenuWidget::CanSplitStack() const
 {
-        if (const UInventorySlotWidget* Slot = OwningSlot.Get())
+        if (const UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
-                return Slot->CanSplitStack();
+                return SlotWidget->CanSplitStack();
         }
 
         return false;
@@ -110,9 +110,9 @@ bool UInventorySlotMenuWidget::CanSplitStack() const
 
 bool UInventorySlotMenuWidget::CanDestroyItem() const
 {
-        if (const UInventorySlotWidget* Slot = OwningSlot.Get())
+        if (const UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
-                return Slot->HasItem();
+                return SlotWidget->HasItem();
         }
 
         return false;
