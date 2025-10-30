@@ -1,12 +1,10 @@
 #pragma once
+#include "InventoryComponent.h"
 #include "Templates/SubclassOf.h"
 #include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
 #include "InventorySlotWidget.generated.h"
 
-
-
-struct FItemStack;
 class UImage;
 class UTextBlock;
 class USizeBox;
