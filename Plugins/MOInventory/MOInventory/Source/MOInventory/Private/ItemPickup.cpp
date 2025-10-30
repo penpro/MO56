@@ -32,6 +32,8 @@ void AItemPickup::PostEditChangeProperty(FPropertyChangedEvent& E)
     {
         ApplyItemVisuals();              // live-update when you pick a new Item in Details
     }
+
+    Quantity = FMath::Clamp(Quantity, 1, FMath::Max(1, Item->MaxStackSize));
 }
 
 void AItemPickup::PostActorCreated()

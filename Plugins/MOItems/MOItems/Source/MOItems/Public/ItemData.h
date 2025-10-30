@@ -1,6 +1,6 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
+#include "Engine/PrimaryDataAsset.h"
 #include "ItemData.generated.h"
 
 class UTexture2D; class UStaticMesh; class USkeletalMesh;

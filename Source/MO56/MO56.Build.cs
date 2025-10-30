@@ -13,6 +13,7 @@ public class MO56 : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"AssetManager",
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
@@ -20,7 +21,6 @@ public class MO56 : ModuleRules
 			"GameplayStateTreeModule",
 			"UMG",
             "MOInventory",
-
             "Slate"
 		});
 
