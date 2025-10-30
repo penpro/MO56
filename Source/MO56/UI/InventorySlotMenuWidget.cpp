@@ -31,7 +31,7 @@ TSharedRef<SWidget> UInventorySlotMenuWidget::RebuildWidget()
                         SNew(SButton)
                         .Text(NSLOCTEXT("Inventory", "SplitStack", "Split Stack"))
                         .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleSplitStackClicked))
-                        .IsEnabled(this, &UInventorySlotMenuWidget::CanSplitStack)
+                        .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanSplitStack)
                 ]
                 + SVerticalBox::Slot()
                 .AutoHeight()
@@ -40,7 +40,7 @@ TSharedRef<SWidget> UInventorySlotMenuWidget::RebuildWidget()
                         SNew(SButton)
                         .Text(NSLOCTEXT("Inventory", "DestroyItem", "Destroy Item"))
                         .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleDestroyItemClicked))
-                        .IsEnabled(this, &UInventorySlotMenuWidget::CanDestroyItem)
+                        .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanDestroyItem)
                 ];
 
         TSharedRef<SWidget> Result =
