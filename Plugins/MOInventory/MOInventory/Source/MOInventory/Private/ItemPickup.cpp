@@ -1,5 +1,6 @@
 #include "ItemPickup.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "InventoryComponent.h"
 #include "MOItems/Public/ItemData.h"
 #include "Net/UnrealNetwork.h"
@@ -9,6 +10,7 @@ AItemPickup::AItemPickup()
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
     SetRootComponent(Mesh);
 
+    Mesh->SetCollisionProfileName(UCollisionProfile::BlockAllDynamic_ProfileName);
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     Mesh->SetCollisionObjectType(ECC_WorldDynamic);
     Mesh->SetCollisionResponseToAllChannels(ECR_Block);
@@ -87,6 +89,13 @@ void AItemPickup::StartDropPhysics()
     Dropped = true;
 
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Mesh->SetCollisionProfileName(UCollisionProfile::BlockAllDynamic_ProfileName);
+    Mesh->SetCollisionObjectType(ECC_PhysicsBody);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
     Mesh->SetSimulatePhysics(true);
 
     GetWorldTimerManager().ClearTimer(DropPhysicsTimerHandle);
@@ -102,6 +111,9 @@ void AItemPickup::FinishDropPhysics()
     }
 
     Mesh->SetSimulatePhysics(false);
+    Mesh->SetCollisionProfileName(UCollisionProfile::BlockAllDynamic_ProfileName);
+    Mesh->SetCollisionObjectType(ECC_WorldDynamic);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Block);
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
     Dropped = false;
