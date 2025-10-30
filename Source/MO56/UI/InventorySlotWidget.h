@@ -4,9 +4,8 @@
 #include "Blueprint/UserWidget.h"
 #include "InventorySlotWidget.generated.h"
 
+#include "InventoryComponent.h"
 
-
-struct FItemStack;
 class UImage;
 class UTextBlock;
 class USizeBox;
