@@ -1,6 +1,7 @@
 #include "UI/InventorySlotWidget.h"
 
 #include "UI/InventorySlotDragOperation.h"
+#include "UI/InventorySlotDragVisual.h"
 #include "UI/InventorySlotMenuWidget.h"
 
 #include "Blueprint/WidgetBlueprintLibrary.h"
@@ -77,9 +78,10 @@ namespace UE::InventorySlotWidget::Private
 }
 
 UInventorySlotWidget::UInventorySlotWidget(const FObjectInitializer& ObjectInitializer)
-        : Super(ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-        ContextMenuClass = UInventorySlotMenuWidget::StaticClass();
+	ContextMenuClass = UInventorySlotMenuWidget::StaticClass();
+	DragVisualClass = UInventorySlotDragVisual::StaticClass();
 }
 
 void UInventorySlotWidget::SetItemStack(const FItemStack& Stack)
@@ -230,15 +232,36 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, con
 
         CloseContextMenu();
 
-        UInventorySlotDragOperation* DragOperation = NewObject<UInventorySlotDragOperation>(this);
-        if (!DragOperation)
-        {
-                return;
-        }
+	UInventorySlotDragOperation* DragOperation = NewObject<UInventorySlotDragOperation>(this);
+	if (!DragOperation)
+	{
+		return;
+	}
 
-        DragOperation->InitializeOperation(Inventory, SlotIndex, CachedStack);
-        DragOperation->Pivot = EDragPivot::MouseDown;
-        OutOperation = DragOperation;
+	DragOperation->InitializeOperation(Inventory, SlotIndex, CachedStack);
+	DragOperation->Pivot = EDragPivot::MouseDown;
+
+	if (DragVisualClass)
+	{
+		UInventorySlotDragVisual* DragVisual = nullptr;
+
+		if (APlayerController* OwningPlayer = GetOwningPlayer())
+		{
+			DragVisual = CreateWidget<UInventorySlotDragVisual>(OwningPlayer, DragVisualClass);
+		}
+		else if (UWorld* World = GetWorld())
+		{
+			DragVisual = CreateWidget<UInventorySlotDragVisual>(World, DragVisualClass);
+		}
+
+		if (DragVisual)
+		{
+			DragVisual->SetDraggedStack(CachedStack);
+			DragOperation->DefaultDragVisual = DragVisual;
+		}
+	}
+
+	OutOperation = DragOperation;
 }
 
 bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)

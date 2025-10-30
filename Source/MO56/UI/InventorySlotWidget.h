@@ -4,8 +4,6 @@
 #include "Input/DragAndDrop.h"
 #include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
-#include "InventoryComponent.h"
-
 #include "InventorySlotWidget.generated.h"
 
 class UImage;
@@ -13,6 +11,7 @@ class UTextBlock;
 class USizeBox;
 class UInventoryComponent;
 class UInventorySlotMenuWidget;
+class UInventorySlotDragVisual;
 class UDragDropOperation;
 
 /**
@@ -73,9 +72,13 @@ protected:
         UPROPERTY(BlueprintReadOnly, meta=(BindWidgetOptional))
         TObjectPtr<USizeBox> QuantityBadge;
 
-        /** Class used to spawn the slot context menu. */
-        UPROPERTY(EditAnywhere, Category = "Inventory")
-        TSubclassOf<UInventorySlotMenuWidget> ContextMenuClass;
+	/** Class used to spawn the slot context menu. */
+	UPROPERTY(EditAnywhere, Category = "Inventory")
+	TSubclassOf<UInventorySlotMenuWidget> ContextMenuClass;
+
+	/** Class used to create the drag drop visual while moving items. */
+	UPROPERTY(EditAnywhere, Category = "Inventory")
+	TSubclassOf<UInventorySlotDragVisual> DragVisualClass;
 
         /** Inventory component providing data for this slot. */
         TWeakObjectPtr<UInventoryComponent> ObservedInventory;
