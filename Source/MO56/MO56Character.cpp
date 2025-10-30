@@ -23,7 +23,7 @@
 #include "UI/HUDWidget.h"
 #include "UI/InventoryUpdateInterface.h"
 #include "UI/InventoryWidget.h"
-#include "UMG/SlateVisibility.h"
+#include "Components/SlateWrapperTypes.h"
 
 AMO56Character::AMO56Character()
 {
