@@ -104,8 +104,9 @@ void AMO56Character::BeginPlay()
                                         InventoryWidgetInstance->SetInventoryComponent(Inventory);
                                         HUDWidgetInstance->AddLeftInventoryWidget(InventoryWidgetInstance);
                                         InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-                                	UE_LOG(LogTemp, Display, TEXT("Inventory Widget Created"));
+                                	
                                 }
+                        	UE_LOG(LogTemp, Display, TEXT("Inventory Widget Created??"));
                         }
                 }
         }
@@ -263,13 +264,15 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
 
 void AMO56Character::OnToggleInventory(const FInputActionValue& /*Value*/)
 {
+
+	UE_LOG(LogTemp, Display, TEXT("Trying to toggle the inventory widget"));
         if (!InventoryWidgetInstance)
         {
                 return;
         }
 
         const bool bIsVisible = InventoryWidgetInstance->IsVisible();
-		UE_LOG(LogTemp, Display, TEXT("Trying to toggle the inventory widget"));
+
         InventoryWidgetInstance->SetVisibility(bIsVisible ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 }
 
