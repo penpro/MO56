@@ -4,6 +4,8 @@
 #include "Input/DragAndDrop.h"
 #include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
+#include "InventoryComponent.h"
+
 #include "InventorySlotWidget.generated.h"
 
 class UImage;
