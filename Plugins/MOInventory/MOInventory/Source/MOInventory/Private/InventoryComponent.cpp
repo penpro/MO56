@@ -238,6 +238,7 @@ bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
 
     SpawnedPickup->SetItem(ItemData);
     SpawnedPickup->SetQuantity(Slot.Quantity);
+    SpawnedPickup->SetDropped(true);
 
     Slot.Item = nullptr;
     Slot.Quantity = 0;

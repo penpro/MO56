@@ -1,5 +1,6 @@
 #include "ItemPickup.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/CollisionProfile.h"
 #include "InventoryComponent.h"
 #include "MOItems/Public/ItemData.h"
 #include "Net/UnrealNetwork.h"
@@ -9,6 +10,7 @@ AItemPickup::AItemPickup()
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
     SetRootComponent(Mesh);
 
+    Mesh->SetCollisionProfileName(UCollisionProfile::BlockAllDynamic_ProfileName);
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     Mesh->SetCollisionObjectType(ECC_WorldDynamic);
     Mesh->SetCollisionResponseToAllChannels(ECR_Block);
@@ -21,6 +23,16 @@ void AItemPickup::OnConstruction(const FTransform& Transform)
 {
     Super::OnConstruction(Transform);
     ApplyItemVisuals();
+}
+
+void AItemPickup::BeginPlay()
+{
+    Super::BeginPlay();
+
+    if (Dropped)
+    {
+        StartDropPhysics();
+    }
 }
 
 void AItemPickup::ApplyItemVisuals()
@@ -53,6 +65,58 @@ void AItemPickup::SetQuantity(int32 NewQuantity)
 {
     Quantity = FMath::Max(1, NewQuantity);
     OnRep_Quantity();
+}
+
+void AItemPickup::SetDropped(bool bNewDropped)
+{
+    if (bNewDropped)
+    {
+        StartDropPhysics();
+    }
+    else if (Dropped)
+    {
+        FinishDropPhysics();
+    }
+}
+
+void AItemPickup::StartDropPhysics()
+{
+    if (!Mesh)
+    {
+        return;
+    }
+
+    Dropped = true;
+
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    Mesh->SetCollisionProfileName(UCollisionProfile::BlockAllDynamic_ProfileName);
+    Mesh->SetCollisionObjectType(ECC_PhysicsBody);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+    Mesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    Mesh->SetSimulatePhysics(true);
+
+    GetWorldTimerManager().ClearTimer(DropPhysicsTimerHandle);
+    GetWorldTimerManager().SetTimer(DropPhysicsTimerHandle, this, &AItemPickup::FinishDropPhysics, 3.f, false);
+}
+
+void AItemPickup::FinishDropPhysics()
+{
+    if (!Mesh)
+    {
+        Dropped = false;
+        return;
+    }
+
+    Mesh->SetSimulatePhysics(false);
+    Mesh->SetCollisionProfileName(UCollisionProfile::BlockAllDynamic_ProfileName);
+    Mesh->SetCollisionObjectType(ECC_WorldDynamic);
+    Mesh->SetCollisionResponseToAllChannels(ECR_Block);
+    Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+    Dropped = false;
 }
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)
