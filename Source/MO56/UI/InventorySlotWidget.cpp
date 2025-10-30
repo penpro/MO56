@@ -177,6 +177,12 @@ bool UInventorySlotWidget::HandleDestroyItem()
         return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DestroyItemAtIndexName);
 }
 
+bool UInventorySlotWidget::HandleDropItem()
+{
+        static const FName DropItemAtIndexName(TEXT("DropItemAtIndex"));
+        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DropItemAtIndexName);
+}
+
 void UInventorySlotWidget::CloseContextMenu()
 {
         if (UInventorySlotMenuWidget* Menu = ActiveContextMenu.Get())

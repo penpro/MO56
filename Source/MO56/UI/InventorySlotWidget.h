@@ -46,6 +46,9 @@ public:
         /** Destroys the item contained in the slot. */
         bool HandleDestroyItem();
 
+        /** Drops the item contained in the slot into the world. */
+        bool HandleDropItem();
+
         /** Closes any active context menu. */
         void CloseContextMenu();
 
