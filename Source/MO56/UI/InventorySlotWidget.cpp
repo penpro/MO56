@@ -11,6 +11,7 @@
 #include "InventoryComponent.h"
 #include "ItemData.h"
 #include "InputCoreTypes.h"
+#include "Math/UnrealMathUtility.h"
 #include "UObject/Class.h"
 
 namespace UE::InventorySlotWidget::Private
@@ -216,18 +217,39 @@ void UInventorySlotWidget::ShowContextMenu(const FVector2D& ScreenPosition)
         Menu->SetOwningSlot(this);
         Menu->AddToViewport(1000);
 
-        float ViewportScale = 1.f;
+        FVector2D ViewportPosition = ScreenPosition;
+        bool bHasViewportPosition = false;
+
         if (OwningPlayer)
         {
-                ViewportScale = UWidgetLayoutLibrary::GetViewportScale(OwningPlayer);
-        }
-        else if (APlayerController* PC = World->GetFirstPlayerController())
-        {
-                ViewportScale = UWidgetLayoutLibrary::GetViewportScale(PC);
+                FVector2D MouseViewportPos;
+                if (UWidgetLayoutLibrary::GetMousePositionOnViewport(OwningPlayer, MouseViewportPos))
+                {
+                        ViewportPosition = MouseViewportPos;
+                        bHasViewportPosition = true;
+                }
         }
 
-        const FVector2D LocalPosition = ScreenPosition / ViewportScale;
-        Menu->SetPositionInViewport(LocalPosition, false);
+        if (!bHasViewportPosition)
+        {
+                float ViewportScale = 1.f;
+                if (OwningPlayer)
+                {
+                        ViewportScale = UWidgetLayoutLibrary::GetViewportScale(OwningPlayer);
+                }
+                else if (APlayerController* PC = World->GetFirstPlayerController())
+                {
+                        ViewportScale = UWidgetLayoutLibrary::GetViewportScale(PC);
+                }
+
+                if (ViewportScale > KINDA_SMALL_NUMBER)
+                {
+                        ViewportPosition = ScreenPosition / ViewportScale;
+                }
+        }
+
+        Menu->SetAlignmentInViewport(FVector2D::ZeroVector);
+        Menu->SetPositionInViewport(ViewportPosition, false);
         ActiveContextMenu = Menu;
 }
 
