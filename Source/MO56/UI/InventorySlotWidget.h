@@ -1,10 +1,10 @@
 #pragma once
-
+#include "Templates/SubclassOf.h"
+#include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
 #include "InventorySlotWidget.generated.h"
 
-#include "Templates/SubclassOf.h"
-#include "Input/Reply.h"
+
 
 struct FItemStack;
 class UImage;

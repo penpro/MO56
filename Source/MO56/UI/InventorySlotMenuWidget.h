@@ -1,9 +1,11 @@
 #pragma once
 
+
+#include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
 #include "InventorySlotMenuWidget.generated.h"
 
-#include "Input/Reply.h"
+
 
 class UInventorySlotWidget;
 
