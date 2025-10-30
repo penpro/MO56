@@ -4,6 +4,7 @@
 #include "Engine/StaticMesh.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
 
 namespace
 {
@@ -68,18 +69,11 @@ float UItemData::CalculateDefaultWeightKg() const
         {
                 if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
                 {
-                        float Mass = 0.f;
-#if WITH_EDITOR
-                        Mass = BodySetup->CalculateMass(WorldScale3D);
-#endif
-                        if (Mass <= KINDA_SMALL_NUMBER)
+                        float Mass = BodySetup->CalculateMass();
+                        const float ScaleFactor = FMath::Abs(WorldScale3D.X * WorldScale3D.Y * WorldScale3D.Z);
+                        if (ScaleFactor > KINDA_SMALL_NUMBER)
                         {
-                                Mass = BodySetup->MassInKg;
-                                const float ScaleFactor = FMath::Abs(WorldScale3D.X * WorldScale3D.Y * WorldScale3D.Z);
-                                if (ScaleFactor > KINDA_SMALL_NUMBER)
-                                {
-                                        Mass *= ScaleFactor;
-                                }
+                                Mass *= ScaleFactor;
                         }
 
                         if (Mass > KINDA_SMALL_NUMBER)
@@ -93,7 +87,15 @@ float UItemData::CalculateDefaultWeightKg() const
         {
                 if (UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset())
                 {
-                        const float Mass = PhysicsAsset->CalculateMassInKg();
+                        float Mass = 0.f;
+                        for (USkeletalBodySetup* BodySetup : PhysicsAsset->SkeletalBodySetups)
+                        {
+                                if (BodySetup)
+                                {
+                                        Mass += BodySetup->CalculateMass();
+                                }
+                        }
+
                         if (Mass > KINDA_SMALL_NUMBER)
                         {
                                 return Mass;
@@ -112,7 +114,7 @@ float UItemData::CalculateDefaultVolumeCubicMeters() const
         {
                 if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
                 {
-                        VolumeCm3 = BodySetup->AggGeom.GetVolume(WorldScale3D);
+                        VolumeCm3 = BodySetup->AggGeom.GetScaledVolume(WorldScale3D);
                 }
 
                 if (VolumeCm3 <= 0.f)
