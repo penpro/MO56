@@ -6,6 +6,7 @@
 struct FItemStack;
 class UImage;
 class UTextBlock;
+class USizeBox;
 
 /**
  * Simple widget representing a single inventory slot.
@@ -28,5 +29,9 @@ protected:
         /** Text block used to display the item quantity. */
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
         TObjectPtr<UTextBlock> QuantityText;
+
+        // Bind the badge container
+        UPROPERTY(BlueprintReadOnly, meta=(BindWidgetOptional))
+        TObjectPtr<USizeBox> QuantityBadge;
 };
 

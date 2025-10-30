@@ -6,6 +6,8 @@
 #include "InventoryComponent.h"
 #include "UI/InventorySlotWidget.h"
 
+
+
 UInventoryWidget::UInventoryWidget(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
@@ -98,21 +100,32 @@ void UInventoryWidget::HandlePawnChanged(APawn* NewPawn)
 
 void UInventoryWidget::RefreshInventory(UInventoryComponent* Inventory)
 {
-        if (SlotsContainer)
-        {
-                SlotsContainer->ClearChildren();
+        if (!SlotsContainer)
+                return;
 
-                if (Inventory && SlotWidgetClass)
+        SlotsContainer->ClearChildren();
+        SlotsContainer->SetSlotPadding(FMargin(4.f));
+        
+
+        if (!Inventory || !SlotWidgetClass)
+                return;
+
+        const TArray<FItemStack>& Slots = Inventory->GetSlots();
+        for (int32 i = 0; i < Slots.Num(); ++i)
+        {
+                UInventorySlotWidget* SlotWidget = CreateWidget<UInventorySlotWidget>(this, SlotWidgetClass);
+                if (!SlotWidget) continue;
+
+                SlotWidget->SetItemStack(Slots[i]);
+
+                const int32 Row = Columns > 0 ? i / Columns : 0;
+                const int32 Col = Columns > 0 ? i % Columns : i;
+
+                UUniformGridSlot* GridSlot = SlotsContainer->AddChildToUniformGrid (SlotWidget, Row, Col);
+                if (GridSlot)
                 {
-                        const TArray<FItemStack>& Slots = Inventory->GetSlots();
-                        for (const FItemStack& Stack : Slots)
-                        {
-                                if (UInventorySlotWidget* SlotWidget = CreateWidget<UInventorySlotWidget>(this, SlotWidgetClass))
-                                {
-                                        SlotWidget->SetItemStack(Stack);
-                                        SlotsContainer->AddChild(SlotWidget);
-                                }
-                        }
+                        GridSlot->SetHorizontalAlignment(HAlign_Fill);
+                        GridSlot->SetVerticalAlignment(VAlign_Fill);
                 }
         }
 }

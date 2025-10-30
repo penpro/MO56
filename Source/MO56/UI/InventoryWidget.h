@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Blueprint/UserWidget.h"
 #include "InventoryUpdateInterface.h"
 #include "InventoryWidget.generated.h"
@@ -32,7 +34,10 @@ public:
 protected:
         /** Container that holds the generated inventory slot widgets. */
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
-        TObjectPtr<UPanelWidget> SlotsContainer;
+        UUniformGridPanel* SlotsContainer = nullptr;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Inventory")
+        int32 Columns = 6;
 
         /** Widget class used for each inventory slot. */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
