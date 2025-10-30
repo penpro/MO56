@@ -23,6 +23,7 @@
 #include "UI/HUDWidget.h"
 #include "UI/InventoryUpdateInterface.h"
 #include "UI/InventoryWidget.h"
+#include "UMG/SlateVisibility.h"
 
 AMO56Character::AMO56Character()
 {
@@ -102,6 +103,7 @@ void AMO56Character::BeginPlay()
                                         InventoryWidgetInstance = NewInventoryWidget;
                                         InventoryWidgetInstance->SetInventoryComponent(Inventory);
                                         HUDWidgetInstance->AddLeftInventoryWidget(InventoryWidgetInstance);
+                                        InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
                                 }
                         }
                 }
@@ -149,12 +151,17 @@ void AMO56Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 		EIC->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &AMO56Character::Look);
 		EIC->BindAction(LookAction, ETriggerEvent::Triggered, this, &AMO56Character::Look);
 
-		// Interact binding (press E)
-		if (InteractAction)
-		{
-			EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &AMO56Character::OnInteract);
-		}
-	}
+                // Interact binding (press E)
+                if (InteractAction)
+                {
+                        EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &AMO56Character::OnInteract);
+                }
+
+                if (InventoryAction)
+                {
+                        EIC->BindAction(InventoryAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleInventory);
+                }
+        }
 }
 
 void AMO56Character::Move(const FInputActionValue& Value)
@@ -251,6 +258,17 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
                 UE_LOG(LogMO56, Display, TEXT("Character: Interact on client -> RPC to server (%s)"), *GetNameSafe(HitActor));
                 Server_Interact(HitActor);
         }
+}
+
+void AMO56Character::OnToggleInventory(const FInputActionValue& /*Value*/)
+{
+        if (!InventoryWidgetInstance)
+        {
+                return;
+        }
+
+        const bool bIsVisible = InventoryWidgetInstance->IsVisible();
+        InventoryWidgetInstance->SetVisibility(bIsVisible ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
 }
 
 void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
