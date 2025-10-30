@@ -12,6 +12,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "InputCoreTypes.h"
 
 #include "MO56.h"
 
@@ -24,6 +25,8 @@
 #include "UI/InventoryUpdateInterface.h"
 #include "UI/InventoryWidget.h"
 #include "Components/SlateWrapperTypes.h"
+#include "Blueprint/UserWidget.h"
+#include "Framework/Application/SlateApplication.h"
 
 AMO56Character::AMO56Character()
 {
@@ -265,15 +268,14 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
 void AMO56Character::OnToggleInventory(const FInputActionValue& /*Value*/)
 {
 
-	UE_LOG(LogTemp, Display, TEXT("Trying to toggle the inventory widget"));
+        UE_LOG(LogTemp, Display, TEXT("Trying to toggle the inventory widget"));
         if (!InventoryWidgetInstance)
         {
                 return;
         }
 
-        const bool bIsVisible = InventoryWidgetInstance->IsVisible();
-
-        InventoryWidgetInstance->SetVisibility(bIsVisible ? ESlateVisibility::Collapsed : ESlateVisibility::Visible);
+        const bool bShouldShow = !InventoryWidgetInstance->IsVisible();
+        SetInventoryVisible(bShouldShow);
 }
 
 void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
@@ -300,6 +302,87 @@ void AMO56Character::HandleInventoryUpdated()
         }
 
         OnInventoryUpdated();
+}
+
+void AMO56Character::Tick(float DeltaSeconds)
+{
+        Super::Tick(DeltaSeconds);
+
+        if (!InventoryWidgetInstance || !InventoryWidgetInstance->IsVisible())
+        {
+                return;
+        }
+
+        APlayerController* PC = Cast<APlayerController>(GetController());
+
+        if (!PC || !PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+        {
+                return;
+        }
+
+        bool bCursorOverInventory = false;
+
+        if (FSlateApplication::IsInitialized())
+        {
+                const FGeometry& InventoryGeometry = InventoryWidgetInstance->GetCachedGeometry();
+                const FVector2D CursorPosition = FSlateApplication::Get().GetCursorPos();
+
+                bCursorOverInventory = InventoryGeometry.IsUnderLocation(CursorPosition);
+        }
+
+        if (!bCursorOverInventory)
+        {
+                SetInventoryVisible(false);
+        }
+}
+
+void AMO56Character::SetInventoryVisible(bool bVisible)
+{
+        if (!InventoryWidgetInstance)
+        {
+                return;
+        }
+
+        const bool bCurrentlyVisible = InventoryWidgetInstance->IsVisible();
+
+        if (bCurrentlyVisible != bVisible)
+        {
+                InventoryWidgetInstance->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+        }
+
+        UpdateInventoryInputState(bVisible);
+}
+
+void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
+{
+        APlayerController* PC = Cast<APlayerController>(GetController());
+
+        if (!PC)
+        {
+                return;
+        }
+
+        if (bInventoryVisible)
+        {
+                PC->SetShowMouseCursor(true);
+                PC->bEnableClickEvents = true;
+                PC->bEnableMouseOverEvents = true;
+
+                FInputModeGameAndUI InputMode;
+                InputMode.SetHideCursorDuringCapture(false);
+                InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+                InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
+                PC->SetInputMode(InputMode);
+        }
+        else
+        {
+                FInputModeGameOnly InputMode;
+                PC->SetInputMode(InputMode);
+
+                PC->SetShowMouseCursor(false);
+                PC->bEnableClickEvents = false;
+                PC->bEnableMouseOverEvents = false;
+        }
 }
 
 void AMO56Character::DoMove(float Right, float Forward)
