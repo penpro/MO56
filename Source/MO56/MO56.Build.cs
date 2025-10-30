@@ -9,20 +9,21 @@ public class MO56 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] {
-			"Core",
-			"CoreUObject",
-			"Engine",
-			"InputCore",
-			"EnhancedInput",
-			"AIModule",
-			"StateTreeModule",
-			"GameplayStateTreeModule",
-			"UMG",
-            "MOInventory",
-
-            "Slate"
-		});
+                PublicDependencyModuleNames.AddRange(new string[] {
+                        "Core",
+                        "CoreUObject",
+                        "Engine",
+                        "InputCore",
+                        "EnhancedInput",
+                        "AIModule",
+                        "StateTreeModule",
+                        "GameplayStateTreeModule",
+                        "UMG",
+                        "MOInventory",
+                        "MOItems",
+                        "Slate",
+                        "SlateCore"
+                });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
