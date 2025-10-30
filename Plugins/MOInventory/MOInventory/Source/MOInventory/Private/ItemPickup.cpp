@@ -1,12 +1,8 @@
 #include "ItemPickup.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/CollisionProfile.h"
-#include "Engine/DataTable.h"
-#include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
-#include "Net/UnrealNetwork.h"
 #include "MOItems/Public/ItemData.h"
-#include "MOItems/Public/ItemTableRow.h"
+#include "Net/UnrealNetwork.h"
 
 AItemPickup::AItemPickup()
 {
@@ -21,142 +17,67 @@ AItemPickup::AItemPickup()
     SetReplicateMovement(true);
 }
 
-void AItemPickup::ApplyRow(const FItemTableRow* Row)
-{
-    if (!Row) return;
-
-    // Resolve and cache the gameplay asset
-    if (UItemData* LoadedItem = Row->ItemAsset.LoadSynchronous())
-    {
-        Item = LoadedItem;
-    }
-
-    // Visuals
-    if (UStaticMesh* SM = Row->StaticMesh.LoadSynchronous())
-    {
-        Mesh->SetStaticMesh(SM);
-    }
-    // If you prefer skeletal meshes, you can add an optional SkeletalMeshComponent
-    // when Row->SkeletalMesh is set.
-
-    // Optionally clamp quantity by stack size
-    if (Item)
-    {
-        const int32 MaxStack = (Row->MaxStackOverride > 0) ? Row->MaxStackOverride
-                                                          : FMath::Max(1, Item->MaxStackSize);
-        Quantity = FMath::Clamp(Quantity, 1, MaxStack);
-    }
-}
-
 void AItemPickup::OnConstruction(const FTransform& Transform)
 {
     Super::OnConstruction(Transform);
-
-    if (ItemTable && !ItemRowName.IsNone())
-    {
-        if (const FItemTableRow* Row =
-            ItemTable->FindRow<FItemTableRow>(ItemRowName, TEXT("ItemPickup")))
-        {
-            ApplyRow(Row);
-        }
-    }
+    ApplyItemVisuals();
 }
 
 #if WITH_EDITOR
-void AItemPickup::RefreshFromRow()
+void AItemPickup::PostEditChangeProperty(FPropertyChangedEvent& E)
 {
-    if (ItemTable && !ItemRowName.IsNone())
+    Super::PostEditChangeProperty(E);
+    static const FName NAME_Item = GET_MEMBER_NAME_CHECKED(AItemPickup, Item);
+    if (E.Property && E.Property->GetFName() == NAME_Item)
     {
-        if (const FItemTableRow* Row = ItemTable->FindRow<FItemTableRow>(ItemRowName, TEXT("RefreshFromRow")))
-        {
-            ApplyRow(Row);
-        }
+        ApplyItemVisuals();              // live-update when you pick a new Item in Details
     }
+}
+
+void AItemPickup::PostActorCreated()
+{
+    Super::PostActorCreated();
+    ApplyItemVisuals();                  // when you first place it in the level
+}
+
+void AItemPickup::RefreshVisuals()
+{
+    ApplyItemVisuals();                  // handy “Call in Editor” button
 }
 #endif
 
-TArray<FName> AItemPickup::GetItemRowNames() const
+void AItemPickup::PostLoad()
 {
-    if (!ItemTable) return {};
-    return ItemTable->GetRowNames();
+    Super::PostLoad();
+#if WITH_EDITOR
+    ApplyItemVisuals();                  // when map loads in editor
+#endif
 }
 
-bool AItemPickup::DoPickup(AActor* Interactor)
+void AItemPickup::PostInitProperties()
 {
-    UE_LOG(LogTemp, Display, TEXT("DoPickup: Item=%s Qty=%d Interactor=%s"),
-        *GetNameSafe(Item), Quantity, *GetNameSafe(Interactor));
-    if (!Interactor || !Item || Quantity <= 0)
+    Super::PostInitProperties();
+#if WITH_EDITOR
+    if (HasAnyFlags(RF_ClassDefaultObject))
     {
-        return false;
+        ApplyItemVisuals();              // update the BP preview if Item is set on defaults
     }
-
-    UInventoryComponent* InventoryComponent = nullptr;
-
-    if (APawn* PawnInteractor = Cast<APawn>(Interactor))
-    {
-        InventoryComponent = PawnInteractor->FindComponentByClass<UInventoryComponent>();
-    }
-
-    if (!InventoryComponent)
-    {
-        InventoryComponent = Interactor->FindComponentByClass<UInventoryComponent>();
-    }
-
-    if (!InventoryComponent)
-    {
-        return false;
-    }
-
-    const int32 Added = InventoryComponent->AddItem(Item, Quantity);
-    UE_LOG(LogTemp, Display, TEXT("DoPickup: Added=%d"), Added);
-    if (Added <= 0)
-    {
-        return false;
-    }
-
-    if (Added >= Quantity)
-    {
-        Destroy();
-        return true;
-    }
-
-    Quantity -= Added; // partial stack taken
-    return false;
+#endif
 }
 
-void AItemPickup::Server_Interact_Implementation(AActor* Interactor)
+void AItemPickup::ApplyItemVisuals()
 {
-    UE_LOG(LogTemp, Display, TEXT("Pickup::Server_Interact"));
-    DoPickup(Interactor);
-}
+    if (!Item) { Mesh->SetStaticMesh(nullptr); return; }
 
-void AItemPickup::Interact_Implementation(AActor* Interactor)
-{
-    UE_LOG(LogTemp, Display, TEXT("Pickup::Interact (HasAuthority=%d)"), HasAuthority());
-    if (!Interactor || Quantity <= 0)
+    if (UStaticMesh* SM = Item->WorldStaticMesh.LoadSynchronous())
     {
-        return;
+        Mesh->SetStaticMesh(SM);
+        Mesh->SetWorldScale3D(Item->WorldScale3D);
+        Mesh->SetRelativeRotation(Item->WorldRotationOffset);
     }
+    // (If you add a SkeletalMeshComponent later, check Item->WorldSkeletalMesh here)
 
-    if (HasAuthority())
-    {
-        DoPickup(Interactor);
-    }
-    else
-    {
-        Server_Interact(Interactor);
-    }
-}
-
-void AItemPickup::OnRep_ItemRowName()
-{
-    if (ItemTable && !ItemRowName.IsNone())
-    {
-        if (const FItemTableRow* Row = ItemTable->FindRow<FItemTableRow>(ItemRowName, TEXT("OnRep_ItemRowName")))
-        {
-            ApplyRow(Row);
-        }
-    }
+    Quantity = FMath::Clamp(Quantity, 1, FMath::Max(1, Item->MaxStackSize));
 }
 
 void AItemPickup::OnRep_Quantity()
@@ -164,12 +85,30 @@ void AItemPickup::OnRep_Quantity()
     Quantity = FMath::Max(0, Quantity);
 }
 
-void AItemPickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+void AItemPickup::SetItem(UItemData* NewItem)
 {
-    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    Item = NewItem;
+    ApplyItemVisuals();
+}
 
-    DOREPLIFETIME(AItemPickup, ItemRowName);
-    DOREPLIFETIME(AItemPickup, Quantity);
+void AItemPickup::Interact_Implementation(AActor* Interactor)
+{
+    if (!Interactor || Quantity <= 0) return;
+
+    if (!HasAuthority())
+    {
+        // forward to the server (declare Server_Interact if you want RPC here)
+        return;
+    }
+
+    UInventoryComponent* Inv = Interactor->FindComponentByClass<UInventoryComponent>();
+    if (!Inv || !Item) return;
+
+    const int32 Added = Inv->AddItem(Item, Quantity);
+    if (Added <= 0) return;
+
+    if (Added >= Quantity) { Destroy(); }
+    else                   { Quantity -= Added; }
 }
 
 FText AItemPickup::GetInteractText_Implementation() const
@@ -179,9 +118,13 @@ FText AItemPickup::GetInteractText_Implementation() const
         const FString Name = Item->DisplayName.IsEmpty() ? Item->GetName() : Item->DisplayName.ToString();
         return FText::FromString(FString::Printf(TEXT("Pick up %s x%d"), *Name, Quantity));
     }
-    if (!ItemRowName.IsNone())
-    {
-        return FText::FromString(FString::Printf(TEXT("Pick up %s x%d"), *ItemRowName.ToString(), Quantity));
-    }
     return FText::FromString(TEXT("Pick up"));
+}
+
+void AItemPickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(AItemPickup, Quantity);
+    // If you want the Item asset to replicate too (only needed if it can change at runtime):
+    // DOREPLIFETIME_CONDITION(AItemPickup, Item, COND_InitialOnly);
 }

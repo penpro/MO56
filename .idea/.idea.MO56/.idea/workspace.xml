@@ -13,7 +13,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Source/MO56/MO56.Build.cs" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/MO56.Build.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/BP_ApplePickup.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/BP_ApplePickup.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/TestLevel.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/TestLevel.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/MOInventory/MOInventory/Source/MOInventory/Private/ItemPickup.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/MOInventory/MOInventory/Source/MOInventory/Private/ItemPickup.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/MOInventory/MOInventory/Source/MOInventory/Public/ItemPickup.h" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/MOInventory/MOInventory/Source/MOInventory/Public/ItemPickup.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Plugins/MOItems/MOItems/Source/MOItems/Public/ItemData.h" beforeDir="false" afterPath="$PROJECT_DIR$/Plugins/MOItems/MOItems/Source/MOItems/Public/ItemData.h" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -44,26 +49,26 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;UnrealLinkOptionsId&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "stable-",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "UnrealLinkOptionsId",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="C/C++ Project.MO56">
     <configuration name="MO56" type="CppProject" factoryName="C++ Project">
       <configuration_1 setup="1">
@@ -184,6 +189,7 @@
       <workItem from="1761786082346" duration="208000" />
       <workItem from="1761786316353" duration="520000" />
       <workItem from="1761786871822" duration="563000" />
+      <workItem from="1761787618557" duration="1306000" />
     </task>
     <servers />
   </component>
