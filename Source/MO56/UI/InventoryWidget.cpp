@@ -91,7 +91,7 @@ void UInventoryWidget::BindToInventoryFromPawn(APawn* Pawn)
         SetInventoryComponent(Pawn->FindComponentByClass<UInventoryComponent>());
 }
 
-void UInventoryWidget::HandlePawnChanged(APawn* /*OldPawn*/, APawn* NewPawn)
+void UInventoryWidget::HandlePawnChanged(APawn* NewPawn)
 {
         BindToInventoryFromPawn(NewPawn);
 }

@@ -46,7 +46,7 @@ private:
         void ObserveOwningPlayer();
         void StopObservingOwningPlayer();
         void BindToInventoryFromPawn(APawn* Pawn);
-        void HandlePawnChanged(APawn* /*OldPawn*/, APawn* NewPawn);
+        void HandlePawnChanged(APawn* NewPawn);
         void RefreshInventory(UInventoryComponent* Inventory);
 
         UFUNCTION()
