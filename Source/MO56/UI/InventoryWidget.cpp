@@ -116,6 +116,7 @@ void UInventoryWidget::RefreshInventory(UInventoryComponent* Inventory)
                 UInventorySlotWidget* SlotWidget = CreateWidget<UInventorySlotWidget>(this, SlotWidgetClass);
                 if (!SlotWidget) continue;
 
+                SlotWidget->InitializeSlot(Inventory, i);
                 SlotWidget->SetItemStack(Slots[i]);
 
                 const int32 Row = Columns > 0 ? i / Columns : 0;

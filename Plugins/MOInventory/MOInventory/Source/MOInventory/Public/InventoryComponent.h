@@ -51,6 +51,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory")
     int32 CountItem(UItemData* Item) const;
 
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool SplitStackAtIndex(int32 SlotIndex);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool DestroyItemAtIndex(int32 SlotIndex);
+
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
 
