@@ -57,6 +57,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool DestroyItemAtIndex(int32 SlotIndex);
 
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool TransferItemBetweenSlots(int32 SourceSlotIndex, int32 TargetSlotIndex);
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool DropItemAtIndex(int32 SlotIndex);
+
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
 

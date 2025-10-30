@@ -1,17 +1,18 @@
 #pragma once
+#include "InventoryComponent.h"
 #include "Templates/SubclassOf.h"
+#include "Input/DragAndDrop.h"
 #include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
 #include "InventorySlotWidget.generated.h"
 
-
-
-struct FItemStack;
 class UImage;
 class UTextBlock;
 class USizeBox;
 class UInventoryComponent;
 class UInventorySlotMenuWidget;
+class UInventorySlotDragVisual;
+class UDragDropOperation;
 
 /**
  * Simple widget representing a single inventory slot.
@@ -45,6 +46,9 @@ public:
         /** Destroys the item contained in the slot. */
         bool HandleDestroyItem();
 
+        /** Drops the item contained in the slot into the world. */
+        bool HandleDropItem();
+
         /** Closes any active context menu. */
         void CloseContextMenu();
 
@@ -54,6 +58,8 @@ public:
 protected:
         virtual void NativeDestruct() override;
         virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+        virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+        virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
         void ShowContextMenu(const FVector2D& ScreenPosition);
 
@@ -69,9 +75,13 @@ protected:
         UPROPERTY(BlueprintReadOnly, meta=(BindWidgetOptional))
         TObjectPtr<USizeBox> QuantityBadge;
 
-        /** Class used to spawn the slot context menu. */
-        UPROPERTY(EditAnywhere, Category = "Inventory")
-        TSubclassOf<UInventorySlotMenuWidget> ContextMenuClass;
+	/** Class used to spawn the slot context menu. */
+	UPROPERTY(EditAnywhere, Category = "Inventory")
+	TSubclassOf<UInventorySlotMenuWidget> ContextMenuClass;
+
+	/** Class used to create the drag drop visual while moving items. */
+	UPROPERTY(EditAnywhere, Category = "Inventory")
+	TSubclassOf<UInventorySlotDragVisual> DragVisualClass;
 
         /** Inventory component providing data for this slot. */
         TWeakObjectPtr<UInventoryComponent> ObservedInventory;

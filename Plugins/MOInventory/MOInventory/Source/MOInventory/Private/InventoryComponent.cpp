@@ -1,5 +1,9 @@
 #include "InventoryComponent.h"
 #include "ItemData.h"
+#include "ItemPickup.h"
+
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 #if WITH_EDITOR
 #include "UObject/UnrealType.h"
@@ -171,6 +175,134 @@ bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
 
     OnInventoryUpdated.Broadcast();
     return true;
+}
+
+bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
+{
+    EnsureSlotCapacity();
+
+    if (!Slots.IsValidIndex(SlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& Slot = Slots[SlotIndex];
+    if (Slot.IsEmpty())
+    {
+        return false;
+    }
+
+    UWorld* World = GetWorld();
+    AActor* OwnerActor = GetOwner();
+    if (!World || !OwnerActor)
+    {
+        return false;
+    }
+
+    UItemData* ItemData = Slot.Item;
+    if (!ItemData)
+    {
+        return false;
+    }
+
+    TSubclassOf<AItemPickup> PickupClass = nullptr;
+    if (!ItemData->PickupActorClass.IsNull())
+    {
+        PickupClass = ItemData->PickupActorClass.LoadSynchronous();
+    }
+
+    if (!PickupClass)
+    {
+        PickupClass = AItemPickup::StaticClass();
+    }
+
+    const FVector SpawnLocation = OwnerActor->GetActorLocation() + OwnerActor->GetActorForwardVector() * 100.f + FVector(0.f, 0.f, 50.f);
+    const FRotator SpawnRotation = OwnerActor->GetActorRotation();
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = OwnerActor;
+    SpawnParams.Instigator = OwnerActor->GetInstigator();
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    AItemPickup* SpawnedPickup = World->SpawnActor<AItemPickup>(PickupClass, SpawnLocation, SpawnRotation, SpawnParams);
+    if (!SpawnedPickup)
+    {
+        return false;
+    }
+
+    SpawnedPickup->SetItem(ItemData);
+    SpawnedPickup->SetQuantity(Slot.Quantity);
+
+    Slot.Item = nullptr;
+    Slot.Quantity = 0;
+
+    OnInventoryUpdated.Broadcast();
+    return true;
+}
+
+bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 TargetSlotIndex)
+{
+    EnsureSlotCapacity();
+
+    if (SourceSlotIndex == TargetSlotIndex)
+    {
+        return false;
+    }
+
+    if (!Slots.IsValidIndex(SourceSlotIndex) || !Slots.IsValidIndex(TargetSlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& SourceSlot = Slots[SourceSlotIndex];
+    if (SourceSlot.IsEmpty())
+    {
+        return false;
+    }
+
+    FItemStack& TargetSlot = Slots[TargetSlotIndex];
+    bool bInventoryChanged = false;
+
+    if (TargetSlot.IsEmpty())
+    {
+        TargetSlot = SourceSlot;
+        SourceSlot.Item = nullptr;
+        SourceSlot.Quantity = 0;
+        bInventoryChanged = true;
+    }
+    else if (TargetSlot.Item == SourceSlot.Item)
+    {
+        const int32 MaxStackSize = TargetSlot.MaxStack();
+        if (MaxStackSize > 0)
+        {
+            const int32 SpaceAvailable = FMath::Max(0, MaxStackSize - TargetSlot.Quantity);
+            if (SpaceAvailable > 0)
+            {
+                const int32 TransferAmount = FMath::Min(SpaceAvailable, SourceSlot.Quantity);
+                TargetSlot.Quantity += TransferAmount;
+                SourceSlot.Quantity -= TransferAmount;
+                bInventoryChanged = TransferAmount > 0;
+            }
+
+            if (SourceSlot.Quantity <= 0)
+            {
+                SourceSlot.Quantity = 0;
+                SourceSlot.Item = nullptr;
+            }
+        }
+    }
+    else
+    {
+        Swap(SourceSlot, TargetSlot);
+        bInventoryChanged = true;
+    }
+
+    if (bInventoryChanged)
+    {
+        OnInventoryUpdated.Broadcast();
+    }
+
+    return bInventoryChanged;
 }
 
 void UInventoryComponent::EnsureSlotCapacity()
