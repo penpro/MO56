@@ -8,6 +8,7 @@
 
 
 class UInventorySlotWidget;
+struct FPointerEvent;
 
 /**
  * Simple context menu displayed when right-clicking an inventory slot.
@@ -28,6 +29,7 @@ protected:
         virtual TSharedRef<SWidget> RebuildWidget() override;
         virtual void ReleaseSlateResources(bool bReleaseChildren) override;
         virtual void NativeDestruct() override;
+        virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 
 private:
         /** Handles the "Split Stack" button being clicked. */

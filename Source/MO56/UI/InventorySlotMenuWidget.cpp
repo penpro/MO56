@@ -2,6 +2,7 @@
 
 #include "UI/InventorySlotWidget.h"
 
+#include "Input/Events.h"
 #include "Internationalization/Text.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
@@ -70,6 +71,13 @@ void UInventorySlotMenuWidget::NativeDestruct()
         }
 
         OwningSlot.Reset();
+}
+
+void UInventorySlotMenuWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+        Super::NativeOnMouseLeave(InMouseEvent);
+
+        DismissMenu();
 }
 
 FReply UInventorySlotMenuWidget::HandleSplitStackClicked()
