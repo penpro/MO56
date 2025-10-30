@@ -52,9 +52,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputAction* LookAction;
 
-	/** Mouse Look Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* MouseLookAction;
+        /** Mouse Look Input Action */
+        UPROPERTY(EditAnywhere, Category="Input")
+        UInputAction* MouseLookAction;
 
 
 public:
@@ -89,8 +89,11 @@ protected:
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
 
-	/** Called for interaction input */
+        /** Called for interaction input */
         void OnInteract(const FInputActionValue& Value);
+
+        /** Called for toggling the inventory UI */
+        void OnToggleInventory(const FInputActionValue& Value);
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -101,6 +104,10 @@ public:
         /** Interact Input Action */
         UPROPERTY(EditAnywhere, Category = "Input|Actions")
         UInputAction* InteractAction = nullptr;
+
+        /** Inventory Input Action */
+        UPROPERTY(EditAnywhere, Category = "Input|Actions")
+        UInputAction* InventoryAction = nullptr;
 
         /** Widget class for HUD */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
