@@ -116,6 +116,63 @@ int32 UInventoryComponent::CountItem(UItemData* Item) const
     return Total;
 }
 
+bool UInventoryComponent::SplitStackAtIndex(int32 SlotIndex)
+{
+    EnsureSlotCapacity();
+
+    if (!Slots.IsValidIndex(SlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& Slot = Slots[SlotIndex];
+    if (Slot.IsEmpty() || Slot.Quantity <= 1)
+    {
+        return false;
+    }
+
+    const int32 AmountToMove = FMath::Max(1, Slot.Quantity / 2);
+    if (AmountToMove <= 0)
+    {
+        return false;
+    }
+
+    const int32 OriginalQuantity = Slot.Quantity;
+    Slot.Quantity -= AmountToMove;
+
+    const int32 Added = AddToEmptySlots(Slot.Item, AmountToMove);
+    if (Added != AmountToMove)
+    {
+        Slot.Quantity = OriginalQuantity;
+        return false;
+    }
+
+    OnInventoryUpdated.Broadcast();
+    return true;
+}
+
+bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
+{
+    EnsureSlotCapacity();
+
+    if (!Slots.IsValidIndex(SlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& Slot = Slots[SlotIndex];
+    if (Slot.IsEmpty())
+    {
+        return false;
+    }
+
+    Slot.Item = nullptr;
+    Slot.Quantity = 0;
+
+    OnInventoryUpdated.Broadcast();
+    return true;
+}
+
 void UInventoryComponent::EnsureSlotCapacity()
 {
     const int32 DesiredSlots = FMath::Max(1, MaxSlots);
