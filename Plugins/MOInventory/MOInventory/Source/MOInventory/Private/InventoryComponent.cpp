@@ -4,6 +4,7 @@
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "TimerManager.h"
 
 #if WITH_EDITOR
 #include "UObject/UnrealType.h"
@@ -179,6 +180,50 @@ bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
 
 bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
 {
+    if (ActiveDropAllTimers.Contains(SlotIndex))
+    {
+        return true;
+    }
+
+    if (!DropSingleItemInternal(SlotIndex))
+    {
+        return false;
+    }
+
+    EnsureSlotCapacity();
+
+    if (!Slots.IsValidIndex(SlotIndex) || Slots[SlotIndex].IsEmpty())
+    {
+        return true;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return true;
+    }
+
+    constexpr float DropInterval = 0.2f;
+    FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &UInventoryComponent::HandleDropAllTimerTick, SlotIndex);
+    FTimerHandle& TimerHandle = ActiveDropAllTimers.FindOrAdd(SlotIndex);
+    World->GetTimerManager().ClearTimer(TimerHandle);
+    World->GetTimerManager().SetTimer(TimerHandle, TimerDelegate, DropInterval, true);
+
+    return true;
+}
+
+bool UInventoryComponent::DropSingleItemAtIndex(int32 SlotIndex)
+{
+    if (ActiveDropAllTimers.Contains(SlotIndex))
+    {
+        return false;
+    }
+
+    return DropSingleItemInternal(SlotIndex);
+}
+
+bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
+{
     EnsureSlotCapacity();
 
     if (!Slots.IsValidIndex(SlotIndex))
@@ -244,14 +289,45 @@ bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
     }
 
     SpawnedPickup->SetItem(ItemData);
-    SpawnedPickup->SetQuantity(Slot.Quantity);
+    SpawnedPickup->SetQuantity(1);
     SpawnedPickup->SetDropped(true);
 
-    Slot.Item = nullptr;
-    Slot.Quantity = 0;
+    Slot.Quantity = FMath::Max(0, Slot.Quantity - 1);
+    if (Slot.Quantity == 0)
+    {
+        Slot.Item = nullptr;
+    }
 
     OnInventoryUpdated.Broadcast();
     return true;
+}
+
+void UInventoryComponent::HandleDropAllTimerTick(int32 SlotIndex)
+{
+    if (!DropSingleItemInternal(SlotIndex))
+    {
+        ClearDropAllTimer(SlotIndex);
+        return;
+    }
+
+    EnsureSlotCapacity();
+    if (!Slots.IsValidIndex(SlotIndex) || Slots[SlotIndex].IsEmpty())
+    {
+        ClearDropAllTimer(SlotIndex);
+    }
+}
+
+void UInventoryComponent::ClearDropAllTimer(int32 SlotIndex)
+{
+    if (FTimerHandle* Handle = ActiveDropAllTimers.Find(SlotIndex))
+    {
+        if (UWorld* World = GetWorld())
+        {
+            World->GetTimerManager().ClearTimer(*Handle);
+        }
+
+        ActiveDropAllTimers.Remove(SlotIndex);
+    }
 }
 
 bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 TargetSlotIndex)

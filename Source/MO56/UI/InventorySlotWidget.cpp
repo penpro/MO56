@@ -177,10 +177,16 @@ bool UInventorySlotWidget::HandleDestroyItem()
         return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DestroyItemAtIndexName);
 }
 
-bool UInventorySlotWidget::HandleDropItem()
+bool UInventorySlotWidget::HandleDropAllItems()
 {
         static const FName DropItemAtIndexName(TEXT("DropItemAtIndex"));
         return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DropItemAtIndexName);
+}
+
+bool UInventorySlotWidget::HandleDropOneItem()
+{
+        static const FName DropSingleItemAtIndexName(TEXT("DropSingleItemAtIndex"));
+        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DropSingleItemAtIndexName);
 }
 
 void UInventorySlotWidget::CloseContextMenu()

@@ -46,8 +46,11 @@ public:
         /** Destroys the item contained in the slot. */
         bool HandleDestroyItem();
 
-        /** Drops the item contained in the slot into the world. */
-        bool HandleDropItem();
+        /** Drops every item in the stack into the world. */
+        bool HandleDropAllItems();
+
+        /** Drops a single item from the stack into the world. */
+        bool HandleDropOneItem();
 
         /** Closes any active context menu. */
         void CloseContextMenu();
