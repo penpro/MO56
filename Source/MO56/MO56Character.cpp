@@ -26,7 +26,7 @@
 #include "UI/InventoryWidget.h"
 #include "Components/SlateWrapperTypes.h"
 #include "Blueprint/UserWidget.h"
-#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Framework/Application/SlateApplication.h"
 
 AMO56Character::AMO56Character()
 {
@@ -320,24 +320,14 @@ void AMO56Character::Tick(float DeltaSeconds)
                 return;
         }
 
-        TArray<UUserWidget*> WidgetsUnderCursor;
-        UWidgetBlueprintLibrary::GetAllWidgetsUnderCursor(PC, WidgetsUnderCursor, false);
-
-        const UUserWidget* InventoryWidget = InventoryWidgetInstance.Get();
         bool bCursorOverInventory = false;
 
-        for (UUserWidget* Widget : WidgetsUnderCursor)
+        if (FSlateApplication::IsInitialized())
         {
-                if (!Widget)
-                {
-                        continue;
-                }
+                const FGeometry& InventoryGeometry = InventoryWidgetInstance->GetCachedGeometry();
+                const FVector2D CursorPosition = FSlateApplication::Get().GetCursorPos();
 
-                if (Widget == InventoryWidget || Widget->IsDescendantOf(InventoryWidget))
-                {
-                        bCursorOverInventory = true;
-                        break;
-                }
+                bCursorOverInventory = InventoryGeometry.IsUnderLocation(CursorPosition);
         }
 
         if (!bCursorOverInventory)
