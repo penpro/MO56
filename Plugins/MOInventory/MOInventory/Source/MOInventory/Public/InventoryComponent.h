@@ -7,6 +7,7 @@
 class UItemData;
 class UInventoryComponent;
 struct FPropertyChangedEvent;
+struct FTimerHandle;
 
 USTRUCT(BlueprintType)
 struct MOINVENTORY_API FItemStack
@@ -63,6 +64,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool DropItemAtIndex(int32 SlotIndex);
 
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool DropSingleItemAtIndex(int32 SlotIndex);
+
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
 
@@ -73,6 +77,12 @@ private:
     int32 AddToExistingStacks(UItemData* Item, int32 Count);
     int32 AddToEmptySlots(UItemData* Item, int32 Count);
     void EnsureSlotCapacity();
+
+    bool DropSingleItemInternal(int32 SlotIndex);
+    void HandleDropAllTimerTick(int32 SlotIndex);
+    void ClearDropAllTimer(int32 SlotIndex);
+
+    TMap<int32, FTimerHandle> ActiveDropAllTimers;
 
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

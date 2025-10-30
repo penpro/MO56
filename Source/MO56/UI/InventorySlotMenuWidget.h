@@ -38,8 +38,11 @@ private:
         /** Handles the "Destroy Item" button being clicked. */
         FReply HandleDestroyItemClicked();
 
-        /** Handles the "Drop Item" button being clicked. */
-        FReply HandleDropItemClicked();
+        /** Handles the "Drop All" button being clicked. */
+        FReply HandleDropAllItemsClicked();
+
+        /** Handles the "Drop One" button being clicked. */
+        FReply HandleDropOneItemClicked();
 
         /** Whether the owning slot can currently split its stack. */
         bool CanSplitStack() const;
@@ -47,8 +50,8 @@ private:
         /** Whether the owning slot currently contains an item. */
         bool CanDestroyItem() const;
 
-        /** Whether the owning slot can drop its item. */
-        bool CanDropItem() const;
+        /** Whether the owning slot can drop any items. */
+        bool CanDropItems() const;
 
         /** Shared reference to the root Slate widget. */
         TSharedPtr<SWidget> RootWidget;

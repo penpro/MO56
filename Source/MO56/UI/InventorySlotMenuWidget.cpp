@@ -48,9 +48,18 @@ TSharedRef<SWidget> UInventorySlotMenuWidget::RebuildWidget()
                 .Padding(4.f)
                 [
                         SNew(SButton)
-                        .Text(NSLOCTEXT("Inventory", "DropItem", "Drop Item"))
-                        .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleDropItemClicked))
-                        .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanDropItem)
+                        .Text(NSLOCTEXT("Inventory", "DropAllItems", "Drop All"))
+                        .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleDropAllItemsClicked))
+                        .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanDropItems)
+                ]
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(4.f)
+                [
+                        SNew(SButton)
+                        .Text(NSLOCTEXT("Inventory", "DropOneItem", "Drop One"))
+                        .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleDropOneItemClicked))
+                        .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanDropItems)
                 ];
 
         TSharedRef<SWidget> Result =
@@ -115,11 +124,24 @@ FReply UInventorySlotMenuWidget::HandleDestroyItemClicked()
         return FReply::Handled();
 }
 
-FReply UInventorySlotMenuWidget::HandleDropItemClicked()
+FReply UInventorySlotMenuWidget::HandleDropAllItemsClicked()
 {
         if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
-                if (SlotWidget->HandleDropItem())
+                if (SlotWidget->HandleDropAllItems())
+                {
+                        DismissMenu();
+                }
+        }
+
+        return FReply::Handled();
+}
+
+FReply UInventorySlotMenuWidget::HandleDropOneItemClicked()
+{
+        if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
+        {
+                if (SlotWidget->HandleDropOneItem())
                 {
                         DismissMenu();
                 }
@@ -148,7 +170,7 @@ bool UInventorySlotMenuWidget::CanDestroyItem() const
         return false;
 }
 
-bool UInventorySlotMenuWidget::CanDropItem() const
+bool UInventorySlotMenuWidget::CanDropItems() const
 {
         if (const UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
