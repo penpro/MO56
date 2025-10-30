@@ -1,17 +1,17 @@
 #pragma once
+#include "InventoryComponent.h"
 #include "Templates/SubclassOf.h"
+#include "Input/DragAndDrop.h"
 #include "Input/Reply.h"
 #include "Blueprint/UserWidget.h"
 #include "InventorySlotWidget.generated.h"
 
-
-
-struct FItemStack;
 class UImage;
 class UTextBlock;
 class USizeBox;
 class UInventoryComponent;
 class UInventorySlotMenuWidget;
+class UDragDropOperation;
 
 /**
  * Simple widget representing a single inventory slot.
@@ -54,6 +54,8 @@ public:
 protected:
         virtual void NativeDestruct() override;
         virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+        virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+        virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
         void ShowContextMenu(const FVector2D& ScreenPosition);
 
