@@ -67,6 +67,7 @@ protected:
         /** Called when the game starts or when spawned */
         virtual void BeginPlay() override;
         virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+        virtual void Tick(float DeltaSeconds) override;
 
         UFUNCTION()
         void HandleInventoryUpdated();
@@ -94,6 +95,9 @@ protected:
 
         /** Called for toggling the inventory UI */
         void OnToggleInventory(const FInputActionValue& Value);
+
+        void SetInventoryVisible(bool bVisible);
+        void UpdateInventoryInputState(bool bInventoryVisible);
 
 protected:
         UFUNCTION(Server, Reliable)
