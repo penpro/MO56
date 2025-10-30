@@ -222,11 +222,21 @@ void UInventorySlotWidget::ShowContextMenu(const FVector2D& ScreenPosition)
 
         if (OwningPlayer)
         {
-                FVector2D MouseViewportPos;
-                if (UWidgetLayoutLibrary::GetMousePositionOnViewport(OwningPlayer, MouseViewportPos))
+                float MouseX = 0.f;
+                float MouseY = 0.f;
+                if (UWidgetLayoutLibrary::GetMousePositionScaledByDPI(OwningPlayer, MouseX, MouseY))
                 {
-                        ViewportPosition = MouseViewportPos;
+                        ViewportPosition = FVector2D(MouseX, MouseY);
                         bHasViewportPosition = true;
+                }
+                else
+                {
+                        const FVector2D MouseViewportPos = UWidgetLayoutLibrary::GetMousePositionOnViewport(OwningPlayer);
+                        if (!MouseViewportPos.ContainsNaN())
+                        {
+                                ViewportPosition = MouseViewportPos;
+                                bHasViewportPosition = true;
+                        }
                 }
         }
 
