@@ -1,7 +1,9 @@
 #include "UI/InventorySlotWidget.h"
 
+#include "UI/InventorySlotDragOperation.h"
 #include "UI/InventorySlotMenuWidget.h"
 
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
@@ -33,6 +35,38 @@ namespace UE::InventorySlotWidget::Private
 
                         FInventorySlotFunctionParams Params;
                         Params.SlotIndex = SlotIndex;
+
+                        Inventory->ProcessEvent(Function, &Params);
+                        return Params.ReturnValue;
+                }
+
+                return false;
+        }
+
+        static bool InvokeInventoryTransferFunction(UInventoryComponent* Inventory, int32 SourceSlotIndex, int32 TargetSlotIndex, const FName& FunctionName)
+        {
+                if (!Inventory)
+                {
+                        return false;
+                }
+
+                if (SourceSlotIndex == INDEX_NONE || TargetSlotIndex == INDEX_NONE)
+                {
+                        return false;
+                }
+
+                if (UFunction* Function = Inventory->FindFunction(FunctionName))
+                {
+                        struct FInventoryTransferFunctionParams
+                        {
+                                int32 SourceSlotIndex = INDEX_NONE;
+                                int32 TargetSlotIndex = INDEX_NONE;
+                                bool ReturnValue = false;
+                        };
+
+                        FInventoryTransferFunctionParams Params;
+                        Params.SourceSlotIndex = SourceSlotIndex;
+                        Params.TargetSlotIndex = TargetSlotIndex;
 
                         Inventory->ProcessEvent(Function, &Params);
                         return Params.ReturnValue;
@@ -171,7 +205,65 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry
                 return FReply::Handled();
         }
 
+        if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+        {
+                CloseContextMenu();
+
+                if (HasItem())
+                {
+                        return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
+                }
+        }
+
         return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
+{
+        Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
+
+        UInventoryComponent* Inventory = ObservedInventory.Get();
+        if (!Inventory || SlotIndex == INDEX_NONE || !HasItem())
+        {
+                return;
+        }
+
+        CloseContextMenu();
+
+        UInventorySlotDragOperation* DragOperation = NewObject<UInventorySlotDragOperation>(this);
+        if (!DragOperation)
+        {
+                return;
+        }
+
+        DragOperation->InitializeOperation(Inventory, SlotIndex, CachedStack);
+        DragOperation->Pivot = EDragPivot::MouseDown;
+        OutOperation = DragOperation;
+}
+
+bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+        if (UInventorySlotDragOperation* DragOperation = Cast<UInventorySlotDragOperation>(InOperation))
+        {
+                UInventoryComponent* TargetInventory = ObservedInventory.Get();
+                UInventoryComponent* SourceInventory = DragOperation->GetSourceInventory();
+
+                if (TargetInventory && SourceInventory && TargetInventory == SourceInventory && SlotIndex != INDEX_NONE)
+                {
+                        const int32 SourceIndex = DragOperation->GetSourceSlotIndex();
+                        if (SourceIndex != INDEX_NONE && SourceIndex != SlotIndex)
+                        {
+                                static const FName TransferFunctionName(TEXT("TransferItemBetweenSlots"));
+                                if (UE::InventorySlotWidget::Private::InvokeInventoryTransferFunction(TargetInventory, SourceIndex, SlotIndex, TransferFunctionName))
+                                {
+                                        CloseContextMenu();
+                                        return true;
+                                }
+                        }
+                }
+        }
+
+        return Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
 }
 
 void UInventorySlotWidget::ShowContextMenu(const FVector2D& ScreenPosition)
