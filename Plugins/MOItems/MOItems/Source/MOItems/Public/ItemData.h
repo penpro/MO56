@@ -12,7 +12,7 @@ class AActor;
 UCLASS(BlueprintType)
 class MOITEMS_API UItemData : public UDataAsset
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item")
 	FText DisplayName;
@@ -42,9 +42,49 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="World", meta=(AllowedClasses="/Script/MOInventory.ItemPickup"))
         TSoftClassPtr<AActor> PickupActorClass;
 
+        /** Optional manual override for the item's weight in kilograms. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Physics", meta=(ClampMin="0", ForceUnits="kg"))
+        float WeightKgOverride = 0.f;
+
+        /** Optional manual override for the item's weight in pounds. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Physics", meta=(ClampMin="0", ForceUnits="lb"))
+        float WeightLbsOverride = 0.f;
+
+        /** Optional manual override for the item's volume (in cubic meters). */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Physics", meta=(ClampMin="0", ForceUnits="m^3"))
+        float VolumeOverride = 0.f;
+
+        /** Optional manual override for the item's density (in kg / m^3). */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Physics", meta=(ClampMin="0", ForceUnits="kg/m^3"))
+        float DensityOverride = 0.f;
+
+        /** When true the item will be dropped as a container when spawned into the world. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Behavior")
+        bool bDropAsContainer = false;
+
 public:
-	virtual FPrimaryAssetId GetPrimaryAssetId() const override
-	{
-		return FPrimaryAssetId(TEXT("Item"), GetFName());
-	}
+        virtual FPrimaryAssetId GetPrimaryAssetId() const override
+        {
+                return FPrimaryAssetId(TEXT("Item"), GetFName());
+        }
+
+        /** Returns the weight of the item in kilograms. */
+        UFUNCTION(BlueprintCallable, Category="Item|Physics")
+        float GetWeightKg() const;
+
+        /** Returns the weight of the item in pounds. */
+        UFUNCTION(BlueprintCallable, Category="Item|Physics")
+        float GetWeightLbs() const;
+
+        /** Returns the calculated item volume in cubic meters. */
+        UFUNCTION(BlueprintCallable, Category="Item|Physics")
+        float GetVolumeCubicMeters() const;
+
+        /** Returns the density of the item (kg / m^3). */
+        UFUNCTION(BlueprintCallable, Category="Item|Physics")
+        float GetDensity() const;
+
+private:
+        float CalculateDefaultWeightKg() const;
+        float CalculateDefaultVolumeCubicMeters() const;
 };
