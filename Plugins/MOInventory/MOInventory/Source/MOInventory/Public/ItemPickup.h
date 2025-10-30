@@ -41,4 +41,7 @@ public:
     // Optional: change the item at runtime
     UFUNCTION(BlueprintCallable, Category="Pickup")
     void SetItem(UItemData* NewItem);
+
+    UFUNCTION(BlueprintCallable, Category="Pickup")
+    void SetQuantity(int32 NewQuantity);
 };

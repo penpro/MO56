@@ -49,6 +49,12 @@ void AItemPickup::SetItem(UItemData* NewItem)
     ApplyItemVisuals();
 }
 
+void AItemPickup::SetQuantity(int32 NewQuantity)
+{
+    Quantity = FMath::Max(1, NewQuantity);
+    OnRep_Quantity();
+}
+
 void AItemPickup::Interact_Implementation(AActor* Interactor)
 {
     if (!Interactor || Quantity <= 0) return;

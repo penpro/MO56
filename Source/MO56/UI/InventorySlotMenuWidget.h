@@ -8,6 +8,7 @@
 
 
 class UInventorySlotWidget;
+struct FPointerEvent;
 
 /**
  * Simple context menu displayed when right-clicking an inventory slot.
@@ -28,6 +29,7 @@ protected:
         virtual TSharedRef<SWidget> RebuildWidget() override;
         virtual void ReleaseSlateResources(bool bReleaseChildren) override;
         virtual void NativeDestruct() override;
+        virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 
 private:
         /** Handles the "Split Stack" button being clicked. */
@@ -36,11 +38,17 @@ private:
         /** Handles the "Destroy Item" button being clicked. */
         FReply HandleDestroyItemClicked();
 
+        /** Handles the "Drop Item" button being clicked. */
+        FReply HandleDropItemClicked();
+
         /** Whether the owning slot can currently split its stack. */
         bool CanSplitStack() const;
 
         /** Whether the owning slot currently contains an item. */
         bool CanDestroyItem() const;
+
+        /** Whether the owning slot can drop its item. */
+        bool CanDropItem() const;
 
         /** Shared reference to the root Slate widget. */
         TSharedPtr<SWidget> RootWidget;
