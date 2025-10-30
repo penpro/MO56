@@ -21,6 +21,8 @@
 
 #include "InventoryComponent.h" // from MOInventory
 #include "UI/HUDWidget.h"
+#include "UI/InventoryUpdateInterface.h"
+#include "UI/InventoryWidget.h"
 
 AMO56Character::AMO56Character()
 {
@@ -81,6 +83,27 @@ void AMO56Character::BeginPlay()
                 if (HUDWidgetInstance)
                 {
                         HUDWidgetInstance->AddToViewport();
+
+                        if (InventoryWidgetClass)
+                        {
+                                UInventoryWidget* NewInventoryWidget = nullptr;
+
+                                if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                                {
+                                        NewInventoryWidget = CreateWidget<UInventoryWidget>(PC, InventoryWidgetClass);
+                                }
+                                else
+                                {
+                                        NewInventoryWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+                                }
+
+                                if (NewInventoryWidget)
+                                {
+                                        InventoryWidgetInstance = NewInventoryWidget;
+                                        InventoryWidgetInstance->SetInventoryComponent(Inventory);
+                                        HUDWidgetInstance->AddLeftInventoryWidget(InventoryWidgetInstance);
+                                }
+                        }
                 }
         }
 
@@ -96,6 +119,12 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
         if (Inventory)
         {
                 Inventory->OnInventoryUpdated.RemoveDynamic(this, &AMO56Character::HandleInventoryUpdated);
+        }
+
+        if (InventoryWidgetInstance)
+        {
+                InventoryWidgetInstance->SetInventoryComponent(nullptr);
+                InventoryWidgetInstance = nullptr;
         }
 
         if (HUDWidgetInstance)
@@ -242,6 +271,11 @@ void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
 
 void AMO56Character::HandleInventoryUpdated()
 {
+        if (InventoryWidgetInstance)
+        {
+                IInventoryUpdateInterface::Execute_OnUpdateInventory(InventoryWidgetInstance, Inventory);
+        }
+
         OnInventoryUpdated();
 }
 
