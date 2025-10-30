@@ -31,16 +31,17 @@ public class MOItems : ModuleRules
 			);
 			
 		
-		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
-				// ... add private dependencies that you statically link with here ...	
-			}
-			);
+                PrivateDependencyModuleNames.AddRange(
+                        new string[]
+                        {
+                                "CoreUObject",
+                                "Engine",
+                                "Slate",
+                                "SlateCore",
+                                "PhysicsCore",
+                                // ... add private dependencies that you statically link with here ...
+                        }
+                        );
 		
 		
 		DynamicallyLoadedModuleNames.AddRange(
