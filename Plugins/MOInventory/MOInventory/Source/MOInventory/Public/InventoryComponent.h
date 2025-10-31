@@ -39,6 +39,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
     int32 MaxSlots = 24;
 
+    /** Maximum total weight the inventory can hold (in kilograms). Set to 0 for unlimited. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Capacity", meta = (ClampMin = "0", ForceUnits = "kg"))
+    float MaxWeight = 0.f;
+
+    /** Maximum total volume the inventory can hold (in cubic meters). Set to 0 for unlimited. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Capacity", meta = (ClampMin = "0", ForceUnits = "m^3"))
+    float MaxVolume = 0.f;
+
     /** Broadcast whenever the inventory contents change. */
     UPROPERTY(BlueprintAssignable, Category = "Inventory")
     FOnInventoryUpdated OnInventoryUpdated;
@@ -69,6 +77,14 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
+
+    /** Returns the total weight of all items currently stored (in kilograms). */
+    UFUNCTION(BlueprintPure, Category = "Inventory|Capacity")
+    float GetTotalWeight() const;
+
+    /** Returns the total volume of all items currently stored (in cubic meters). */
+    UFUNCTION(BlueprintPure, Category = "Inventory|Capacity")
+    float GetTotalVolume() const;
 
 private:
     UPROPERTY(VisibleAnywhere, Category = "Inventory")
