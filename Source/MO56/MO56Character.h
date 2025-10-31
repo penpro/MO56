@@ -141,6 +141,10 @@ public:
         UPROPERTY(EditAnywhere, Category = "Input|Actions")
         UInputAction* MenuAction = nullptr;
 
+        /** Preferred game menu input action (IA_GameMenu). */
+        UPROPERTY(EditAnywhere, Category = "Input|Actions")
+        UInputAction* GameMenuAction = nullptr;
+
         /** Widget class for HUD */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UHUDWidget> HUDWidgetClass;

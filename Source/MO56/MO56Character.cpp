@@ -306,7 +306,11 @@ void AMO56Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
                         EIC->BindAction(CharacterStatusAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleCharacterStatus);
                 }
 
-                if (MenuAction)
+                if (GameMenuAction)
+                {
+                        EIC->BindAction(GameMenuAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleGameMenu);
+                }
+                else if (MenuAction)
                 {
                         EIC->BindAction(MenuAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleGameMenu);
                 }
