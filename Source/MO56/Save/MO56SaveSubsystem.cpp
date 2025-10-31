@@ -8,6 +8,7 @@
 #include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
+#include "ItemData.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h"
 #include "Templates/UnrealTemplate.h"
