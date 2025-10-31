@@ -4,6 +4,9 @@
 #include "GameMenuWidget.generated.h"
 
 class UButton;
+class UPanelWidget;
+class UUserWidget;
+class USaveGameMenuWidget;
 class UMO56SaveSubsystem;
 
 /**
@@ -32,6 +35,14 @@ protected:
         UPROPERTY(meta = (BindWidgetOptional))
         TObjectPtr<UButton> ExitGameButton;
 
+        /** Container that hosts focusable child widgets such as the save menu. */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        TObjectPtr<UPanelWidget> FocusContainer;
+
+        /** Class used when spawning the save-game menu. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Menu")
+        TSubclassOf<USaveGameMenuWidget> SaveGameMenuClass;
+
         UFUNCTION()
         void HandleNewGameClicked();
 
@@ -43,7 +54,14 @@ protected:
 
 private:
         void EnsureSaveSubsystem();
+        void ShowFocusWidget(UUserWidget* Widget);
+        void ClearFocusWidget();
+
+        UFUNCTION()
+        void HandleSaveGameLoaded();
 
         TWeakObjectPtr<UMO56SaveSubsystem> CachedSaveSubsystem;
+        UPROPERTY(Transient)
+        TObjectPtr<USaveGameMenuWidget> SaveGameMenuInstance;
 };
 

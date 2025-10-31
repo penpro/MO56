@@ -69,6 +69,22 @@ class MO56_API UMO56SaveGame : public USaveGame
         GENERATED_BODY()
 
 public:
+        /** Timestamp recording when the save file was first created. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FDateTime InitialSaveTimestamp;
+
+        /** Timestamp of the most recent time the save file was written. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FDateTime LastSaveTimestamp;
+
+        /** Accumulated play time stored with the save (in seconds). */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        float TotalPlayTimeSeconds = 0.f;
+
+        /** The last level name recorded when this save was written. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FName LastLevelName;
+
         /** Serialized inventory states keyed by persistent identifier. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FGuid, FInventorySaveData> InventoryStates;
