@@ -283,13 +283,24 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
                 UInventoryComponent* TargetInventory = ObservedInventory.Get();
                 UInventoryComponent* SourceInventory = DragOperation->GetSourceInventory();
 
-                if (TargetInventory && SourceInventory && TargetInventory == SourceInventory && SlotIndex != INDEX_NONE)
+                if (TargetInventory && SourceInventory && SlotIndex != INDEX_NONE)
                 {
                         const int32 SourceIndex = DragOperation->GetSourceSlotIndex();
-                        if (SourceIndex != INDEX_NONE && SourceIndex != SlotIndex)
+                        if (SourceIndex != INDEX_NONE)
                         {
-                                static const FName TransferFunctionName(TEXT("TransferItemBetweenSlots"));
-                                if (UE::InventorySlotWidget::Private::InvokeInventoryTransferFunction(TargetInventory, SourceIndex, SlotIndex, TransferFunctionName))
+                                if (TargetInventory == SourceInventory)
+                                {
+                                        if (SourceIndex != SlotIndex)
+                                        {
+                                                static const FName TransferFunctionName(TEXT("TransferItemBetweenSlots"));
+                                                if (UE::InventorySlotWidget::Private::InvokeInventoryTransferFunction(TargetInventory, SourceIndex, SlotIndex, TransferFunctionName))
+                                                {
+                                                        CloseContextMenu();
+                                                        return true;
+                                                }
+                                        }
+                                }
+                                else if (SourceInventory->TransferItemToInventory(TargetInventory, SourceIndex, SlotIndex))
                                 {
                                         CloseContextMenu();
                                         return true;

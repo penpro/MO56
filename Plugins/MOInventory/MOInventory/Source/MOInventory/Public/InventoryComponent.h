@@ -75,6 +75,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool DropSingleItemAtIndex(int32 SlotIndex);
 
+    /** Moves an item from this inventory to the target inventory. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool TransferItemToInventory(UInventoryComponent* TargetInventory, int32 SourceSlotIndex, int32 TargetSlotIndex);
+
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
 

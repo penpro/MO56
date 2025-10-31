@@ -17,6 +17,7 @@
 #include "MO56.h"
 
 #include "Interactable.h"
+#include "InventoryContainer.h"
 
 #include "DrawDebugHelpers.h"
 
@@ -107,9 +108,31 @@ void AMO56Character::BeginPlay()
                                         InventoryWidgetInstance->SetInventoryComponent(Inventory);
                                         HUDWidgetInstance->AddLeftInventoryWidget(InventoryWidgetInstance);
                                         InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-                                	
+
+                                        if (!ContainerInventoryWidgetInstance)
+                                        {
+                                                UInventoryWidget* NewContainerWidget = nullptr;
+
+                                                if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                                                {
+                                                        NewContainerWidget = CreateWidget<UInventoryWidget>(PC, InventoryWidgetClass);
+                                                }
+                                                else
+                                                {
+                                                        NewContainerWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+                                                }
+
+                                                if (NewContainerWidget)
+                                                {
+                                                        ContainerInventoryWidgetInstance = NewContainerWidget;
+                                                        ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
+                                                        ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
+                                                        ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+                                                        HUDWidgetInstance->AddRightInventoryWidget(ContainerInventoryWidgetInstance);
+                                                }
+                                        }
                                 }
-                        	UE_LOG(LogTemp, Display, TEXT("Inventory Widget Created??"));
+                                UE_LOG(LogTemp, Display, TEXT("Inventory Widget Created??"));
                         }
                 }
         }
@@ -123,6 +146,8 @@ void AMO56Character::BeginPlay()
 
 void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+        CloseActiveContainerInventory(false);
+
         if (Inventory)
         {
                 Inventory->OnInventoryUpdated.RemoveDynamic(this, &AMO56Character::HandleInventoryUpdated);
@@ -132,6 +157,13 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
         {
                 InventoryWidgetInstance->SetInventoryComponent(nullptr);
                 InventoryWidgetInstance = nullptr;
+        }
+
+        if (ContainerInventoryWidgetInstance)
+        {
+                ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
+                ContainerInventoryWidgetInstance->RemoveFromParent();
+                ContainerInventoryWidgetInstance = nullptr;
         }
 
         if (HUDWidgetInstance)
@@ -308,14 +340,17 @@ void AMO56Character::Tick(float DeltaSeconds)
 {
         Super::Tick(DeltaSeconds);
 
-        if (!InventoryWidgetInstance || !InventoryWidgetInstance->IsVisible())
+        const bool bInventoryVisible = InventoryWidgetInstance && InventoryWidgetInstance->IsVisible();
+        const bool bContainerVisible = ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible();
+
+        if (!bInventoryVisible && !bContainerVisible)
         {
                 return;
         }
 
         APlayerController* PC = Cast<APlayerController>(GetController());
 
-        if (!PC || !PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+        if (!PC || (!PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) && !PC->WasInputKeyJustPressed(EKeys::RightMouseButton)))
         {
                 return;
         }
@@ -324,10 +359,19 @@ void AMO56Character::Tick(float DeltaSeconds)
 
         if (FSlateApplication::IsInitialized())
         {
-                const FGeometry& InventoryGeometry = InventoryWidgetInstance->GetCachedGeometry();
                 const FVector2D CursorPosition = FSlateApplication::Get().GetCursorPos();
 
-                bCursorOverInventory = InventoryGeometry.IsUnderLocation(CursorPosition);
+                if (bInventoryVisible)
+                {
+                        const FGeometry& InventoryGeometry = InventoryWidgetInstance->GetCachedGeometry();
+                        bCursorOverInventory |= InventoryGeometry.IsUnderLocation(CursorPosition);
+                }
+
+                if (bContainerVisible)
+                {
+                        const FGeometry& ContainerGeometry = ContainerInventoryWidgetInstance->GetCachedGeometry();
+                        bCursorOverInventory |= ContainerGeometry.IsUnderLocation(CursorPosition);
+                }
         }
 
         if (!bCursorOverInventory)
@@ -350,7 +394,19 @@ void AMO56Character::SetInventoryVisible(bool bVisible)
                 InventoryWidgetInstance->SetVisibility(bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
         }
 
-        UpdateInventoryInputState(bVisible);
+        if (!bVisible)
+        {
+                CloseActiveContainerInventory(true);
+        }
+        else if (ContainerInventoryWidgetInstance && ActiveContainerInventory.IsValid())
+        {
+                ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+        }
+
+        const bool bAnyVisible = (InventoryWidgetInstance && InventoryWidgetInstance->IsVisible()) ||
+                                 (ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible());
+
+        UpdateInventoryInputState(bAnyVisible);
 }
 
 void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
@@ -371,7 +427,10 @@ void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
                 FInputModeGameAndUI InputMode;
                 InputMode.SetHideCursorDuringCapture(false);
                 InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-                InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
+                if (InventoryWidgetInstance)
+                {
+                        InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
+                }
                 PC->SetInputMode(InputMode);
         }
         else
@@ -383,6 +442,93 @@ void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
                 PC->bEnableClickEvents = false;
                 PC->bEnableMouseOverEvents = false;
         }
+}
+
+void AMO56Character::OpenContainerInventory(UInventoryComponent* ContainerInventory, AActor* ContainerActor)
+{
+        if (!ContainerInventory || !HUDWidgetInstance)
+        {
+                return;
+        }
+
+        ActiveContainerInventory = ContainerInventory;
+        ActiveContainerActor = ContainerActor;
+
+        if (!ContainerInventoryWidgetInstance && InventoryWidgetClass)
+        {
+                UInventoryWidget* NewContainerWidget = nullptr;
+
+                if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                {
+                        NewContainerWidget = CreateWidget<UInventoryWidget>(PC, InventoryWidgetClass);
+                }
+                else
+                {
+                        NewContainerWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+                }
+
+                if (NewContainerWidget)
+                {
+                        ContainerInventoryWidgetInstance = NewContainerWidget;
+                        ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
+                        ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
+                        ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+                        HUDWidgetInstance->AddRightInventoryWidget(ContainerInventoryWidgetInstance);
+                }
+        }
+
+        if (ContainerInventoryWidgetInstance)
+        {
+                ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
+                ContainerInventoryWidgetInstance->SetInventoryComponent(ContainerInventory);
+                ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+        }
+
+        SetInventoryVisible(true);
+}
+
+void AMO56Character::CloseContainerInventoryForActor(AActor* ContainerActor, bool bClosePlayerInventory)
+{
+        if (ActiveContainerActor.Get() != ContainerActor)
+        {
+                return;
+        }
+
+        CloseActiveContainerInventory(false);
+
+        if (bClosePlayerInventory)
+        {
+                SetInventoryVisible(false);
+        }
+        else
+        {
+                const bool bAnyVisible = (InventoryWidgetInstance && InventoryWidgetInstance->IsVisible()) ||
+                                         (ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible());
+                UpdateInventoryInputState(bAnyVisible);
+        }
+}
+
+void AMO56Character::CloseActiveContainerInventory(bool bNotifyContainer)
+{
+        if (ContainerInventoryWidgetInstance)
+        {
+                ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
+                ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+        }
+
+        if (bNotifyContainer)
+        {
+                if (AActor* ContainerActor = ActiveContainerActor.Get())
+                {
+                        if (AInventoryContainer* InventoryContainer = Cast<AInventoryContainer>(ContainerActor))
+                        {
+                                InventoryContainer->NotifyInventoryClosed(this);
+                        }
+                }
+        }
+
+        ActiveContainerInventory = nullptr;
+        ActiveContainerActor.Reset();
 }
 
 void AMO56Character::DoMove(float Right, float Forward)
