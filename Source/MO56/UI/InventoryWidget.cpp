@@ -1,6 +1,7 @@
 #include "UI/InventoryWidget.h"
 
 #include "Components/PanelWidget.h"
+#include "Components/TextBlock.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
@@ -58,6 +59,7 @@ void UInventoryWidget::SetInventoryComponent(UInventoryComponent* NewInventory)
 void UInventoryWidget::OnUpdateInventory_Implementation(UInventoryComponent* Inventory)
 {
         RefreshInventory(Inventory);
+        UpdateInventoryStats(Inventory);
 }
 
 void UInventoryWidget::ObserveOwningPlayer()
@@ -134,5 +136,33 @@ void UInventoryWidget::RefreshInventory(UInventoryComponent* Inventory)
 void UInventoryWidget::HandleInventoryComponentUpdated()
 {
         IInventoryUpdateInterface::Execute_OnUpdateInventory(this, ObservedInventory.Get());
+}
+
+void UInventoryWidget::UpdateInventoryStats(UInventoryComponent* Inventory)
+{
+        const float TotalWeightValue = Inventory ? Inventory->GetTotalWeight() : 0.f;
+        const float TotalVolumeValue = Inventory ? Inventory->GetTotalVolume() : 0.f;
+        const float MaxWeightValue = Inventory ? Inventory->MaxWeight : 0.f;
+        const float MaxVolumeValue = Inventory ? Inventory->MaxVolume : 0.f;
+
+        if (WeightTotal)
+        {
+                WeightTotal->SetText(FText::AsNumber(TotalWeightValue));
+        }
+
+        if (VolumeTotal)
+        {
+                VolumeTotal->SetText(FText::AsNumber(TotalVolumeValue));
+        }
+
+        if (MaxWeight)
+        {
+                MaxWeight->SetText(FText::AsNumber(MaxWeightValue));
+        }
+
+        if (MaxVolume)
+        {
+                MaxVolume->SetText(FText::AsNumber(MaxVolumeValue));
+        }
 }
 
