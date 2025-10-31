@@ -6,6 +6,7 @@
 #include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
 #include "UI/InventorySlotWidget.h"
+#include "Skills/SkillSystemComponent.h"
 
 
 
@@ -54,6 +55,21 @@ void UInventoryWidget::SetInventoryComponent(UInventoryComponent* NewInventory)
         }
 
         IInventoryUpdateInterface::Execute_OnUpdateInventory(this, ObservedInventory.Get());
+}
+
+void UInventoryWidget::SetSkillSystemComponent(USkillSystemComponent* SkillSystem)
+{
+        if (ObservedSkillSystem.Get() == SkillSystem)
+        {
+                return;
+        }
+
+        ObservedSkillSystem = SkillSystem;
+
+        if (ObservedInventory.IsValid())
+        {
+                RefreshInventory(ObservedInventory.Get());
+        }
 }
 
 void UInventoryWidget::SetAutoBindToOwningPawn(bool bEnabled)
@@ -140,6 +156,7 @@ void UInventoryWidget::RefreshInventory(UInventoryComponent* Inventory)
 
                 SlotWidget->InitializeSlot(Inventory, i);
                 SlotWidget->SetItemStack(Slots[i]);
+                SlotWidget->SetSkillSystem(ObservedSkillSystem.Get());
 
                 const int32 Row = Columns > 0 ? i / Columns : 0;
                 const int32 Col = Columns > 0 ? i % Columns : i;
