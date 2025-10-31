@@ -13,6 +13,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "InputCoreTypes.h"
+#include "Math/UnrealMathUtility.h"
 
 #include "MO56.h"
 
@@ -26,8 +27,10 @@
 #include "UI/InventoryUpdateInterface.h"
 #include "UI/InventoryWidget.h"
 #include "Components/SlateWrapperTypes.h"
+#include "Components/CharacterStatusComponent.h"
 #include "Blueprint/UserWidget.h"
 #include "Framework/Application/SlateApplication.h"
+#include "UI/CharacterStatusWidget.h"
 
 AMO56Character::AMO56Character()
 {
@@ -66,7 +69,8 @@ AMO56Character::AMO56Character()
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 
-	Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+        Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+        CharacterStatus = CreateDefaultSubobject<UCharacterStatusComponent>(TEXT("CharacterStatus"));
 }
 
 
@@ -88,6 +92,31 @@ void AMO56Character::BeginPlay()
                 if (HUDWidgetInstance)
                 {
                         HUDWidgetInstance->AddToViewport();
+
+                        if (CharacterStatusWidgetClass)
+                        {
+                                UCharacterStatusWidget* NewStatusWidget = nullptr;
+
+                                if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                                {
+                                        NewStatusWidget = CreateWidget<UCharacterStatusWidget>(PC, CharacterStatusWidgetClass);
+                                }
+                                else
+                                {
+                                        NewStatusWidget = CreateWidget<UCharacterStatusWidget>(GetWorld(), CharacterStatusWidgetClass);
+                                }
+
+                                if (NewStatusWidget)
+                                {
+                                        CharacterStatusWidgetInstance = NewStatusWidget;
+                                        HUDWidgetInstance->AddCharacterStatusWidget(NewStatusWidget);
+
+                                        if (CharacterStatus)
+                                        {
+                                                NewStatusWidget->SetStatusComponent(CharacterStatus);
+                                        }
+                                }
+                        }
 
                         if (InventoryWidgetClass)
                         {
@@ -151,6 +180,13 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
         if (Inventory)
         {
                 Inventory->OnInventoryUpdated.RemoveDynamic(this, &AMO56Character::HandleInventoryUpdated);
+        }
+
+        if (CharacterStatusWidgetInstance)
+        {
+                CharacterStatusWidgetInstance->SetStatusComponent(nullptr);
+                CharacterStatusWidgetInstance->RemoveFromParent();
+                CharacterStatusWidgetInstance = nullptr;
         }
 
         if (InventoryWidgetInstance)
@@ -339,6 +375,34 @@ void AMO56Character::HandleInventoryUpdated()
 void AMO56Character::Tick(float DeltaSeconds)
 {
         Super::Tick(DeltaSeconds);
+
+        if (CharacterStatus)
+        {
+                const FVector Velocity = GetVelocity();
+                const float CurrentSpeed = Velocity.Size();
+
+                float CurrentSlope = 0.f;
+
+                if (const UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+                {
+                        if (MovementComp->CurrentFloor.bBlockingHit)
+                        {
+                                const FVector Normal = MovementComp->CurrentFloor.HitResult.ImpactNormal;
+                                const float NormalZ = FMath::Max(KINDA_SMALL_NUMBER, Normal.Z);
+                                const float Tangent = FMath::Sqrt(FMath::Max(0.f, 1.f - NormalZ * NormalZ)) / NormalZ;
+                                CurrentSlope = FMath::Clamp(Tangent, 0.f, 1.f);
+                        }
+                }
+
+                float CarriedLoad = 0.f;
+
+                if (Inventory)
+                {
+                        CarriedLoad = Inventory->GetTotalWeight();
+                }
+
+                CharacterStatus->SetActivityInputs(CurrentSpeed, CurrentSlope, CarriedLoad);
+        }
 
         const bool bInventoryVisible = InventoryWidgetInstance && InventoryWidgetInstance->IsVisible();
         const bool bContainerVisible = ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible();
