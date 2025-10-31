@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "TimerManager.h"
+#include "UObject/Package.h"
 
 #if WITH_EDITOR
 #include "UObject/UnrealType.h"
@@ -22,9 +23,21 @@ UInventoryComponent::UInventoryComponent()
     EnsureSlotCapacity();
 }
 
+void UInventoryComponent::PostInitProperties()
+{
+    Super::PostInitProperties();
+
+    if (!HasAnyFlags(RF_ClassDefaultObject))
+    {
+        EnsurePersistentId();
+    }
+}
+
 void UInventoryComponent::InitializeComponent()
 {
     Super::InitializeComponent();
+
+    EnsurePersistentId();
     EnsureSlotCapacity();
 }
 
@@ -467,6 +480,89 @@ float UInventoryComponent::GetTotalVolume() const
     return static_cast<float>(TotalVolume);
 }
 
+void UInventoryComponent::EnsurePersistentId()
+{
+    if (!PersistentId.IsValid())
+    {
+        PersistentId = FGuid::NewGuid();
+    }
+}
+
+void UInventoryComponent::WriteToSaveData(FInventorySaveData& OutData) const
+{
+    OutData.MaxSlots = MaxSlots;
+    OutData.MaxWeight = MaxWeight;
+    OutData.MaxVolume = MaxVolume;
+
+    OutData.Slots.SetNum(Slots.Num());
+    for (int32 Index = 0; Index < Slots.Num(); ++Index)
+    {
+        const FItemStack& SourceSlot = Slots[Index];
+        FInventorySlotSaveData& SaveSlot = OutData.Slots[Index];
+
+        SaveSlot.ItemPath.Reset();
+        SaveSlot.Quantity = FMath::Max(0, SourceSlot.Quantity);
+
+        if (SourceSlot.Item)
+        {
+            SaveSlot.ItemPath = FSoftObjectPath(SourceSlot.Item.Get());
+        }
+    }
+}
+
+void UInventoryComponent::ReadFromSaveData(const FInventorySaveData& InData)
+{
+    MaxSlots = InData.MaxSlots > 0 ? InData.MaxSlots : MaxSlots;
+    MaxWeight = InData.MaxWeight;
+    MaxVolume = InData.MaxVolume;
+
+    EnsureSlotCapacity();
+
+    const int32 SlotCount = Slots.Num();
+    for (int32 Index = 0; Index < SlotCount; ++Index)
+    {
+        FItemStack& TargetSlot = Slots[Index];
+        if (InData.Slots.IsValidIndex(Index))
+        {
+            ResolveItemIntoSlot(InData.Slots[Index], TargetSlot);
+        }
+        else
+        {
+            TargetSlot.Item = nullptr;
+            TargetSlot.Quantity = 0;
+        }
+    }
+
+    OnInventoryUpdated.Broadcast();
+}
+
+void UInventoryComponent::ResolveItemIntoSlot(const FInventorySlotSaveData& SlotData, FItemStack& Slot)
+{
+    Slot.Item = nullptr;
+    Slot.Quantity = FMath::Max(0, SlotData.Quantity);
+
+    if (SlotData.ItemPath.IsNull() || Slot.Quantity <= 0)
+    {
+        Slot.Quantity = 0;
+        return;
+    }
+
+    UObject* LoadedObject = SlotData.ItemPath.TryLoad();
+    if (UItemData* LoadedItem = Cast<UItemData>(LoadedObject))
+    {
+        Slot.Item = LoadedItem;
+        const int32 MaxStack = Slot.MaxStack();
+        if (MaxStack > 0)
+        {
+            Slot.Quantity = FMath::Clamp(Slot.Quantity, 0, MaxStack);
+        }
+    }
+    else
+    {
+        Slot.Quantity = 0;
+    }
+}
+
 bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
 {
     EnsureSlotCapacity();
@@ -535,6 +631,8 @@ bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
 
     SpawnedPickup->SetItem(ItemData);
     SpawnedPickup->SetQuantity(1);
+    SpawnedPickup->SetPersistentId(FGuid::NewGuid());
+    SpawnedPickup->SetWasSpawnedFromInventory(true);
     SpawnedPickup->SetDropped(true);
 
     Slot.Quantity = FMath::Max(0, Slot.Quantity - 1);

@@ -29,6 +29,11 @@ void AItemPickup::BeginPlay()
 {
     Super::BeginPlay();
 
+    if (!PersistentId.IsValid())
+    {
+        PersistentId = GetActorGuid();
+    }
+
     if (Dropped)
     {
         StartDropPhysics();
@@ -71,6 +76,7 @@ void AItemPickup::SetDropped(bool bNewDropped)
 {
     if (bNewDropped)
     {
+        bWasSpawnedFromInventory = true;
         StartDropPhysics();
     }
     else if (Dropped)
@@ -107,6 +113,7 @@ void AItemPickup::FinishDropPhysics()
     if (!Mesh)
     {
         Dropped = false;
+        OnDropSettled.Broadcast(this);
         return;
     }
 
@@ -117,6 +124,13 @@ void AItemPickup::FinishDropPhysics()
     Mesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
     Dropped = false;
+    OnDropSettled.Broadcast(this);
+}
+
+void AItemPickup::Destroyed()
+{
+    OnPickupDestroyed.Broadcast(this);
+    Super::Destroyed();
 }
 
 void AItemPickup::Interact_Implementation(AActor* Interactor)

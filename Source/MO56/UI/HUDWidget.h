@@ -35,6 +35,10 @@ public:
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
         TObjectPtr<UPanelWidget> MiniMapContainer;
 
+        /** Container for the game menu widget */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        TObjectPtr<UPanelWidget> GameMenuContainer;
+
 public:
         /** Adds the given widget to the character status container, if available */
         UFUNCTION(BlueprintCallable, Category = "HUD")
@@ -55,6 +59,10 @@ public:
         /** Sets the mini map widget */
         UFUNCTION(BlueprintCallable, Category = "HUD")
         void SetMiniMapWidget(UWidget* Widget);
+
+        /** Sets the game menu widget */
+        UFUNCTION(BlueprintCallable, Category = "HUD")
+        void SetGameMenuWidget(UWidget* Widget);
 
 private:
         void AddWidgetToContainer(UPanelWidget* Container, UWidget* Widget, bool bClearChildren);

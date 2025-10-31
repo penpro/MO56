@@ -28,6 +28,11 @@ void UHUDWidget::SetMiniMapWidget(UWidget* Widget)
         AddWidgetToContainer(MiniMapContainer.Get(), Widget, /*bClearChildren*/ true);
 }
 
+void UHUDWidget::SetGameMenuWidget(UWidget* Widget)
+{
+        AddWidgetToContainer(GameMenuContainer.Get(), Widget, /*bClearChildren*/ true);
+}
+
 void UHUDWidget::AddWidgetToContainer(UPanelWidget* Container, UWidget* Widget, bool bClearChildren)
 {
         if (!Container || !Widget)

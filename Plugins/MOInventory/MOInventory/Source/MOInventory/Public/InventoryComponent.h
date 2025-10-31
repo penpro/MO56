@@ -2,12 +2,49 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "UObject/SoftObjectPath.h"
 #include "InventoryComponent.generated.h"
 
 class UItemData;
 class UInventoryComponent;
 struct FPropertyChangedEvent;
 struct FTimerHandle;
+
+USTRUCT(BlueprintType)
+struct MOINVENTORY_API FInventorySlotSaveData
+{
+    GENERATED_BODY();
+
+    /** Soft reference used to resolve the item when loading a save. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    FSoftObjectPath ItemPath;
+
+    /** Quantity stored in the slot. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    int32 Quantity = 0;
+};
+
+USTRUCT(BlueprintType)
+struct MOINVENTORY_API FInventorySaveData
+{
+    GENERATED_BODY();
+
+    /** Number of slots available in this inventory at the time of save. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    int32 MaxSlots = 0;
+
+    /** Maximum allowable weight captured in the save. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    float MaxWeight = 0.f;
+
+    /** Maximum allowable volume captured in the save. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    float MaxVolume = 0.f;
+
+    /** Serialized representation of all slots. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    TArray<FInventorySlotSaveData> Slots;
+};
 
 USTRUCT(BlueprintType)
 struct MOINVENTORY_API FItemStack
@@ -51,6 +88,10 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Inventory")
     FOnInventoryUpdated OnInventoryUpdated;
 
+    /** Persistent identifier used when serializing this inventory to a save game. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Save")
+    FGuid PersistentId;
+
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     int32 AddItem(UItemData* Item, int32 Count);
 
@@ -90,6 +131,20 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory|Capacity")
     float GetTotalVolume() const;
 
+    /** Ensures a valid persistent identifier exists for this component. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Save")
+    void EnsurePersistentId();
+
+    /** Accessor for the persistent identifier. */
+    UFUNCTION(BlueprintPure, Category = "Inventory|Save")
+    FGuid GetPersistentId() const { return PersistentId; }
+
+    /** Serializes the inventory content into the provided save data structure. */
+    void WriteToSaveData(FInventorySaveData& OutData) const;
+
+    /** Restores inventory content from serialized save data. */
+    void ReadFromSaveData(const FInventorySaveData& InData);
+
 private:
     UPROPERTY(VisibleAnywhere, Category = "Inventory")
     TArray<FItemStack> Slots;
@@ -102,9 +157,13 @@ private:
     void HandleDropAllTimerTick(int32 SlotIndex);
     void ClearDropAllTimer(int32 SlotIndex);
 
+    void ResolveItemIntoSlot(const FInventorySlotSaveData& SlotData, FItemStack& Slot);
+
     TMap<int32, FTimerHandle> ActiveDropAllTimers;
 
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+
+    virtual void PostInitProperties() override;
 };
