@@ -228,6 +228,107 @@ bool UInventoryComponent::DropSingleItemAtIndex(int32 SlotIndex)
     return DropSingleItemInternal(SlotIndex);
 }
 
+bool UInventoryComponent::TransferItemToInventory(UInventoryComponent* TargetInventory, int32 SourceSlotIndex, int32 TargetSlotIndex)
+{
+    if (!TargetInventory || TargetInventory == this)
+    {
+        return false;
+    }
+
+    EnsureSlotCapacity();
+    TargetInventory->EnsureSlotCapacity();
+
+    if (!Slots.IsValidIndex(SourceSlotIndex) || !TargetInventory->Slots.IsValidIndex(TargetSlotIndex))
+    {
+        return false;
+    }
+
+    FItemStack& SourceSlot = Slots[SourceSlotIndex];
+    if (SourceSlot.IsEmpty())
+    {
+        return false;
+    }
+
+    FItemStack& TargetSlot = TargetInventory->Slots[TargetSlotIndex];
+
+    const UItemData* SourceItem = SourceSlot.Item;
+    if (!SourceItem)
+    {
+        return false;
+    }
+
+    bool bChangedSource = false;
+    bool bChangedTarget = false;
+
+    if (TargetSlot.IsEmpty())
+    {
+        const int32 MaxStack = SourceSlot.MaxStack();
+        const int32 TransferAmount = FMath::Clamp(SourceSlot.Quantity, 0, MaxStack);
+        if (TransferAmount <= 0)
+        {
+            return false;
+        }
+
+        TargetSlot.Item = SourceSlot.Item;
+        TargetSlot.Quantity = TransferAmount;
+
+        SourceSlot.Quantity -= TransferAmount;
+        if (SourceSlot.Quantity <= 0)
+        {
+            SourceSlot.Item = nullptr;
+            SourceSlot.Quantity = 0;
+        }
+
+        bChangedSource = true;
+        bChangedTarget = true;
+    }
+    else if (TargetSlot.Item == SourceSlot.Item)
+    {
+        const int32 MaxStack = TargetSlot.MaxStack();
+        const int32 AvailableSpace = FMath::Max(0, MaxStack - TargetSlot.Quantity);
+        if (AvailableSpace <= 0)
+        {
+            return false;
+        }
+
+        const int32 TransferAmount = FMath::Min(AvailableSpace, SourceSlot.Quantity);
+        if (TransferAmount <= 0)
+        {
+            return false;
+        }
+
+        TargetSlot.Quantity += TransferAmount;
+        SourceSlot.Quantity -= TransferAmount;
+
+        if (SourceSlot.Quantity <= 0)
+        {
+            SourceSlot.Item = nullptr;
+            SourceSlot.Quantity = 0;
+        }
+
+        bChangedSource = true;
+        bChangedTarget = true;
+    }
+    else
+    {
+        Swap(TargetSlot, SourceSlot);
+        bChangedSource = true;
+        bChangedTarget = true;
+    }
+
+    if (bChangedSource)
+    {
+        OnInventoryUpdated.Broadcast();
+    }
+
+    if (bChangedTarget)
+    {
+        TargetInventory->OnInventoryUpdated.Broadcast();
+    }
+
+    return true;
+}
+
 namespace
 {
     constexpr float KgToLbs = 2.20462262f;

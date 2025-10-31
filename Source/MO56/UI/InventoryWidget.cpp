@@ -56,6 +56,26 @@ void UInventoryWidget::SetInventoryComponent(UInventoryComponent* NewInventory)
         IInventoryUpdateInterface::Execute_OnUpdateInventory(this, ObservedInventory.Get());
 }
 
+void UInventoryWidget::SetAutoBindToOwningPawn(bool bEnabled)
+{
+        if (bAutoBindToOwningPawn == bEnabled)
+        {
+                return;
+        }
+
+        bAutoBindToOwningPawn = bEnabled;
+
+        if (bAutoBindToOwningPawn)
+        {
+                ObserveOwningPlayer();
+                BindToInventoryFromPawn(GetOwningPlayerPawn());
+        }
+        else
+        {
+                StopObservingOwningPlayer();
+        }
+}
+
 void UInventoryWidget::OnUpdateInventory_Implementation(UInventoryComponent* Inventory)
 {
         RefreshInventory(Inventory);

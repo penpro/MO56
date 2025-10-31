@@ -15,6 +15,8 @@ struct FInputActionValue;
 class UInventoryComponent; // forward declare
 class UHUDWidget;
 class UInventoryWidget;
+class AActor;
+class AInventoryContainer;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -98,10 +100,15 @@ protected:
 
         void SetInventoryVisible(bool bVisible);
         void UpdateInventoryInputState(bool bInventoryVisible);
+        void CloseActiveContainerInventory(bool bNotifyContainer);
 
 protected:
         UFUNCTION(Server, Reliable)
         void Server_Interact(AActor* HitActor);
+
+public:
+        void OpenContainerInventory(UInventoryComponent* ContainerInventory, AActor* ContainerActor);
+        void CloseContainerInventoryForActor(AActor* ContainerActor, bool bClosePlayerInventory = true);
 
 public:
 
@@ -128,6 +135,16 @@ public:
         /** Instance of the inventory widget */
         UPROPERTY(Transient)
         TObjectPtr<class UInventoryWidget> InventoryWidgetInstance;
+
+        /** Instance of the container inventory widget */
+        UPROPERTY(Transient)
+        TObjectPtr<class UInventoryWidget> ContainerInventoryWidgetInstance;
+
+        /** Inventory currently displayed in the container panel */
+        TWeakObjectPtr<UInventoryComponent> ActiveContainerInventory;
+
+        /** Actor that provided the active container inventory */
+        TWeakObjectPtr<AActor> ActiveContainerActor;
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
