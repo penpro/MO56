@@ -2,14 +2,13 @@
 
 #include "Components/PanelWidget.h"
 #include "Components/TextBlock.h"
+#include "Engine/World.h"
 #include "Skills/SkillSystemComponent.h"
 #include "Skills/SkillTypes.h"
-#include "Blueprint/WidgetTree.h"
 
 UCharacterSkillMenu::UCharacterSkillMenu(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
-        SetCanTick(true);
 }
 
 void UCharacterSkillMenu::SetSkillSystemComponent(USkillSystemComponent* InSkillSystem)
@@ -42,10 +41,13 @@ void UCharacterSkillMenu::NativeConstruct()
         Super::NativeConstruct();
         RefreshSkillData();
         RefreshInspectionStatus();
+        StartInspectionRefreshTimer();
 }
 
 void UCharacterSkillMenu::NativeDestruct()
 {
+        StopInspectionRefreshTimer();
+
         if (USkillSystemComponent* Current = SkillSystem.Get())
         {
                 Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterSkillMenu::HandleSkillStateChanged);
@@ -54,18 +56,6 @@ void UCharacterSkillMenu::NativeDestruct()
 
         SkillSystem.Reset();
         Super::NativeDestruct();
-}
-
-void UCharacterSkillMenu::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-        Super::NativeTick(MyGeometry, InDeltaTime);
-
-        const double Now = FPlatformTime::Seconds();
-        if (Now - LastInspectionRefresh > 0.25)
-        {
-                RefreshInspectionStatus();
-                LastInspectionRefresh = Now;
-        }
 }
 
 void UCharacterSkillMenu::HandleSkillStateChanged()
@@ -132,6 +122,27 @@ void UCharacterSkillMenu::RefreshInspectionStatus()
         InspectionStatusText->SetText(FText::Format(NSLOCTEXT("SkillMenu", "InspectionTimer", "Inspecting {0} ({1}s remaining)"), KnowledgeName, FText::AsNumber(FMath::RoundToInt(Remaining))));
 }
 
+void UCharacterSkillMenu::StartInspectionRefreshTimer()
+{
+        if (UWorld* World = GetWorld())
+        {
+                World->GetTimerManager().SetTimer(InspectionRefreshHandle, this, &UCharacterSkillMenu::HandleInspectionRefreshTimer, 0.25f, true);
+        }
+}
+
+void UCharacterSkillMenu::StopInspectionRefreshTimer()
+{
+        if (UWorld* World = GetWorld())
+        {
+                World->GetTimerManager().ClearTimer(InspectionRefreshHandle);
+        }
+}
+
+void UCharacterSkillMenu::HandleInspectionRefreshTimer()
+{
+        RefreshInspectionStatus();
+}
+
 void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry>& KnowledgeEntries)
 {
         if (!KnowledgeList)
@@ -141,11 +152,9 @@ void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry
 
         KnowledgeList->ClearChildren();
 
-        UWidgetTree* LocalWidgetTree = GetWidgetTree();
-
         for (const FSkillKnowledgeEntry& Entry : KnowledgeEntries)
         {
-                UTextBlock* RowText = LocalWidgetTree ? LocalWidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass()) : nullptr;
+                UTextBlock* RowText = NewObject<UTextBlock>(this, UTextBlock::StaticClass());
                 if (!RowText)
                 {
                         continue;
@@ -166,11 +175,9 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
 
         SkillList->ClearChildren();
 
-        UWidgetTree* LocalWidgetTree = GetWidgetTree();
-
         for (const FSkillDomainProgress& Entry : SkillEntries)
         {
-                UTextBlock* RowText = LocalWidgetTree ? LocalWidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass()) : nullptr;
+                UTextBlock* RowText = NewObject<UTextBlock>(this, UTextBlock::StaticClass());
                 if (!RowText)
                 {
                         continue;

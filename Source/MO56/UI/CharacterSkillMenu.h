@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Blueprint/UserWidget.h"
+#include "TimerManager.h"
 #include "CharacterSkillMenu.generated.h"
 
 struct FSkillDomainProgress;
@@ -27,16 +28,21 @@ public:
 protected:
         virtual void NativeConstruct() override;
         virtual void NativeDestruct() override;
-        virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
         void RefreshSkillData();
         void RefreshInspectionStatus();
+        void StartInspectionRefreshTimer();
+        void StopInspectionRefreshTimer();
+
         UFUNCTION()
         void HandleSkillStateChanged();
 
         UFUNCTION()
         void HandleInspectionStateChanged();
+
+        UFUNCTION()
+        void HandleInspectionRefreshTimer();
 
         void RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry>& KnowledgeEntries);
         void RebuildSkillList(const TArray<FSkillDomainProgress>& SkillEntries);
@@ -52,5 +58,5 @@ private:
         TObjectPtr<UTextBlock> InspectionStatusText;
 
         TWeakObjectPtr<USkillSystemComponent> SkillSystem;
-        double LastInspectionRefresh = 0.0;
+        FTimerHandle InspectionRefreshHandle;
 };
