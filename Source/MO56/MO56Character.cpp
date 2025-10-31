@@ -357,9 +357,11 @@ void AMO56Character::OnToggleCharacterStatus(const FInputActionValue& /*Value*/)
 {
         if (!CharacterStatusWidgetInstance)
         {
+                UE_LOG(LogTemp, Display, TEXT("No valid status widget"));
                 return;
         }
 
+        UE_LOG(LogTemp, Display, TEXT("Toggling status widget"));
         const ESlateVisibility CurrentVisibility = CharacterStatusWidgetInstance->GetVisibility();
         const bool bCurrentlyVisible = CurrentVisibility != ESlateVisibility::Collapsed && CurrentVisibility != ESlateVisibility::Hidden;
         SetCharacterStatusVisible(!bCurrentlyVisible);
