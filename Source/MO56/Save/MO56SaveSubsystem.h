@@ -8,6 +8,40 @@
 class AItemPickup;
 class UInventoryComponent;
 
+USTRUCT(BlueprintType)
+struct FSaveGameSummary
+{
+        GENERATED_BODY()
+
+        /** Slot identifier on disk. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        FString SlotName;
+
+        /** User index associated with the save slot. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        int32 UserIndex = 0;
+
+        /** Initial creation timestamp for the save. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        FDateTime InitialSaveTimestamp;
+
+        /** Timestamp of the last save operation. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        FDateTime LastSaveTimestamp;
+
+        /** Total tracked play time in seconds. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        float TotalPlayTimeSeconds = 0.f;
+
+        /** Level recorded when the save was last written. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        FName LastLevelName = NAME_None;
+
+        /** Count of serialized inventories in the save. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        int32 InventoryCount = 0;
+};
+
 /**
  * Centralized save-game subsystem that persists inventory and world pickup data.
  */
@@ -30,6 +64,10 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Save")
         bool LoadGame();
 
+        /** Loads save data from the specified slot name. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        bool LoadGameBySlot(const FString& SlotName, int32 UserIndex);
+
         /** Clears the current save data and resets runtime state. */
         UFUNCTION(BlueprintCallable, Category = "Save")
         void ResetToNewGame();
@@ -49,6 +87,10 @@ public:
         /** Returns the active save game object. */
         UFUNCTION(BlueprintPure, Category = "Save")
         UMO56SaveGame* GetCurrentSaveGame() const { return CurrentSaveGame; }
+
+        /** Returns summaries for all discoverable save games. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        TArray<FSaveGameSummary> GetAvailableSaveSummaries() const;
 
 private:
         static constexpr const TCHAR* SaveSlotName = TEXT("MO56_Default");
@@ -91,5 +133,11 @@ private:
 
         void BindPickupDelegates(AItemPickup& Pickup);
         void UnbindPickupDelegates(AItemPickup& Pickup);
+
+        void ApplyPlayerTransform();
+        bool ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave);
+
+        UFUNCTION()
+        void HandleInventoryComponentUpdated();
 };
 
