@@ -4,6 +4,8 @@
 #include "Components/ProgressBar.h"
 #include "Components/TextBlock.h"
 #include "Math/UnrealMathUtility.h"
+#include "Skills/SkillSystemComponent.h"
+#include "Skills/SkillTypes.h"
 
 void UCharacterStatusWidget::SetStatusComponent(UCharacterStatusComponent* InComp)
 {
@@ -19,6 +21,28 @@ void UCharacterStatusWidget::SetStatusComponent(UCharacterStatusComponent* InCom
                 StatusComponent->OnVitalsUpdated.AddDynamic(this, &UCharacterStatusWidget::RefreshFromStatus);
                 RefreshFromStatus();
         }
+}
+
+void UCharacterStatusWidget::SetSkillSystemComponent(USkillSystemComponent* InSkillSystem)
+{
+        if (SkillSystemComponent.Get() == InSkillSystem)
+        {
+                return;
+        }
+
+        if (USkillSystemComponent* Current = SkillSystemComponent.Get())
+        {
+                Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterStatusWidget::RefreshSkillSummaries);
+        }
+
+        SkillSystemComponent = InSkillSystem;
+
+        if (USkillSystemComponent* NewSystem = SkillSystemComponent.Get())
+        {
+                NewSystem->OnSkillStateChanged.AddDynamic(this, &UCharacterStatusWidget::RefreshSkillSummaries);
+        }
+
+        RefreshSkillSummaries();
 }
 
 void UCharacterStatusWidget::RefreshFromStatus()
@@ -75,6 +99,8 @@ void UCharacterStatusWidget::RefreshFromStatus()
                 const int32 RoundedGlucose = FMath::RoundToInt(Comp->BloodGlucose);
                 GlucoseText->SetText(FText::Format(NSLOCTEXT("CharacterStatus", "GlucoseFormat", "Glucose {0} mg/dL"), FText::AsNumber(RoundedGlucose)));
         }
+
+        RefreshSkillSummaries();
 }
 
 void UCharacterStatusWidget::NativeDestruct()
@@ -85,6 +111,99 @@ void UCharacterStatusWidget::NativeDestruct()
                 StatusComponent.Reset();
         }
 
+        if (USkillSystemComponent* Current = SkillSystemComponent.Get())
+        {
+                Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterStatusWidget::RefreshSkillSummaries);
+        }
+
+        SkillSystemComponent.Reset();
         Super::NativeDestruct();
+}
+
+void UCharacterStatusWidget::RefreshSkillSummaries()
+{
+        if (!KnowledgeSummaryText && !SkillSummaryText)
+        {
+                return;
+        }
+
+        if (!SkillSystemComponent.IsValid())
+        {
+                if (KnowledgeSummaryText)
+                {
+                        KnowledgeSummaryText->SetText(NSLOCTEXT("CharacterStatus", "KnowledgeNone", "Knowledge: --"));
+                }
+
+                if (SkillSummaryText)
+                {
+                        SkillSummaryText->SetText(NSLOCTEXT("CharacterStatus", "SkillsNone", "Skills: --"));
+                }
+
+                return;
+        }
+
+        if (KnowledgeSummaryText)
+        {
+                TArray<FSkillKnowledgeEntry> KnowledgeEntries;
+                SkillSystemComponent->GetKnowledgeEntries(KnowledgeEntries);
+
+                KnowledgeEntries.Sort([](const FSkillKnowledgeEntry& A, const FSkillKnowledgeEntry& B)
+                {
+                        return A.Value > B.Value;
+                });
+
+                const int32 Count = FMath::Min(3, KnowledgeEntries.Num());
+                FString KnowledgeLines;
+                for (int32 Index = 0; Index < Count; ++Index)
+                {
+                        const FSkillKnowledgeEntry& Entry = KnowledgeEntries[Index];
+                        KnowledgeLines += FString::Printf(TEXT("%s %d"), *Entry.DisplayName.ToString(), FMath::RoundToInt(Entry.Value));
+                        if (Index + 1 < Count)
+                        {
+                                KnowledgeLines += TEXT("\n");
+                        }
+                }
+
+                if (KnowledgeLines.IsEmpty())
+                {
+                        KnowledgeSummaryText->SetText(NSLOCTEXT("CharacterStatus", "KnowledgeEmpty", "Knowledge: 0"));
+                }
+                else
+                {
+                        KnowledgeSummaryText->SetText(FText::FromString(KnowledgeLines));
+                }
+        }
+
+        if (SkillSummaryText)
+        {
+                TArray<FSkillDomainProgress> SkillEntries;
+                SkillSystemComponent->GetSkillEntries(SkillEntries);
+
+                SkillEntries.Sort([](const FSkillDomainProgress& A, const FSkillDomainProgress& B)
+                {
+                        return A.Value > B.Value;
+                });
+
+                const int32 Count = FMath::Min(3, SkillEntries.Num());
+                FString SkillLines;
+                for (int32 Index = 0; Index < Count; ++Index)
+                {
+                        const FSkillDomainProgress& Entry = SkillEntries[Index];
+                        SkillLines += FString::Printf(TEXT("%s %d"), *Entry.DisplayName.ToString(), FMath::RoundToInt(Entry.Value));
+                        if (Index + 1 < Count)
+                        {
+                                SkillLines += TEXT("\n");
+                        }
+                }
+
+                if (SkillLines.IsEmpty())
+                {
+                        SkillSummaryText->SetText(NSLOCTEXT("CharacterStatus", "SkillsEmpty", "Skills: 0"));
+                }
+                else
+                {
+                        SkillSummaryText->SetText(FText::FromString(SkillLines));
+                }
+        }
 }
 

@@ -35,6 +35,9 @@ private:
         /** Handles the "Split Stack" button being clicked. */
         FReply HandleSplitStackClicked();
 
+        /** Handles the "Inspect" button being clicked. */
+        FReply HandleInspectClicked();
+
         /** Handles the "Destroy Item" button being clicked. */
         FReply HandleDestroyItemClicked();
 
@@ -52,6 +55,9 @@ private:
 
         /** Whether the owning slot can drop any items. */
         bool CanDropItems() const;
+
+        /** Whether the owning slot supports inspection. */
+        bool CanInspectItem() const;
 
         /** Shared reference to the root Slate widget. */
         TSharedPtr<SWidget> RootWidget;
