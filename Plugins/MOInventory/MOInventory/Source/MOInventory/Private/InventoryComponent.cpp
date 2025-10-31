@@ -222,6 +222,38 @@ bool UInventoryComponent::DropSingleItemAtIndex(int32 SlotIndex)
     return DropSingleItemInternal(SlotIndex);
 }
 
+float UInventoryComponent::GetTotalWeight() const
+{
+    double TotalWeight = 0.0;
+    for (const FItemStack& Slot : Slots)
+    {
+        if (!Slot.Item || Slot.Quantity <= 0)
+        {
+            continue;
+        }
+
+        TotalWeight += static_cast<double>(Slot.Item->GetWeightKg()) * Slot.Quantity;
+    }
+
+    return static_cast<float>(TotalWeight);
+}
+
+float UInventoryComponent::GetTotalVolume() const
+{
+    double TotalVolume = 0.0;
+    for (const FItemStack& Slot : Slots)
+    {
+        if (!Slot.Item || Slot.Quantity <= 0)
+        {
+            continue;
+        }
+
+        TotalVolume += static_cast<double>(Slot.Item->GetVolumeCubicMeters()) * Slot.Quantity;
+    }
+
+    return static_cast<float>(TotalVolume);
+}
+
 bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
 {
     EnsureSlotCapacity();

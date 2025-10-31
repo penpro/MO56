@@ -10,6 +10,7 @@ class APawn;
 class UInventoryComponent;
 class UInventorySlotWidget;
 class UPanelWidget;
+class UTextBlock;
 
 /**
  * Widget that displays the contents of an inventory component.
@@ -36,6 +37,22 @@ protected:
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
         UUniformGridPanel* SlotsContainer = nullptr;
 
+        /** Displays the total weight stored in the inventory. */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        UTextBlock* WeightTotal = nullptr;
+
+        /** Displays the total volume stored in the inventory. */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        UTextBlock* VolumeTotal = nullptr;
+
+        /** Displays the maximum weight capacity of the inventory. */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        UTextBlock* MaxWeight = nullptr;
+
+        /** Displays the maximum volume capacity of the inventory. */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        UTextBlock* MaxVolume = nullptr;
+
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Inventory")
         int32 Columns = 6;
 
@@ -53,6 +70,7 @@ private:
         void BindToInventoryFromPawn(APawn* Pawn);
         void HandlePawnChanged(APawn* NewPawn);
         void RefreshInventory(UInventoryComponent* Inventory);
+        void UpdateInventoryStats(UInventoryComponent* Inventory);
 
         UFUNCTION()
         void HandleInventoryComponentUpdated();
