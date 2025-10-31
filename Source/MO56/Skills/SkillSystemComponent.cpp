@@ -353,7 +353,8 @@ void USkillSystemComponent::CompleteInspectionInternal(FActiveInspection& Inspec
 
         if (InspectionEntry.Params.bOncePerSource)
         {
-                if (TWeakObjectPtr<const UObject> Source = InspectionEntry.Source)
+                const TWeakObjectPtr<const UObject>& Source = InspectionEntry.Source;
+                if (Source.IsValid())
                 {
                         TSet<FName>& CompletedSet = ClaimedKnowledgeBySource.FindOrAdd(Source);
                         CompletedSet.Add(InspectionEntry.Params.KnowledgeId);

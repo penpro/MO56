@@ -3,6 +3,9 @@
 #include "Blueprint/UserWidget.h"
 #include "CharacterSkillMenu.generated.h"
 
+struct FSkillDomainProgress;
+struct FSkillKnowledgeEntry;
+
 class UPanelWidget;
 class UTextBlock;
 class USkillSystemComponent;
@@ -29,7 +32,10 @@ protected:
 private:
         void RefreshSkillData();
         void RefreshInspectionStatus();
+        UFUNCTION()
         void HandleSkillStateChanged();
+
+        UFUNCTION()
         void HandleInspectionStateChanged();
 
         void RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry>& KnowledgeEntries);

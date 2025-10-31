@@ -70,6 +70,7 @@ private:
         TWeakObjectPtr<UCharacterStatusComponent> StatusComponent;
         TWeakObjectPtr<USkillSystemComponent> SkillSystemComponent;
 
+        UFUNCTION()
         void RefreshSkillSummaries();
 };
 

@@ -32,14 +32,14 @@ void UCharacterStatusWidget::SetSkillSystemComponent(USkillSystemComponent* InSk
 
         if (USkillSystemComponent* Current = SkillSystemComponent.Get())
         {
-                Current->OnSkillStateChanged.RemoveAll(this);
+                Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterStatusWidget::RefreshSkillSummaries);
         }
 
         SkillSystemComponent = InSkillSystem;
 
         if (USkillSystemComponent* NewSystem = SkillSystemComponent.Get())
         {
-                NewSystem->OnSkillStateChanged.AddUObject(this, &UCharacterStatusWidget::RefreshSkillSummaries);
+                NewSystem->OnSkillStateChanged.AddDynamic(this, &UCharacterStatusWidget::RefreshSkillSummaries);
         }
 
         RefreshSkillSummaries();
@@ -113,7 +113,7 @@ void UCharacterStatusWidget::NativeDestruct()
 
         if (USkillSystemComponent* Current = SkillSystemComponent.Get())
         {
-                Current->OnSkillStateChanged.RemoveAll(this);
+                Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterStatusWidget::RefreshSkillSummaries);
         }
 
         SkillSystemComponent.Reset();

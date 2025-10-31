@@ -9,7 +9,7 @@
 UCharacterSkillMenu::UCharacterSkillMenu(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
-        bCanEverTick = true;
+        SetCanTick(true);
 }
 
 void UCharacterSkillMenu::SetSkillSystemComponent(USkillSystemComponent* InSkillSystem)
@@ -21,16 +21,16 @@ void UCharacterSkillMenu::SetSkillSystemComponent(USkillSystemComponent* InSkill
 
         if (USkillSystemComponent* Current = SkillSystem.Get())
         {
-                Current->OnSkillStateChanged.RemoveAll(this);
-                Current->OnInspectionStateChanged.RemoveAll(this);
+                Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterSkillMenu::HandleSkillStateChanged);
+                Current->OnInspectionStateChanged.RemoveDynamic(this, &UCharacterSkillMenu::HandleInspectionStateChanged);
         }
 
         SkillSystem = InSkillSystem;
 
         if (USkillSystemComponent* NewSystem = SkillSystem.Get())
         {
-                NewSystem->OnSkillStateChanged.AddUObject(this, &UCharacterSkillMenu::HandleSkillStateChanged);
-                NewSystem->OnInspectionStateChanged.AddUObject(this, &UCharacterSkillMenu::HandleInspectionStateChanged);
+                NewSystem->OnSkillStateChanged.AddDynamic(this, &UCharacterSkillMenu::HandleSkillStateChanged);
+                NewSystem->OnInspectionStateChanged.AddDynamic(this, &UCharacterSkillMenu::HandleInspectionStateChanged);
         }
 
         RefreshSkillData();
@@ -48,8 +48,8 @@ void UCharacterSkillMenu::NativeDestruct()
 {
         if (USkillSystemComponent* Current = SkillSystem.Get())
         {
-                Current->OnSkillStateChanged.RemoveAll(this);
-                Current->OnInspectionStateChanged.RemoveAll(this);
+                Current->OnSkillStateChanged.RemoveDynamic(this, &UCharacterSkillMenu::HandleSkillStateChanged);
+                Current->OnInspectionStateChanged.RemoveDynamic(this, &UCharacterSkillMenu::HandleInspectionStateChanged);
         }
 
         SkillSystem.Reset();
@@ -141,9 +141,11 @@ void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry
 
         KnowledgeList->ClearChildren();
 
+        UWidgetTree* LocalWidgetTree = GetWidgetTree();
+
         for (const FSkillKnowledgeEntry& Entry : KnowledgeEntries)
         {
-                UTextBlock* RowText = WidgetTree ? WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass()) : nullptr;
+                UTextBlock* RowText = LocalWidgetTree ? LocalWidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass()) : nullptr;
                 if (!RowText)
                 {
                         continue;
@@ -164,9 +166,11 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
 
         SkillList->ClearChildren();
 
+        UWidgetTree* LocalWidgetTree = GetWidgetTree();
+
         for (const FSkillDomainProgress& Entry : SkillEntries)
         {
-                UTextBlock* RowText = WidgetTree ? WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass()) : nullptr;
+                UTextBlock* RowText = LocalWidgetTree ? LocalWidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass()) : nullptr;
                 if (!RowText)
                 {
                         continue;
