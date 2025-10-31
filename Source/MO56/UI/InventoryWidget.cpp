@@ -2,7 +2,6 @@
 
 #include "Components/PanelWidget.h"
 #include "Components/TextBlock.h"
-#include "Internationalization/NumberFormattingSettings.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 #include "InventoryComponent.h"
@@ -141,10 +140,6 @@ void UInventoryWidget::HandleInventoryComponentUpdated()
 
 void UInventoryWidget::UpdateInventoryStats(UInventoryComponent* Inventory)
 {
-        FNumberFormattingOptions NumberOptions;
-        NumberOptions.MaximumFractionalDigits = 2;
-        NumberOptions.MinimumFractionalDigits = 0;
-
         const float TotalWeightValue = Inventory ? Inventory->GetTotalWeight() : 0.f;
         const float TotalVolumeValue = Inventory ? Inventory->GetTotalVolume() : 0.f;
         const float MaxWeightValue = Inventory ? Inventory->MaxWeight : 0.f;
@@ -152,22 +147,22 @@ void UInventoryWidget::UpdateInventoryStats(UInventoryComponent* Inventory)
 
         if (WeightTotal)
         {
-                WeightTotal->SetText(FText::AsNumber(TotalWeightValue, &NumberOptions));
+                WeightTotal->SetText(FText::AsNumber(TotalWeightValue));
         }
 
         if (VolumeTotal)
         {
-                VolumeTotal->SetText(FText::AsNumber(TotalVolumeValue, &NumberOptions));
+                VolumeTotal->SetText(FText::AsNumber(TotalVolumeValue));
         }
 
         if (MaxWeight)
         {
-                MaxWeight->SetText(FText::AsNumber(MaxWeightValue, &NumberOptions));
+                MaxWeight->SetText(FText::AsNumber(MaxWeightValue));
         }
 
         if (MaxVolume)
         {
-                MaxVolume->SetText(FText::AsNumber(MaxVolumeValue, &NumberOptions));
+                MaxVolume->SetText(FText::AsNumber(MaxVolumeValue));
         }
 }
 
