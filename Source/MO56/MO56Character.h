@@ -15,6 +15,8 @@ struct FInputActionValue;
 class UInventoryComponent; // forward declare
 class UHUDWidget;
 class UInventoryWidget;
+class UCharacterStatusComponent;
+class UCharacterStatusWidget;
 class AActor;
 class AInventoryContainer;
 
@@ -37,8 +39,11 @@ class AMO56Character : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	UInventoryComponent* Inventory;
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+        UInventoryComponent* Inventory;
+
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Status", meta = (AllowPrivateAccess = "true"))
+        UCharacterStatusComponent* CharacterStatus;
 	
 protected:
 
@@ -124,6 +129,9 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UHUDWidget> HUDWidgetClass;
 
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UCharacterStatusWidget> CharacterStatusWidgetClass;
+
         /** Widget class for the inventory display */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UInventoryWidget> InventoryWidgetClass;
@@ -131,6 +139,9 @@ public:
         /** Instance of the HUD widget */
         UPROPERTY(Transient)
         TObjectPtr<class UHUDWidget> HUDWidgetInstance;
+
+        UPROPERTY(Transient)
+        TObjectPtr<class UCharacterStatusWidget> CharacterStatusWidgetInstance;
 
         /** Instance of the inventory widget */
         UPROPERTY(Transient)
