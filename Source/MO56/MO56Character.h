@@ -19,6 +19,7 @@ class UCharacterStatusComponent;
 class UCharacterStatusWidget;
 class AActor;
 class AInventoryContainer;
+class UGameMenuWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -105,10 +106,13 @@ protected:
 
         /** Called for toggling the character status UI */
         void OnToggleCharacterStatus(const FInputActionValue& Value);
+        void OnToggleGameMenu(const FInputActionValue& Value);
 
         void SetInventoryVisible(bool bVisible);
         void SetCharacterStatusVisible(bool bVisible);
+        void SetGameMenuVisible(bool bVisible);
         void UpdateInventoryInputState(bool bInventoryVisible);
+        bool IsAnyInventoryPanelVisible() const;
         void CloseActiveContainerInventory(bool bNotifyContainer);
 
 protected:
@@ -133,6 +137,10 @@ public:
         UPROPERTY(EditAnywhere, Category = "Input|Actions")
         UInputAction* CharacterStatusAction = nullptr;
 
+        /** Game menu Input Action */
+        UPROPERTY(EditAnywhere, Category = "Input|Actions")
+        UInputAction* MenuAction = nullptr;
+
         /** Widget class for HUD */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UHUDWidget> HUDWidgetClass;
@@ -143,6 +151,9 @@ public:
         /** Widget class for the inventory display */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UInventoryWidget> InventoryWidgetClass;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UGameMenuWidget> GameMenuWidgetClass;
 
         /** Instance of the HUD widget */
         UPROPERTY(Transient)
@@ -158,6 +169,9 @@ public:
         /** Instance of the container inventory widget */
         UPROPERTY(Transient)
         TObjectPtr<class UInventoryWidget> ContainerInventoryWidgetInstance;
+
+        UPROPERTY(Transient)
+        TObjectPtr<class UGameMenuWidget> GameMenuWidgetInstance;
 
         /** Inventory currently displayed in the container panel */
         TWeakObjectPtr<UInventoryComponent> ActiveContainerInventory;

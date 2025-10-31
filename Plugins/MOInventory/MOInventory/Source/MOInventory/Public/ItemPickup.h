@@ -8,6 +8,8 @@
 class UStaticMeshComponent;
 class UItemData;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FItemPickupEvent, AItemPickup*, Pickup);
+
 UCLASS()
 class MOINVENTORY_API AItemPickup : public AActor, public IInteractable
 {
@@ -30,8 +32,17 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Pickup")
     bool Dropped = false;
 
+    /** True when the pickup originated from a player inventory drop. */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Pickup|Save")
+    bool bWasSpawnedFromInventory = false;
+
+    /** Persistent identifier used to reconcile save game data. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pickup|Save")
+    FGuid PersistentId;
+
     virtual void OnConstruction(const FTransform& Transform) override;
     virtual void BeginPlay() override;
+    virtual void Destroyed() override;
 
     void ApplyItemVisuals();
 
@@ -55,6 +66,30 @@ public:
 
     UFUNCTION(BlueprintCallable, Category="Pickup")
     void SetDropped(bool bNewDropped);
+
+    UFUNCTION(BlueprintPure, Category="Pickup")
+    UItemData* GetItem() const { return Item; }
+
+    UFUNCTION(BlueprintPure, Category="Pickup")
+    int32 GetQuantity() const { return Quantity; }
+
+    UFUNCTION(BlueprintPure, Category="Pickup")
+    bool WasSpawnedFromInventory() const { return bWasSpawnedFromInventory; }
+
+    UFUNCTION(BlueprintCallable, Category="Pickup|Save")
+    void SetWasSpawnedFromInventory(bool bInSpawnedFromInventory) { bWasSpawnedFromInventory = bInSpawnedFromInventory; }
+
+    UFUNCTION(BlueprintPure, Category="Pickup|Save")
+    FGuid GetPersistentId() const { return PersistentId; }
+
+    UFUNCTION(BlueprintCallable, Category="Pickup|Save")
+    void SetPersistentId(const FGuid& InPersistentId) { PersistentId = InPersistentId; }
+
+    UPROPERTY(BlueprintAssignable, Category="Pickup|Events")
+    FItemPickupEvent OnDropSettled;
+
+    UPROPERTY(BlueprintAssignable, Category="Pickup|Events")
+    FItemPickupEvent OnPickupDestroyed;
 
 private:
     FTimerHandle DropPhysicsTimerHandle;

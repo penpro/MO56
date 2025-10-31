@@ -5,6 +5,8 @@
 #include "Components/SceneComponent.h"
 #include "Algo/AllOf.h"
 #include "Internationalization/Text.h"
+#include "Save/MO56SaveSubsystem.h"
+#include "Engine/GameInstance.h"
 
 AInventoryContainer::AInventoryContainer()
 {
@@ -22,11 +24,30 @@ void AInventoryContainer::BeginPlay()
         {
                 InventoryComponent->OnInventoryUpdated.AddDynamic(this, &AInventoryContainer::HandleInventoryUpdated);
                 HandleInventoryUpdated();
+
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        {
+                                SaveSubsystem->RegisterInventoryComponent(InventoryComponent, false);
+                        }
+                }
         }
 }
 
 void AInventoryContainer::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+        if (InventoryComponent)
+        {
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        {
+                                SaveSubsystem->UnregisterInventoryComponent(InventoryComponent);
+                        }
+                }
+        }
+
         if (InventoryComponent)
         {
                 InventoryComponent->OnInventoryUpdated.RemoveDynamic(this, &AInventoryContainer::HandleInventoryUpdated);
