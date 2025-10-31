@@ -103,7 +103,11 @@ protected:
         /** Called for toggling the inventory UI */
         void OnToggleInventory(const FInputActionValue& Value);
 
+        /** Called for toggling the character status UI */
+        void OnToggleCharacterStatus(const FInputActionValue& Value);
+
         void SetInventoryVisible(bool bVisible);
+        void SetCharacterStatusVisible(bool bVisible);
         void UpdateInventoryInputState(bool bInventoryVisible);
         void CloseActiveContainerInventory(bool bNotifyContainer);
 
@@ -124,6 +128,10 @@ public:
         /** Inventory Input Action */
         UPROPERTY(EditAnywhere, Category = "Input|Actions")
         UInputAction* InventoryAction = nullptr;
+
+        /** Character status Input Action */
+        UPROPERTY(EditAnywhere, Category = "Input|Actions")
+        UInputAction* CharacterStatusAction = nullptr;
 
         /** Widget class for HUD */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
