@@ -2,6 +2,12 @@
 #include "ItemData.h"
 #include "ItemPickup.h"
 
+#include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/PhysicsAsset.h"
+#include "PhysicsEngine/SkeletalBodySetup.h"
+
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 #include "TimerManager.h"
@@ -220,6 +226,144 @@ bool UInventoryComponent::DropSingleItemAtIndex(int32 SlotIndex)
     }
 
     return DropSingleItemInternal(SlotIndex);
+}
+
+namespace
+{
+    constexpr float KgToLbs = 2.20462262f;
+    constexpr float Cm3ToM3 = 1.0e-6f;
+
+    float ResolveItemWeightKg(const UItemData* Item)
+    {
+        if (!Item)
+        {
+            return 0.f;
+        }
+
+        if (Item->WeightKgOverride > 0.f)
+        {
+            return Item->WeightKgOverride;
+        }
+
+        if (Item->WeightLbsOverride > 0.f)
+        {
+            return Item->WeightLbsOverride / KgToLbs;
+        }
+
+        if (UStaticMesh* StaticMesh = Item->WorldStaticMesh.LoadSynchronous())
+        {
+            if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
+            {
+                float Mass = BodySetup->CalculateMass();
+                const float ScaleFactor = FMath::Abs(Item->WorldScale3D.X * Item->WorldScale3D.Y * Item->WorldScale3D.Z);
+                if (ScaleFactor > KINDA_SMALL_NUMBER)
+                {
+                    Mass *= ScaleFactor;
+                }
+
+                if (Mass > KINDA_SMALL_NUMBER)
+                {
+                    return Mass;
+                }
+            }
+        }
+
+        if (USkeletalMesh* SkeletalMesh = Item->WorldSkeletalMesh.LoadSynchronous())
+        {
+            if (UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset())
+            {
+                float Mass = 0.f;
+                for (USkeletalBodySetup* BodySetup : PhysicsAsset->SkeletalBodySetups)
+                {
+                    if (BodySetup)
+                    {
+                        Mass += BodySetup->CalculateMass();
+                    }
+                }
+
+                if (Mass > KINDA_SMALL_NUMBER)
+                {
+                    return Mass;
+                }
+            }
+        }
+
+        return 0.f;
+    }
+
+    float ResolveItemVolumeM3(const UItemData* Item)
+    {
+        if (!Item)
+        {
+            return 0.f;
+        }
+
+        if (Item->VolumeOverride > 0.f)
+        {
+            return Item->VolumeOverride;
+        }
+
+        float VolumeCm3 = 0.f;
+
+        if (UStaticMesh* StaticMesh = Item->WorldStaticMesh.LoadSynchronous())
+        {
+            if (UBodySetup* BodySetup = StaticMesh->GetBodySetup())
+            {
+                VolumeCm3 = BodySetup->AggGeom.GetScaledVolume(Item->WorldScale3D);
+            }
+
+            if (VolumeCm3 <= 0.f)
+            {
+                const FBoxSphereBounds Bounds = StaticMesh->GetBounds();
+                const FVector Extents = Bounds.BoxExtent * Item->WorldScale3D * 2.f;
+                VolumeCm3 = Extents.X * Extents.Y * Extents.Z;
+            }
+        }
+
+        if (VolumeCm3 <= 0.f)
+        {
+            if (USkeletalMesh* SkeletalMesh = Item->WorldSkeletalMesh.LoadSynchronous())
+            {
+                const FBoxSphereBounds Bounds = SkeletalMesh->GetBounds();
+                const FVector Extents = Bounds.BoxExtent * Item->WorldScale3D * 2.f;
+                VolumeCm3 = Extents.X * Extents.Y * Extents.Z;
+            }
+        }
+
+        return FMath::Max(0.f, VolumeCm3) * Cm3ToM3;
+    }
+}
+
+float UInventoryComponent::GetTotalWeight() const
+{
+    double TotalWeight = 0.0;
+    for (const FItemStack& Slot : Slots)
+    {
+        if (!Slot.Item || Slot.Quantity <= 0)
+        {
+            continue;
+        }
+
+        TotalWeight += static_cast<double>(ResolveItemWeightKg(Slot.Item)) * Slot.Quantity;
+    }
+
+    return static_cast<float>(TotalWeight);
+}
+
+float UInventoryComponent::GetTotalVolume() const
+{
+    double TotalVolume = 0.0;
+    for (const FItemStack& Slot : Slots)
+    {
+        if (!Slot.Item || Slot.Quantity <= 0)
+        {
+            continue;
+        }
+
+        TotalVolume += static_cast<double>(ResolveItemVolumeM3(Slot.Item)) * Slot.Quantity;
+    }
+
+    return static_cast<float>(TotalVolume);
 }
 
 bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)

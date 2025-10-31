@@ -11,8 +11,13 @@ public class MOInventory : ModuleRules
 
         PublicDependencyModuleNames.AddRange(new[]
         {
-            "Core","CoreUObject","Engine","InputCore",
+            "Core", "CoreUObject", "Engine", "InputCore",
             "MOItems" // needed to see UItemData across modules
+        });
+
+        PrivateDependencyModuleNames.AddRange(new[]
+        {
+            "PhysicsCore"
         });
     }
 }
