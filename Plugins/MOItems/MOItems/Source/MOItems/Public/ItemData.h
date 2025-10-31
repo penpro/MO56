@@ -62,6 +62,26 @@ public:
         UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Item|Behavior")
         bool bDropAsContainer = false;
 
+        /** Knowledge category advanced when the item is inspected. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Skills")
+        FName KnowledgeTag;
+
+        /** Primary skill domain associated with this item. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Skills")
+        FName PrimarySkillTag;
+
+        /** Knowledge reward granted when the item inspection completes. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Skills", meta = (ClampMin = "0"))
+        float InspectKnowledgeReward = 5.f;
+
+        /** Time in seconds required to complete an inspection of this item. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Skills", meta = (ClampMin = "0"))
+        float InspectDuration = 20.f;
+
+        /** Additional skill XP awards granted on inspection keyed by skill tag. */
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Skills")
+        TMap<FName, float> AdditionalSkillXp;
+
 public:
         virtual FPrimaryAssetId GetPrimaryAssetId() const override
         {

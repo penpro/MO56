@@ -20,6 +20,9 @@ class UCharacterStatusWidget;
 class AActor;
 class AInventoryContainer;
 class UGameMenuWidget;
+class USkillSystemComponent;
+class UCharacterSkillMenu;
+class UWorldActorContextMenuWidget;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -45,6 +48,9 @@ class AMO56Character : public ACharacter
 
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Status", meta = (AllowPrivateAccess = "true"))
         UCharacterStatusComponent* CharacterStatus;
+
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills", meta = (AllowPrivateAccess = "true"))
+        USkillSystemComponent* SkillSystem;
 	
 protected:
 
@@ -107,13 +113,17 @@ protected:
         /** Called for toggling the character status UI */
         void OnToggleCharacterStatus(const FInputActionValue& Value);
         void OnToggleGameMenu(const FInputActionValue& Value);
+        void OnToggleSkillMenu(const FInputActionValue& Value);
 
         void SetInventoryVisible(bool bVisible);
         void SetCharacterStatusVisible(bool bVisible);
         void SetGameMenuVisible(bool bVisible);
+        void SetSkillMenuVisible(bool bVisible);
         void UpdateInventoryInputState(bool bInventoryVisible);
         bool IsAnyInventoryPanelVisible() const;
         void CloseActiveContainerInventory(bool bNotifyContainer);
+        void CloseWorldContextMenu();
+        bool TryOpenWorldContextMenu();
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -145,6 +155,9 @@ public:
         UPROPERTY(EditAnywhere, Category = "Input|Actions")
         UInputAction* GameMenuAction = nullptr;
 
+        UPROPERTY(EditAnywhere, Category = "Input|Actions")
+        UInputAction* SkillAction = nullptr;
+
         /** Widget class for HUD */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UHUDWidget> HUDWidgetClass;
@@ -158,6 +171,12 @@ public:
 
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UGameMenuWidget> GameMenuWidgetClass;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UCharacterSkillMenu> CharacterSkillMenuClass;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UWorldActorContextMenuWidget> WorldContextMenuClass;
 
         /** Instance of the HUD widget */
         UPROPERTY(Transient)
@@ -177,11 +196,17 @@ public:
         UPROPERTY(Transient)
         TObjectPtr<class UGameMenuWidget> GameMenuWidgetInstance;
 
+        UPROPERTY(Transient)
+        TObjectPtr<class UCharacterSkillMenu> CharacterSkillMenuInstance;
+
         /** Inventory currently displayed in the container panel */
         TWeakObjectPtr<UInventoryComponent> ActiveContainerInventory;
 
         /** Actor that provided the active container inventory */
         TWeakObjectPtr<AActor> ActiveContainerActor;
+
+        UPROPERTY(Transient)
+        TObjectPtr<UWorldActorContextMenuWidget> ActiveWorldContextMenu;
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")

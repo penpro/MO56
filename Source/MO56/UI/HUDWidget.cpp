@@ -33,6 +33,11 @@ void UHUDWidget::SetGameMenuWidget(UWidget* Widget)
         AddWidgetToContainer(GameMenuContainer.Get(), Widget, /*bClearChildren*/ true);
 }
 
+void UHUDWidget::SetCharacterSkillWidget(UWidget* Widget)
+{
+        AddWidgetToContainer(CharacterSkillContainer.Get(), Widget, /*bClearChildren*/ true);
+}
+
 void UHUDWidget::AddWidgetToContainer(UPanelWidget* Container, UWidget* Widget, bool bClearChildren)
 {
         if (!Container || !Widget)

@@ -39,6 +39,15 @@ TSharedRef<SWidget> UInventorySlotMenuWidget::RebuildWidget()
                 .Padding(4.f)
                 [
                         SNew(SButton)
+                        .Text(NSLOCTEXT("Inventory", "InspectItem", "Inspect"))
+                        .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleInspectClicked))
+                        .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanInspectItem)
+                ]
+                + SVerticalBox::Slot()
+                .AutoHeight()
+                .Padding(4.f)
+                [
+                        SNew(SButton)
                         .Text(NSLOCTEXT("Inventory", "DestroyItem", "Destroy Item"))
                         .OnClicked(FOnClicked::CreateUObject(this, &UInventorySlotMenuWidget::HandleDestroyItemClicked))
                         .IsEnabled_UObject(this, &UInventorySlotMenuWidget::CanDestroyItem)
@@ -111,6 +120,19 @@ FReply UInventorySlotMenuWidget::HandleSplitStackClicked()
         return FReply::Handled();
 }
 
+FReply UInventorySlotMenuWidget::HandleInspectClicked()
+{
+        if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
+        {
+                if (SlotWidget->HandleInspectItem())
+                {
+                        DismissMenu();
+                }
+        }
+
+        return FReply::Handled();
+}
+
 FReply UInventorySlotMenuWidget::HandleDestroyItemClicked()
 {
         if (UInventorySlotWidget* SlotWidget = OwningSlot.Get())
@@ -175,6 +197,16 @@ bool UInventorySlotMenuWidget::CanDropItems() const
         if (const UInventorySlotWidget* SlotWidget = OwningSlot.Get())
         {
                 return SlotWidget->HasItem();
+        }
+
+        return false;
+}
+
+bool UInventorySlotMenuWidget::CanInspectItem() const
+{
+        if (const UInventorySlotWidget* SlotWidget = OwningSlot.Get())
+        {
+                return SlotWidget->CanInspectItem();
         }
 
         return false;

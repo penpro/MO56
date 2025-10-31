@@ -34,6 +34,11 @@
 #include "UI/CharacterStatusWidget.h"
 #include "Save/MO56SaveSubsystem.h"
 #include "Engine/GameInstance.h"
+#include "Skills/SkillSystemComponent.h"
+#include "UI/CharacterSkillMenu.h"
+#include "UI/WorldActorContextMenuWidget.h"
+#include "Skills/InspectableComponent.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 
 AMO56Character::AMO56Character()
 {
@@ -74,6 +79,9 @@ AMO56Character::AMO56Character()
 
         Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
         CharacterStatus = CreateDefaultSubobject<UCharacterStatusComponent>(TEXT("CharacterStatus"));
+        SkillSystem = CreateDefaultSubobject<USkillSystemComponent>(TEXT("SkillSystem"));
+
+        WorldContextMenuClass = UWorldActorContextMenuWidget::StaticClass();
 }
 
 
@@ -119,6 +127,11 @@ void AMO56Character::BeginPlay()
                                                 NewStatusWidget->SetStatusComponent(CharacterStatus);
                                         }
 
+                                        if (SkillSystem)
+                                        {
+                                                NewStatusWidget->SetSkillSystemComponent(SkillSystem);
+                                        }
+
                                         SetCharacterStatusVisible(false);
                                 }
                         }
@@ -139,6 +152,7 @@ void AMO56Character::BeginPlay()
                                 if (NewInventoryWidget)
                                 {
                                         InventoryWidgetInstance = NewInventoryWidget;
+                                        InventoryWidgetInstance->SetSkillSystemComponent(SkillSystem);
                                         InventoryWidgetInstance->SetInventoryComponent(Inventory);
                                         HUDWidgetInstance->AddLeftInventoryWidget(InventoryWidgetInstance);
                                         InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
@@ -160,6 +174,7 @@ void AMO56Character::BeginPlay()
                                                 {
                                                         ContainerInventoryWidgetInstance = NewContainerWidget;
                                                         ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
+                                                        ContainerInventoryWidgetInstance->SetSkillSystemComponent(SkillSystem);
                                                         ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
                                                         ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
                                                         HUDWidgetInstance->AddRightInventoryWidget(ContainerInventoryWidgetInstance);
@@ -187,6 +202,28 @@ void AMO56Character::BeginPlay()
                                         GameMenuWidgetInstance = NewGameMenuWidget;
                                         GameMenuWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
                                         HUDWidgetInstance->SetGameMenuWidget(GameMenuWidgetInstance);
+                                }
+                        }
+
+                        if (CharacterSkillMenuClass)
+                        {
+                                UCharacterSkillMenu* NewSkillMenu = nullptr;
+
+                                if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                                {
+                                        NewSkillMenu = CreateWidget<UCharacterSkillMenu>(PC, CharacterSkillMenuClass);
+                                }
+                                else
+                                {
+                                        NewSkillMenu = CreateWidget<UCharacterSkillMenu>(GetWorld(), CharacterSkillMenuClass);
+                                }
+
+                                if (NewSkillMenu)
+                                {
+                                        CharacterSkillMenuInstance = NewSkillMenu;
+                                        CharacterSkillMenuInstance->SetSkillSystemComponent(SkillSystem);
+                                        CharacterSkillMenuInstance->SetVisibility(ESlateVisibility::Collapsed);
+                                        HUDWidgetInstance->SetCharacterSkillWidget(CharacterSkillMenuInstance);
                                 }
                         }
                 }
@@ -244,6 +281,7 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
         if (CharacterStatusWidgetInstance)
         {
+                CharacterStatusWidgetInstance->SetSkillSystemComponent(nullptr);
                 CharacterStatusWidgetInstance->SetStatusComponent(nullptr);
                 CharacterStatusWidgetInstance->RemoveFromParent();
                 CharacterStatusWidgetInstance = nullptr;
@@ -251,16 +289,26 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
         if (InventoryWidgetInstance)
         {
+                InventoryWidgetInstance->SetSkillSystemComponent(nullptr);
                 InventoryWidgetInstance->SetInventoryComponent(nullptr);
                 InventoryWidgetInstance = nullptr;
         }
 
         if (ContainerInventoryWidgetInstance)
         {
+                ContainerInventoryWidgetInstance->SetSkillSystemComponent(nullptr);
                 ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
                 ContainerInventoryWidgetInstance->RemoveFromParent();
                 ContainerInventoryWidgetInstance = nullptr;
         }
+
+        if (CharacterSkillMenuInstance)
+        {
+                CharacterSkillMenuInstance->RemoveFromParent();
+                CharacterSkillMenuInstance = nullptr;
+        }
+
+        CloseWorldContextMenu();
 
         if (GameMenuWidgetInstance)
         {
@@ -313,6 +361,11 @@ void AMO56Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
                 else if (MenuAction)
                 {
                         EIC->BindAction(MenuAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleGameMenu);
+                }
+
+                if (SkillAction)
+                {
+                        EIC->BindAction(SkillAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleSkillMenu);
                 }
         }
 }
@@ -465,6 +518,26 @@ void AMO56Character::OnToggleGameMenu(const FInputActionValue& /*Value*/)
         SetGameMenuVisible(!bCurrentlyVisible);
 }
 
+void AMO56Character::OnToggleSkillMenu(const FInputActionValue& /*Value*/)
+{
+        if (!CharacterSkillMenuInstance)
+        {
+                return;
+        }
+
+        const ESlateVisibility CurrentVisibility = CharacterSkillMenuInstance->GetVisibility();
+        const bool bCurrentlyVisible = CurrentVisibility != ESlateVisibility::Collapsed && CurrentVisibility != ESlateVisibility::Hidden;
+
+        if (!bCurrentlyVisible)
+        {
+                SetInventoryVisible(false);
+                SetCharacterStatusVisible(false);
+                SetGameMenuVisible(false);
+        }
+
+        SetSkillMenuVisible(!bCurrentlyVisible);
+}
+
 void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
 {
         if (!HitActor)
@@ -523,41 +596,79 @@ void AMO56Character::Tick(float DeltaSeconds)
                 CharacterStatus->SetActivityInputs(CurrentSpeed, CurrentSlope, CarriedLoad);
         }
 
-        const bool bInventoryVisible = InventoryWidgetInstance && InventoryWidgetInstance->IsVisible();
-        const bool bContainerVisible = ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible();
-
-        if (!bInventoryVisible && !bContainerVisible)
-        {
-                return;
-        }
-
         APlayerController* PC = Cast<APlayerController>(GetController());
 
-        if (!PC || (!PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) && !PC->WasInputKeyJustPressed(EKeys::RightMouseButton)))
+        const bool bInventoryVisible = InventoryWidgetInstance && InventoryWidgetInstance->IsVisible();
+        const bool bContainerVisible = ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible();
+        const bool bSkillMenuVisible = CharacterSkillMenuInstance && CharacterSkillMenuInstance->GetVisibility() != ESlateVisibility::Collapsed && CharacterSkillMenuInstance->GetVisibility() != ESlateVisibility::Hidden;
+        const bool bGameMenuVisible = GameMenuWidgetInstance && GameMenuWidgetInstance->GetVisibility() != ESlateVisibility::Collapsed && GameMenuWidgetInstance->GetVisibility() != ESlateVisibility::Hidden;
+        const bool bWorldMenuVisible = ActiveWorldContextMenu && ActiveWorldContextMenu->IsInViewport();
+
+        FVector2D CursorPosition = FVector2D::ZeroVector;
+        bool bHasCursorPosition = false;
+        if (FSlateApplication::IsInitialized())
         {
-                return;
+                CursorPosition = FSlateApplication::Get().GetCursorPos();
+                bHasCursorPosition = true;
         }
 
         bool bCursorOverInventory = false;
+        bool bCursorOverSkillMenu = false;
+        bool bCursorOverGameMenu = false;
+        bool bCursorOverWorldMenu = false;
 
-        if (FSlateApplication::IsInitialized())
+        if (bHasCursorPosition)
         {
-                const FVector2D CursorPosition = FSlateApplication::Get().GetCursorPos();
-
-                if (bInventoryVisible)
+                if (bInventoryVisible && InventoryWidgetInstance)
                 {
-                        const FGeometry& InventoryGeometry = InventoryWidgetInstance->GetCachedGeometry();
-                        bCursorOverInventory |= InventoryGeometry.IsUnderLocation(CursorPosition);
+                        bCursorOverInventory |= InventoryWidgetInstance->GetCachedGeometry().IsUnderLocation(CursorPosition);
                 }
 
-                if (bContainerVisible)
+                if (bContainerVisible && ContainerInventoryWidgetInstance)
                 {
-                        const FGeometry& ContainerGeometry = ContainerInventoryWidgetInstance->GetCachedGeometry();
-                        bCursorOverInventory |= ContainerGeometry.IsUnderLocation(CursorPosition);
+                        bCursorOverInventory |= ContainerInventoryWidgetInstance->GetCachedGeometry().IsUnderLocation(CursorPosition);
+                }
+
+                if (bSkillMenuVisible && CharacterSkillMenuInstance)
+                {
+                        bCursorOverSkillMenu = CharacterSkillMenuInstance->GetCachedGeometry().IsUnderLocation(CursorPosition);
+                }
+
+                if (bGameMenuVisible && GameMenuWidgetInstance)
+                {
+                        bCursorOverGameMenu = GameMenuWidgetInstance->GetCachedGeometry().IsUnderLocation(CursorPosition);
+                }
+
+                if (bWorldMenuVisible && ActiveWorldContextMenu)
+                {
+                        bCursorOverWorldMenu = ActiveWorldContextMenu->GetCachedGeometry().IsUnderLocation(CursorPosition);
                 }
         }
 
-        if (!bCursorOverInventory)
+        const bool bCursorOverAnyUI = bCursorOverInventory || bCursorOverSkillMenu || bCursorOverGameMenu || bCursorOverWorldMenu;
+
+        const bool bRightClick = PC && PC->WasInputKeyJustPressed(EKeys::RightMouseButton);
+        const bool bLeftClick = PC && PC->WasInputKeyJustPressed(EKeys::LeftMouseButton);
+
+        if (bRightClick && !bCursorOverAnyUI)
+        {
+                if (!TryOpenWorldContextMenu())
+                {
+                        CloseWorldContextMenu();
+                }
+        }
+
+        if (ActiveWorldContextMenu && bLeftClick && !bCursorOverWorldMenu)
+        {
+                CloseWorldContextMenu();
+        }
+
+        if (bSkillMenuVisible && (bLeftClick || bRightClick) && !bCursorOverSkillMenu)
+        {
+                SetSkillMenuVisible(false);
+        }
+
+        if ((bInventoryVisible || bContainerVisible) && (bLeftClick || bRightClick) && !bCursorOverInventory)
         {
                 SetInventoryVisible(false);
         }
@@ -568,7 +679,10 @@ void AMO56Character::SetInventoryVisible(bool bVisible)
         if (bVisible)
         {
                 SetGameMenuVisible(false);
+                SetSkillMenuVisible(false);
         }
+
+        CloseWorldContextMenu();
 
         if (!InventoryWidgetInstance)
         {
@@ -608,6 +722,12 @@ void AMO56Character::SetCharacterStatusVisible(bool bVisible)
                 return;
         }
 
+        if (bVisible)
+        {
+                SetSkillMenuVisible(false);
+                CloseWorldContextMenu();
+        }
+
         const ESlateVisibility DesiredVisibility = bVisible ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed;
 
         if (CharacterStatusWidgetInstance->GetVisibility() != DesiredVisibility)
@@ -622,6 +742,8 @@ void AMO56Character::SetGameMenuVisible(bool bVisible)
         {
                 return;
         }
+
+        CloseWorldContextMenu();
 
         const ESlateVisibility DesiredVisibility = bVisible ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
         const ESlateVisibility CurrentVisibility = GameMenuWidgetInstance->GetVisibility();
@@ -638,6 +760,7 @@ void AMO56Character::SetGameMenuVisible(bool bVisible)
                 GameMenuWidgetInstance->SetVisibility(DesiredVisibility);
                 SetInventoryVisible(false);
                 SetCharacterStatusVisible(false);
+                SetSkillMenuVisible(false);
         }
         else
         {
@@ -645,6 +768,149 @@ void AMO56Character::SetGameMenuVisible(bool bVisible)
         }
 
         UpdateInventoryInputState(IsAnyInventoryPanelVisible());
+}
+
+void AMO56Character::SetSkillMenuVisible(bool bVisible)
+{
+        if (!CharacterSkillMenuInstance)
+        {
+                return;
+        }
+
+        if (bVisible)
+        {
+                CloseWorldContextMenu();
+        }
+
+        const ESlateVisibility DesiredVisibility = bVisible ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed;
+        if (CharacterSkillMenuInstance->GetVisibility() != DesiredVisibility)
+        {
+                CharacterSkillMenuInstance->SetVisibility(DesiredVisibility);
+        }
+
+        UpdateInventoryInputState(IsAnyInventoryPanelVisible());
+}
+
+void AMO56Character::CloseWorldContextMenu()
+{
+        if (ActiveWorldContextMenu)
+        {
+                ActiveWorldContextMenu->DismissMenu();
+                ActiveWorldContextMenu = nullptr;
+                UpdateInventoryInputState(IsAnyInventoryPanelVisible());
+        }
+}
+
+bool AMO56Character::TryOpenWorldContextMenu()
+{
+        if (!SkillSystem)
+        {
+                return false;
+        }
+
+        if (!WorldContextMenuClass)
+        {
+                return false;
+        }
+
+        APlayerController* PC = Cast<APlayerController>(GetController());
+        if (!PC)
+        {
+                return false;
+        }
+
+        FVector ViewLoc;
+        FRotator ViewRot;
+        PC->GetPlayerViewPoint(ViewLoc, ViewRot);
+
+        const float TraceDist = 600.f;
+        const FVector End = ViewLoc + ViewRot.Vector() * TraceDist;
+
+        FCollisionQueryParams Params(SCENE_QUERY_STAT(WorldContextInspect), false, this);
+        Params.AddIgnoredActor(this);
+
+        FCollisionObjectQueryParams ObjParams;
+        ObjParams.AddObjectTypesToQuery(ECC_WorldStatic);
+        ObjParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+        ObjParams.AddObjectTypesToQuery(ECC_Pawn);
+
+        FHitResult Hit;
+        if (!GetWorld()->LineTraceSingleByObjectType(Hit, ViewLoc, End, ObjParams, Params))
+        {
+                return false;
+        }
+
+        AActor* HitActor = Hit.GetActor();
+        if (!HitActor)
+        {
+                return false;
+        }
+
+        UInspectableComponent* Inspectable = HitActor->FindComponentByClass<UInspectableComponent>();
+        if (!Inspectable)
+        {
+                return false;
+        }
+
+        TArray<FSkillInspectionParams> InspectionParams;
+        Inspectable->BuildInspectionParams(SkillSystem, InspectionParams);
+        if (InspectionParams.Num() == 0)
+        {
+                return false;
+        }
+
+        if (ActiveWorldContextMenu)
+        {
+                ActiveWorldContextMenu->DismissMenu();
+                ActiveWorldContextMenu = nullptr;
+        }
+
+        UWorldActorContextMenuWidget* MenuInstance = nullptr;
+        if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+        {
+                MenuInstance = CreateWidget<UWorldActorContextMenuWidget>(PlayerController, WorldContextMenuClass);
+        }
+        else
+        {
+                MenuInstance = CreateWidget<UWorldActorContextMenuWidget>(GetWorld(), WorldContextMenuClass);
+        }
+
+        if (!MenuInstance)
+        {
+                return false;
+        }
+
+        ActiveWorldContextMenu = MenuInstance;
+        ActiveWorldContextMenu->InitializeMenu(Inspectable, SkillSystem, InspectionParams);
+        ActiveWorldContextMenu->AddToViewport(1000);
+
+        FVector2D ViewportPosition = FVector2D::ZeroVector;
+        float MouseX = 0.f;
+        float MouseY = 0.f;
+        if (UWidgetLayoutLibrary::GetMousePositionScaledByDPI(PC, MouseX, MouseY))
+        {
+                ViewportPosition = FVector2D(MouseX, MouseY);
+        }
+        else
+        {
+                ViewportPosition = UWidgetLayoutLibrary::GetMousePositionOnViewport(PC);
+                const float ViewportScale = UWidgetLayoutLibrary::GetViewportScale(PC);
+                if (ViewportScale > KINDA_SMALL_NUMBER)
+                {
+                        ViewportPosition /= ViewportScale;
+                }
+        }
+
+        ActiveWorldContextMenu->SetAlignmentInViewport(FVector2D::ZeroVector);
+        ActiveWorldContextMenu->SetPositionInViewport(ViewportPosition, false);
+
+        PC->SetShowMouseCursor(true);
+        PC->bEnableClickEvents = true;
+        PC->bEnableMouseOverEvents = true;
+
+        UpdateInventoryInputState(IsAnyInventoryPanelVisible());
+
+        return true;
 }
 
 void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
@@ -660,7 +926,13 @@ void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
                 GameMenuWidgetInstance->GetVisibility() != ESlateVisibility::Collapsed &&
                 GameMenuWidgetInstance->GetVisibility() != ESlateVisibility::Hidden;
 
-        const bool bAnyUIVisible = bInventoryVisible || bMenuVisible;
+        const bool bSkillMenuVisible = CharacterSkillMenuInstance &&
+                CharacterSkillMenuInstance->GetVisibility() != ESlateVisibility::Collapsed &&
+                CharacterSkillMenuInstance->GetVisibility() != ESlateVisibility::Hidden;
+
+        const bool bWorldMenuVisible = ActiveWorldContextMenu && ActiveWorldContextMenu->IsInViewport();
+
+        const bool bAnyUIVisible = bInventoryVisible || bMenuVisible || bSkillMenuVisible || bWorldMenuVisible;
 
         if (bAnyUIVisible)
         {
