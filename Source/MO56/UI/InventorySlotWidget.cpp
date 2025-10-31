@@ -13,6 +13,7 @@
 #include "GameFramework/PlayerController.h"
 #include "InventoryComponent.h"
 #include "ItemData.h"
+#include "Skills/SkillSystemComponent.h"
 #include "InputCoreTypes.h"
 #include "Math/UnrealMathUtility.h"
 #include "UObject/Class.h"
@@ -203,6 +204,44 @@ void UInventorySlotWidget::NotifyContextMenuClosed(UInventorySlotMenuWidget* Clo
         {
                 ActiveContextMenu = nullptr;
         }
+}
+
+void UInventorySlotWidget::SetSkillSystem(USkillSystemComponent* InSkillSystem)
+{
+        SkillSystem = InSkillSystem;
+}
+
+bool UInventorySlotWidget::HandleInspectItem()
+{
+        if (!CanInspectItem())
+        {
+                return false;
+        }
+
+        if (USkillSystemComponent* System = SkillSystem.Get())
+        {
+                if (System->StartItemInspection(CachedStack.Item, this))
+                {
+                        return true;
+                }
+        }
+
+        return false;
+}
+
+bool UInventorySlotWidget::CanInspectItem() const
+{
+        if (!CachedStack.Item)
+        {
+                return false;
+        }
+
+        if (!SkillSystem.IsValid())
+        {
+                return false;
+        }
+
+        return !CachedStack.Item->KnowledgeTag.IsNone();
 }
 
 void UInventorySlotWidget::NativeDestruct()

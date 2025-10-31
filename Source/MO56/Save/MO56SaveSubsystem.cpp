@@ -295,6 +295,11 @@ void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::Initia
         }
 
         ApplySaveToWorld(World);
+
+        if (World->GetNetMode() != NM_Client)
+        {
+                SaveGame();
+        }
 }
 
 void UMO56SaveSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)

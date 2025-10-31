@@ -11,6 +11,7 @@ class UInventoryComponent;
 class UInventorySlotWidget;
 class UPanelWidget;
 class UTextBlock;
+class USkillSystemComponent;
 
 /**
  * Widget that displays the contents of an inventory component.
@@ -33,6 +34,8 @@ public:
         /** Enables or disables automatically binding to the owning pawn's inventory. */
         UFUNCTION(BlueprintCallable, Category = "Inventory")
         void SetAutoBindToOwningPawn(bool bEnabled);
+
+        void SetSkillSystemComponent(USkillSystemComponent* SkillSystem);
 
         virtual void OnUpdateInventory_Implementation(UInventoryComponent* Inventory) override;
 
@@ -80,6 +83,7 @@ private:
         void HandleInventoryComponentUpdated();
 
         TWeakObjectPtr<UInventoryComponent> ObservedInventory;
+        TWeakObjectPtr<USkillSystemComponent> ObservedSkillSystem;
         FDelegateHandle PawnChangedHandle;
 };
 

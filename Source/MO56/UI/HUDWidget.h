@@ -19,6 +19,10 @@ public:
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
         TObjectPtr<UPanelWidget> CharacterStatusContainer;
 
+        /** Container for character skill UI elements */
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        TObjectPtr<UPanelWidget> CharacterSkillContainer;
+
         /** Container for the crosshair UI element */
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
         TObjectPtr<UPanelWidget> CrosshairContainer;
@@ -63,6 +67,10 @@ public:
         /** Sets the game menu widget */
         UFUNCTION(BlueprintCallable, Category = "HUD")
         void SetGameMenuWidget(UWidget* Widget);
+
+        /** Sets the character skill widget. */
+        UFUNCTION(BlueprintCallable, Category = "HUD")
+        void SetCharacterSkillWidget(UWidget* Widget);
 
 private:
         void AddWidgetToContainer(UPanelWidget* Container, UWidget* Widget, bool bClearChildren);
