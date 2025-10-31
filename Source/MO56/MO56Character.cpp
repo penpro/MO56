@@ -115,6 +115,8 @@ void AMO56Character::BeginPlay()
                                         {
                                                 NewStatusWidget->SetStatusComponent(CharacterStatus);
                                         }
+
+                                        SetCharacterStatusVisible(false);
                                 }
                         }
 
@@ -234,6 +236,11 @@ void AMO56Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
                 {
                         EIC->BindAction(InventoryAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleInventory);
                 }
+
+                if (CharacterStatusAction)
+                {
+                        EIC->BindAction(CharacterStatusAction, ETriggerEvent::Started, this, &AMO56Character::OnToggleCharacterStatus);
+                }
         }
 }
 
@@ -344,6 +351,18 @@ void AMO56Character::OnToggleInventory(const FInputActionValue& /*Value*/)
 
         const bool bShouldShow = !InventoryWidgetInstance->IsVisible();
         SetInventoryVisible(bShouldShow);
+}
+
+void AMO56Character::OnToggleCharacterStatus(const FInputActionValue& /*Value*/)
+{
+        if (!CharacterStatusWidgetInstance)
+        {
+                return;
+        }
+
+        const ESlateVisibility CurrentVisibility = CharacterStatusWidgetInstance->GetVisibility();
+        const bool bCurrentlyVisible = CurrentVisibility != ESlateVisibility::Collapsed && CurrentVisibility != ESlateVisibility::Hidden;
+        SetCharacterStatusVisible(!bCurrentlyVisible);
 }
 
 void AMO56Character::Server_Interact_Implementation(AActor* HitActor)
@@ -471,6 +490,21 @@ void AMO56Character::SetInventoryVisible(bool bVisible)
                                  (ContainerInventoryWidgetInstance && ContainerInventoryWidgetInstance->IsVisible());
 
         UpdateInventoryInputState(bAnyVisible);
+}
+
+void AMO56Character::SetCharacterStatusVisible(bool bVisible)
+{
+        if (!CharacterStatusWidgetInstance)
+        {
+                return;
+        }
+
+        const ESlateVisibility DesiredVisibility = bVisible ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed;
+
+        if (CharacterStatusWidgetInstance->GetVisibility() != DesiredVisibility)
+        {
+                CharacterStatusWidgetInstance->SetVisibility(DesiredVisibility);
+        }
 }
 
 void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
