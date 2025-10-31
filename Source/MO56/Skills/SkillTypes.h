@@ -1,0 +1,203 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "SkillTypes.generated.h"
+
+/**
+ * Enumeration describing high-level survival skill domains.
+ */
+UENUM(BlueprintType)
+enum class ESkillDomain : uint8
+{
+        None = 0,
+        Naturalist,
+        Foraging,
+        Cordage,
+        Knapping,
+        Firecraft,
+        Woodworking,
+        Toolbinding,
+        Watercrafting,
+        Sheltercraft,
+        Weaving,
+        Tanning,
+        TrappingFishing,
+        Cooking,
+        Clayworking
+};
+
+/**
+ * Metadata describing a single skill domain used for UI presentation.
+ */
+USTRUCT(BlueprintType)
+struct FSkillDomainInfo
+{
+        GENERATED_BODY()
+
+        FSkillDomainInfo()
+                : Domain(ESkillDomain::None)
+        {
+        }
+
+        FSkillDomainInfo(ESkillDomain InDomain, const FName& InTag, const FText& InDisplayName)
+                : Domain(InDomain)
+                , Tag(InTag)
+                , DisplayName(InDisplayName)
+        {
+        }
+
+        /** Enumerated domain identifier. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        ESkillDomain Domain;
+
+        /** Gameplay tag style identifier (Skill.DomainName). */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FName Tag;
+
+        /** Localized domain display name. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText DisplayName;
+};
+
+/**
+ * Metadata describing a knowledge track that the player can advance.
+ */
+USTRUCT(BlueprintType)
+struct FKnowledgeInfo
+{
+        GENERATED_BODY()
+
+        FKnowledgeInfo()
+                : KnowledgeId(NAME_None)
+        {
+        }
+
+        FKnowledgeInfo(const FName& InId, const FText& InDisplayName, const FName& InRelatedSkillTag)
+                : KnowledgeId(InId)
+                , DisplayName(InDisplayName)
+                , RelatedSkillTag(InRelatedSkillTag)
+        {
+        }
+
+        /** Unique identifier for the knowledge track. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FName KnowledgeId;
+
+        /** Localized name used for the UI. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText DisplayName;
+
+        /** Tag referencing the primary skill domain associated with this knowledge. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FName RelatedSkillTag;
+};
+
+/** Lightweight structure exposed to UI to display knowledge progress. */
+USTRUCT(BlueprintType)
+struct FSkillKnowledgeEntry
+{
+        GENERATED_BODY()
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FName KnowledgeId = NAME_None;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText DisplayName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float Value = 0.f;
+};
+
+/** Lightweight structure exposed to UI to display skill progress. */
+USTRUCT(BlueprintType)
+struct FSkillDomainProgress
+{
+        GENERATED_BODY()
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        ESkillDomain Domain = ESkillDomain::None;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText DisplayName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float Value = 0.f;
+};
+
+/** Data describing an active inspection timer. */
+USTRUCT(BlueprintType)
+struct FSkillInspectionProgress
+{
+        GENERATED_BODY()
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FName KnowledgeId = NAME_None;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText KnowledgeDisplayName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float Duration = 0.f;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float Elapsed = 0.f;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float Remaining = 0.f;
+};
+
+/**
+ * Parameter bundle describing a pending inspection request.
+ */
+USTRUCT(BlueprintType)
+struct FSkillInspectionParams
+{
+        GENERATED_BODY()
+
+        /** Knowledge track to advance when the inspection completes. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills")
+        FName KnowledgeId = NAME_None;
+
+        /** Amount of knowledge to grant on completion. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills", meta = (ClampMin = "0"))
+        float KnowledgeGain = 5.f;
+
+        /** Duration of the inspection timer (in seconds). */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills", meta = (ClampMin = "0"))
+        float Duration = 20.f;
+
+        /** Skill XP rewards granted on completion. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills")
+        TMap<ESkillDomain, float> SkillXpRewards;
+
+        /** When true the inspection can only complete once per source object. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills")
+        bool bOncePerSource = false;
+
+        /** Optional description shown in the UI for this inspection opportunity. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills")
+        FText Description;
+
+        bool IsValid() const
+        {
+                return !KnowledgeId.IsNone() && Duration >= 0.f;
+        }
+};
+
+namespace SkillDefinitions
+{
+        /** Returns the static array of domain metadata. */
+        const TArray<FSkillDomainInfo>& GetSkillDomains();
+
+        /** Returns the static array of knowledge metadata used to seed the save state. */
+        const TArray<FKnowledgeInfo>& GetKnowledgeDefinitions();
+
+        /** Resolves the gameplay tag-like name for a skill domain. */
+        FName GetSkillDomainTag(ESkillDomain Domain);
+
+        /** Resolves a skill domain from the provided tag. */
+        ESkillDomain ResolveSkillDomainFromTag(const FName& Tag);
+
+        /** Returns the localized name for the provided knowledge identifier. */
+        FText GetKnowledgeDisplayName(const FName& KnowledgeId);
+}

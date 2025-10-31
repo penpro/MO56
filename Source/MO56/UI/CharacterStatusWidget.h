@@ -6,6 +6,7 @@
 class UCharacterStatusComponent;
 class UProgressBar;
 class UTextBlock;
+class USkillSystemComponent;
 
 UCLASS()
 class MO56_API UCharacterStatusWidget : public UUserWidget
@@ -46,9 +47,18 @@ public:
         UPROPERTY(meta = (BindWidgetOptional))
         TObjectPtr<UTextBlock> GlucoseText;
 
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> KnowledgeSummaryText;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> SkillSummaryText;
+
 public:
         UFUNCTION(BlueprintCallable)
         void SetStatusComponent(UCharacterStatusComponent* InComp);
+
+        UFUNCTION(BlueprintCallable)
+        void SetSkillSystemComponent(USkillSystemComponent* InSkillSystem);
 
         UFUNCTION()
         void RefreshFromStatus();
@@ -58,5 +68,8 @@ protected:
 
 private:
         TWeakObjectPtr<UCharacterStatusComponent> StatusComponent;
+        TWeakObjectPtr<USkillSystemComponent> SkillSystemComponent;
+
+        void RefreshSkillSummaries();
 };
 

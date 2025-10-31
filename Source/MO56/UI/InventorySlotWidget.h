@@ -13,6 +13,7 @@ class UInventoryComponent;
 class UInventorySlotMenuWidget;
 class UInventorySlotDragVisual;
 class UDragDropOperation;
+class USkillSystemComponent;
 
 /**
  * Simple widget representing a single inventory slot.
@@ -52,11 +53,19 @@ public:
         /** Drops a single item from the stack into the world. */
         bool HandleDropOneItem();
 
+        /** Starts inspecting the item contained in this slot. */
+        bool HandleInspectItem();
+
+        /** Whether the slot currently supports inspection. */
+        bool CanInspectItem() const;
+
         /** Closes any active context menu. */
         void CloseContextMenu();
 
         /** Notifies the slot that its context menu has been closed. */
         void NotifyContextMenuClosed(UInventorySlotMenuWidget* ClosedMenu);
+
+        void SetSkillSystem(USkillSystemComponent* InSkillSystem);
 
 protected:
         virtual void NativeDestruct() override;
@@ -97,5 +106,7 @@ protected:
 
         /** Currently spawned context menu widget, if any. */
         TWeakObjectPtr<UInventorySlotMenuWidget> ActiveContextMenu;
+
+        TWeakObjectPtr<USkillSystemComponent> SkillSystem;
 };
 
