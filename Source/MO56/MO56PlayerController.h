@@ -19,8 +19,10 @@ class AInventoryContainer;
 UCLASS(abstract)
 class AMO56PlayerController : public APlayerController
 {
-	GENERATED_BODY()
-	
+        GENERATED_BODY()
+
+        friend class AInventoryContainer;
+
 protected:
 
 	/** Input Mapping Contexts */
@@ -87,6 +89,9 @@ protected:
 
         UFUNCTION(Client, Reliable)
         void ClientOpenContainerInventory(AInventoryContainer* ContainerActor);
+
+        UFUNCTION(Client, Reliable)
+        void ClientEnsureGameInput();
 
 private:
         void HandleNewGameOnServer(const FString& LevelName);

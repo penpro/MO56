@@ -205,6 +205,25 @@ void AMO56PlayerController::ClientOpenContainerInventory_Implementation(AInvento
         OwningCharacter->OpenContainerInventory(ContainerInventory, ContainerActor);
 }
 
+void AMO56PlayerController::ClientEnsureGameInput_Implementation()
+{
+        if (AMO56Character* MOCharacter = Cast<AMO56Character>(GetCharacter()))
+        {
+                MOCharacter->SetInventoryVisible(false);
+                MOCharacter->SetSkillMenuVisible(false);
+                MOCharacter->SetCharacterStatusVisible(false);
+                MOCharacter->SetGameMenuVisible(false);
+                MOCharacter->CloseWorldContextMenu();
+        }
+
+        FInputModeGameOnly InputMode;
+        SetInputMode(InputMode);
+
+        SetShowMouseCursor(false);
+        bEnableClickEvents = false;
+        bEnableMouseOverEvents = false;
+}
+
 void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
 {
         if (!HasAuthority())
@@ -243,6 +262,14 @@ void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
                 if (!bHasListen)
                 {
                         TravelURL += bHasOptions ? TEXT("&listen") : TEXT("?listen");
+                }
+        }
+
+        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+                if (AMO56PlayerController* OtherController = Cast<AMO56PlayerController>(*It))
+                {
+                        OtherController->ClientEnsureGameInput();
                 }
         }
 
