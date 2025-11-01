@@ -12,6 +12,7 @@
 #include "UI/SkillListEntryWidget.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
+#include "GameFramework/PlayerController.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogCharacterSkillMenu, Log, All);
 
@@ -208,6 +209,50 @@ void UCharacterSkillMenu::HandleInspectionRefreshTimer()
         RefreshInspectionStatus();
 }
 
+TSubclassOf<USkillListEntryWidget> UCharacterSkillMenu::ResolveEntryWidgetClass() const
+{
+        TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
+        if (!EntryClass)
+        {
+                return USkillListEntryWidget::StaticClass();
+        }
+
+        if (!EntryClass->IsChildOf(USkillListEntryWidget::StaticClass()))
+        {
+                static bool bLoggedInvalidClass = false;
+                if (!bLoggedInvalidClass)
+                {
+                        UE_LOG(LogCharacterSkillMenu, Warning, TEXT("SkillEntryWidgetClass '%s' is not a SkillListEntryWidget. Falling back to the default entry widget."),
+                                *EntryClass->GetName());
+                        bLoggedInvalidClass = true;
+                }
+                return USkillListEntryWidget::StaticClass();
+        }
+
+        return EntryClass;
+}
+
+USkillListEntryWidget* UCharacterSkillMenu::CreateEntryWidget() const
+{
+        TSubclassOf<USkillListEntryWidget> EntryClass = ResolveEntryWidgetClass();
+        if (!EntryClass)
+        {
+                return nullptr;
+        }
+
+        if (APlayerController* Player = GetOwningPlayer())
+        {
+                return CreateWidget<USkillListEntryWidget>(Player, EntryClass);
+        }
+
+        if (UWorld* World = GetWorld())
+        {
+                return CreateWidget<USkillListEntryWidget>(World, EntryClass);
+        }
+
+        return nullptr;
+}
+
 void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry>& KnowledgeEntries)
 {
         if (!KnowledgeList)
@@ -219,12 +264,7 @@ void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry
 
         for (const FSkillKnowledgeEntry& Entry : KnowledgeEntries)
         {
-                TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
-                if (!EntryClass)
-                {
-                        EntryClass = USkillListEntryWidget::StaticClass();
-                }
-                USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
+                USkillListEntryWidget* EntryWidget = CreateEntryWidget();
                 if (!EntryWidget)
                 {
                         continue;
@@ -248,12 +288,7 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
         int32 EntryIndex = 0;
         for (const FSkillDomainProgress& Entry : SkillEntries)
         {
-                TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
-                if (!EntryClass)
-                {
-                        EntryClass = USkillListEntryWidget::StaticClass();
-                }
-                USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
+                USkillListEntryWidget* EntryWidget = CreateEntryWidget();
                 if (!EntryWidget)
                 {
                         ++EntryIndex;

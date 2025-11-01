@@ -1,6 +1,62 @@
 // Implementation: Attach this component to characters that need skill/knowledge tracking.
 // Configure default values in C++, then use the blueprint-exposed getters to populate UI
 // widgets such as skill menus and inspection progress panels.
+//
+// -----------------------------------------------------------------------------
+// Skill System Implementation Manual
+// -----------------------------------------------------------------------------
+// Overview
+// * The skill system tracks two parallel progress maps: domain skills (ESkillDomain)
+//   and granular knowledge entries (FName identifiers). Values are normalized between
+//   0 and 100 so UI widgets can represent progress as percentages without bespoke
+//   scaling logic.
+// * Timed inspections provide a lightweight, interruptible progression mechanic that
+//   awards both knowledge points and optional skill XP when completed.
+// * All gameplay-facing code interacts with this component exclusively; external
+//   systems do not need to manipulate TMaps directly.
+//
+// Setup
+// 1. Attach USkillSystemComponent to playable pawns (typically in the C++ constructor
+//    or the blueprint default component stack).
+// 2. Populate SkillDefinitions::GetSkillDomains() and SkillDefinitions::GetKnowledgeDefinitions()
+//    with the desired catalog of domains/knowledge. These data tables drive display
+//    names, icons, histories, and tip strings used by UI widgets.
+// 3. Wire the component to the HUD via UHUDWidget::ConfigureSkillMenu so the menu can
+//    query knowledge/skill entries and react to state changes.
+//
+// Runtime Interaction
+// * Call GrantKnowledge / GrantSkillXP to award progress. The component clamps values
+//   and broadcasts OnSkillStateChanged so menus refresh automatically.
+// * Use StartInspection, StartItemInspection, or StartInspectableInspection to kick
+//   off timed progress. Each inspection stores metadata (source object, duration,
+//   reward values) and fires OnInspectionStarted/Progress/Completed/Cancelled events
+//   for audio/UI feedback.
+// * CancelCurrentInspection or CancelInspection(Source) safely stops timers and emits
+//   OnInspectionCancelled with a reason tag for analytics or messaging.
+//
+// UI Integration
+// * UCharacterSkillMenu pulls GetSkillEntries/GetKnowledgeEntries to populate its two
+//   scroll panels. Each entry is represented by USkillListEntryWidget which forwards
+//   info requests to display extended lore/history.
+// * Designers can hook the component's multicast delegates (OnSkillStateChanged,
+//   OnInspectionStateChanged, etc.) in blueprints to drive custom widgets beyond the
+//   provided menu.
+//
+// Saving & Persistence
+// * Call WriteToSaveData when serializing a player profile. USkillSystemComponent
+//   mirrors its TMaps into the save struct and reinitializes missing domains during
+//   ReadFromSaveData to preserve compatibility with new definitions.
+// * The component notifies the save subsystem whenever state changes so autosaves can
+//   react without polling.
+//
+// Extending the System
+// * To add new progression mechanics, extend SkillDefinitions with additional fields
+//   and consume them when building FSkillDomainProgress/FSkillKnowledgeEntry records.
+// * Custom crafting or action systems should query CalculateSuccessChance,
+//   CalculateOutputQuality, and CalculateTimeCost for consistent gameplay tuning.
+// * To expose new UI data, add lightweight getters that format component state into
+//   immutable structs similar to FSkillDomainEntry.
+// -----------------------------------------------------------------------------
 #pragma once
 
 #include "Components/ActorComponent.h"
