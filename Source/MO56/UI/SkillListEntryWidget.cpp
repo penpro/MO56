@@ -17,6 +17,7 @@ USkillListEntryWidget::USkillListEntryWidget(const FObjectInitializer& ObjectIni
 void USkillListEntryWidget::NativeConstruct()
 {
         Super::NativeConstruct();
+        UE_LOG(LogTemp, Display, TEXT("Skills List Created"));
 
         if (SkillInfoButton)
         {
