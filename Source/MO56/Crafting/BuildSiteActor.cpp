@@ -38,7 +38,7 @@ void ABuildSiteActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 {
         Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-        DOREPLIFETIME(ABuildSiteActor, MaterialsRemaining);
+        DOREPLIFETIME(ABuildSiteActor, ReplicatedMaterials);
         DOREPLIFETIME(ABuildSiteActor, bCompleted);
         DOREPLIFETIME(ABuildSiteActor, Recipe);
 }
@@ -52,6 +52,7 @@ void ABuildSiteActor::InitializeFromRecipe(UCraftingRecipe* InRecipe)
 
         Recipe = InRecipe;
         RebuildMaterialsFromRecipe();
+        UpdateReplicatedMaterialsFromMap();
         NotifyProgressChanged();
 }
 
@@ -91,11 +92,13 @@ bool ABuildSiteActor::ContributeMaterials(UInventoryComponent* Inventory)
         if (bAllMet)
         {
                 bCompleted = true;
+                UpdateReplicatedMaterialsFromMap();
                 NotifyProgressChanged();
                 SpawnCompletedActor();
         }
         else
         {
+                UpdateReplicatedMaterialsFromMap();
                 NotifyProgressChanged();
         }
 
@@ -195,6 +198,7 @@ bool ABuildSiteActor::PullMaterialFromInventory(UInventoryComponent& Inventory, 
 
 void ABuildSiteActor::OnRep_Materials()
 {
+        RebuildMaterialsMapFromReplicatedData();
         NotifyProgressChanged();
 }
 
@@ -202,6 +206,30 @@ void ABuildSiteActor::OnRep_Completed()
 {
         if (bCompleted)
         {
+                RebuildMaterialsMapFromReplicatedData();
                 NotifyProgressChanged();
+        }
+}
+
+void ABuildSiteActor::UpdateReplicatedMaterialsFromMap()
+{
+        if (!HasAuthority())
+        {
+                return;
+        }
+
+        ReplicatedMaterials.Reset(MaterialsRemaining.Num());
+        for (const TPair<FName, int32>& Pair : MaterialsRemaining)
+        {
+                ReplicatedMaterials.Emplace(Pair.Key, Pair.Value);
+        }
+}
+
+void ABuildSiteActor::RebuildMaterialsMapFromReplicatedData()
+{
+        MaterialsRemaining.Empty(ReplicatedMaterials.Num());
+        for (const FBuildMaterialEntry& Entry : ReplicatedMaterials)
+        {
+                MaterialsRemaining.Add(Entry.ItemId, Entry.Remaining);
         }
 }

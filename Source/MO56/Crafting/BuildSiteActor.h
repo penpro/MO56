@@ -10,6 +10,26 @@ class UStaticMeshComponent;
 class USphereComponent;
 class UInventoryComponent;
 
+USTRUCT(BlueprintType)
+struct MO56_API FBuildMaterialEntry
+{
+        GENERATED_BODY()
+
+        FBuildMaterialEntry() = default;
+
+        FBuildMaterialEntry(const FName& InItemId, int32 InRemaining)
+                : ItemId(InItemId)
+                , Remaining(InRemaining)
+        {
+        }
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite)
+        FName ItemId = NAME_None;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite)
+        int32 Remaining = 0;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBuildSiteProgressUpdated, UCraftingRecipe*, Recipe, const TMap<FName, int32>&, MaterialsRemaining);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildSiteCompleted, UCraftingRecipe*, Recipe);
 
@@ -67,8 +87,11 @@ protected:
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
         TObjectPtr<USphereComponent> InteractionSphere;
 
-        UPROPERTY(ReplicatedUsing = OnRep_Materials)
+        UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Build")
         TMap<FName, int32> MaterialsRemaining;
+
+        UPROPERTY(ReplicatedUsing = OnRep_Materials)
+        TArray<FBuildMaterialEntry> ReplicatedMaterials;
 
         UPROPERTY(ReplicatedUsing = OnRep_Completed)
         bool bCompleted = false;
@@ -84,4 +107,7 @@ protected:
 
         UFUNCTION()
         void OnRep_Completed();
+
+        void UpdateReplicatedMaterialsFromMap();
+        void RebuildMaterialsMapFromReplicatedData();
 };
