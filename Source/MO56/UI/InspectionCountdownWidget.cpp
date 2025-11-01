@@ -7,7 +7,7 @@
 UInspectionCountdownWidget::UInspectionCountdownWidget(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
-        bIsFocusable = true;
+        SetIsFocusable(true);
 }
 
 void UInspectionCountdownWidget::NativeConstruct()
