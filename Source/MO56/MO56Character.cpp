@@ -24,6 +24,7 @@
 #include "DrawDebugHelpers.h"
 
 #include "InventoryComponent.h" // from MOInventory
+#include "MO56PlayerController.h"
 #include "UI/HUDWidget.h"
 #include "UI/InventoryUpdateInterface.h"
 #include "UI/InventoryWidget.h"
@@ -1142,37 +1143,40 @@ void AMO56Character::OpenContainerInventory(UInventoryComponent* ContainerInvent
         ActiveContainerInventory = ContainerInventory;
         ActiveContainerActor = ContainerActor;
 
-        if (!ContainerInventoryWidgetInstance && InventoryWidgetClass)
+        if (IsLocallyControlled())
         {
-                UInventoryWidget* NewContainerWidget = nullptr;
+                if (!ContainerInventoryWidgetInstance && InventoryWidgetClass)
+                {
+                        UInventoryWidget* NewContainerWidget = nullptr;
 
-                if (APlayerController* PC = Cast<APlayerController>(GetController()))
-                {
-                        NewContainerWidget = CreateWidget<UInventoryWidget>(PC, InventoryWidgetClass);
-                }
-                else
-                {
-                        NewContainerWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+                        if (APlayerController* PC = Cast<APlayerController>(GetController()))
+                        {
+                                NewContainerWidget = CreateWidget<UInventoryWidget>(PC, InventoryWidgetClass);
+                        }
+                        else
+                        {
+                                NewContainerWidget = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+                        }
+
+                        if (NewContainerWidget)
+                        {
+                                ContainerInventoryWidgetInstance = NewContainerWidget;
+                                ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
+                                ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
+                                ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+                                HUDWidgetInstance->AddRightInventoryWidget(ContainerInventoryWidgetInstance);
+                        }
                 }
 
-                if (NewContainerWidget)
+                if (ContainerInventoryWidgetInstance)
                 {
-                        ContainerInventoryWidgetInstance = NewContainerWidget;
                         ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
-                        ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
-                        ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
-                        HUDWidgetInstance->AddRightInventoryWidget(ContainerInventoryWidgetInstance);
+                        ContainerInventoryWidgetInstance->SetInventoryComponent(ContainerInventory);
+                        ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
                 }
-        }
 
-        if (ContainerInventoryWidgetInstance)
-        {
-                ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
-                ContainerInventoryWidgetInstance->SetInventoryComponent(ContainerInventory);
-                ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+                SetInventoryVisible(true);
         }
-
-        SetInventoryVisible(true);
 }
 
 void AMO56Character::CloseContainerInventoryForActor(AActor* ContainerActor, bool bClosePlayerInventory)
@@ -1218,6 +1222,15 @@ void AMO56Character::CloseActiveContainerInventory(bool bNotifyContainer)
                         if (AInventoryContainer* InventoryContainer = Cast<AInventoryContainer>(ContainerActor))
                         {
                                 InventoryContainer->NotifyInventoryClosed(this);
+
+                                if (!InventoryContainer->HasAuthority())
+                                {
+                                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(GetController()))
+                                        {
+                                                MOController->RequestContainerInventoryOwnership(InventoryContainer);
+                                                MOController->NotifyContainerInventoryClosed(InventoryContainer);
+                                        }
+                                }
                         }
                 }
         }
