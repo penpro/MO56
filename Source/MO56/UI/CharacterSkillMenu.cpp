@@ -1,3 +1,6 @@
+// Implementation: Present the player's skills and knowledge progress. Bind SkillList, KnowledgeList,
+// and info panel widgets in the blueprint, then assign the skill system component at runtime so the
+// menu can populate entries and show history/progression details when players inspect a skill.
 #include "UI/CharacterSkillMenu.h"
 
 #include "Components/PanelWidget.h"
@@ -5,10 +8,14 @@
 #include "Engine/World.h"
 #include "Skills/SkillSystemComponent.h"
 #include "Skills/SkillTypes.h"
+#include "UI/SkillListEntryWidget.h"
+#include "Components/Image.h"
+#include "Engine/Texture2D.h"
 
 UCharacterSkillMenu::UCharacterSkillMenu(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
+        SkillEntryWidgetClass = USkillListEntryWidget::StaticClass();
 }
 
 void UCharacterSkillMenu::SetSkillSystemComponent(USkillSystemComponent* InSkillSystem)
@@ -34,6 +41,7 @@ void UCharacterSkillMenu::SetSkillSystemComponent(USkillSystemComponent* InSkill
 
         RefreshSkillData();
         RefreshInspectionStatus();
+        HideSkillInfo();
 }
 
 void UCharacterSkillMenu::NativeConstruct()
@@ -41,6 +49,7 @@ void UCharacterSkillMenu::NativeConstruct()
         Super::NativeConstruct();
         RefreshSkillData();
         RefreshInspectionStatus();
+        HideSkillInfo();
         StartInspectionRefreshTimer();
 }
 
@@ -55,6 +64,7 @@ void UCharacterSkillMenu::NativeDestruct()
         }
 
         SkillSystem.Reset();
+        HideSkillInfo();
         Super::NativeDestruct();
 }
 
@@ -82,6 +92,7 @@ void UCharacterSkillMenu::RefreshSkillData()
                         SkillList->ClearChildren();
                 }
 
+                HideSkillInfo();
                 return;
         }
 
@@ -92,6 +103,11 @@ void UCharacterSkillMenu::RefreshSkillData()
         TArray<FSkillDomainProgress> SkillEntries;
         SkillSystem->GetSkillEntries(SkillEntries);
         RebuildSkillList(SkillEntries);
+
+        if (SkillEntries.Num() == 0 && KnowledgeEntries.Num() == 0)
+        {
+                HideSkillInfo();
+        }
 }
 
 void UCharacterSkillMenu::RefreshInspectionStatus()
@@ -154,15 +170,20 @@ void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry
 
         for (const FSkillKnowledgeEntry& Entry : KnowledgeEntries)
         {
-                UTextBlock* RowText = NewObject<UTextBlock>(this, UTextBlock::StaticClass());
-                if (!RowText)
+                TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
+                if (!EntryClass)
+                {
+                        EntryClass = USkillListEntryWidget::StaticClass();
+                }
+                USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
+                if (!EntryWidget)
                 {
                         continue;
                 }
 
-                const int32 RoundedValue = FMath::RoundToInt(Entry.Value);
-                RowText->SetText(FText::Format(NSLOCTEXT("SkillMenu", "KnowledgeRow", "{0}: {1}"), Entry.DisplayName, FText::AsNumber(RoundedValue)));
-                KnowledgeList->AddChild(RowText);
+                EntryWidget->SetupFromKnowledge(Entry);
+                EntryWidget->OnInfoRequested().AddUObject(this, &UCharacterSkillMenu::HandleSkillInfoRequested);
+                KnowledgeList->AddChild(EntryWidget);
         }
 }
 
@@ -177,14 +198,100 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
 
         for (const FSkillDomainProgress& Entry : SkillEntries)
         {
-                UTextBlock* RowText = NewObject<UTextBlock>(this, UTextBlock::StaticClass());
-                if (!RowText)
+                TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
+                if (!EntryClass)
+                {
+                        EntryClass = USkillListEntryWidget::StaticClass();
+                }
+                USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
+                if (!EntryWidget)
                 {
                         continue;
                 }
 
-                const int32 RoundedValue = FMath::RoundToInt(Entry.Value);
-                RowText->SetText(FText::Format(NSLOCTEXT("SkillMenu", "SkillRow", "{0}: {1}"), Entry.DisplayName, FText::AsNumber(RoundedValue)));
-                SkillList->AddChild(RowText);
+                EntryWidget->SetupFromSkill(Entry);
+                EntryWidget->OnInfoRequested().AddUObject(this, &UCharacterSkillMenu::HandleSkillInfoRequested);
+                SkillList->AddChild(EntryWidget);
+        }
+}
+
+void UCharacterSkillMenu::HandleSkillInfoRequested(const FText& Title, const FText& Rank, const FText& History, const FText& Tips, TSoftObjectPtr<UTexture2D> Icon)
+{
+        ShowSkillInfo(Title, Rank, History, Tips, Icon);
+}
+
+void UCharacterSkillMenu::ShowSkillInfo(const FText& Title, const FText& Rank, const FText& History, const FText& Tips, TSoftObjectPtr<UTexture2D> Icon)
+{
+        if (SkillInfoTitleText)
+        {
+                SkillInfoTitleText->SetText(Title);
+        }
+
+        if (SkillInfoRankText)
+        {
+                SkillInfoRankText->SetText(Rank);
+        }
+
+        if (SkillInfoHistoryText)
+        {
+                SkillInfoHistoryText->SetText(History);
+        }
+
+        if (SkillInfoTipsText)
+        {
+                SkillInfoTipsText->SetText(Tips);
+        }
+
+        if (SkillInfoIcon)
+        {
+                if (UTexture2D* LoadedIcon = Icon.IsNull() ? nullptr : Icon.LoadSynchronous())
+                {
+                        SkillInfoIcon->SetBrushFromTexture(LoadedIcon);
+                        SkillInfoIcon->SetVisibility(ESlateVisibility::Visible);
+                }
+                else
+                {
+                        SkillInfoIcon->SetBrushFromTexture(nullptr);
+                        SkillInfoIcon->SetVisibility(ESlateVisibility::Collapsed);
+                }
+        }
+
+        if (SkillInfoPanel)
+        {
+                SkillInfoPanel->SetVisibility(ESlateVisibility::Visible);
+        }
+}
+
+void UCharacterSkillMenu::HideSkillInfo()
+{
+        if (SkillInfoTitleText)
+        {
+                SkillInfoTitleText->SetText(FText::GetEmpty());
+        }
+
+        if (SkillInfoRankText)
+        {
+                SkillInfoRankText->SetText(FText::GetEmpty());
+        }
+
+        if (SkillInfoHistoryText)
+        {
+                SkillInfoHistoryText->SetText(FText::GetEmpty());
+        }
+
+        if (SkillInfoTipsText)
+        {
+                SkillInfoTipsText->SetText(FText::GetEmpty());
+        }
+
+        if (SkillInfoIcon)
+        {
+                SkillInfoIcon->SetBrushFromTexture(nullptr);
+                SkillInfoIcon->SetVisibility(ESlateVisibility::Collapsed);
+        }
+
+        if (SkillInfoPanel)
+        {
+                SkillInfoPanel->SetVisibility(ESlateVisibility::Collapsed);
         }
 }

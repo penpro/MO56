@@ -1,9 +1,13 @@
+// Implementation: Create a MO56SaveGame asset via the save subsystem; inventories and
+// world actors register automatically. When adding new systems, extend this data container
+// with serializable fields and update UMO56SaveSubsystem to read/write them.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/SaveGame.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
+#include "Skills/SkillTypes.h"
 #include "MO56SaveGame.generated.h"
 
 /**
@@ -61,6 +65,39 @@ struct FLevelWorldState
 };
 
 /**
+ * Save data for a single connected player.
+ */
+USTRUCT(BlueprintType)
+struct FPlayerSaveData
+{
+        GENERATED_BODY()
+
+        /** Persistent identifier generated for the player controller. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FGuid PlayerId;
+
+        /** Persistent identifier of the player's inventory component. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FGuid InventoryId;
+
+        /** Numeric controller id recorded at save time for matching reconnects. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        int32 ControllerId = INDEX_NONE;
+
+        /** Display name captured from the player state. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FString PlayerName;
+
+        /** Last known world transform for the possessed pawn. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FTransform Transform = FTransform::Identity;
+
+        /** Serialized skill system state. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FSkillSystemSaveData SkillState;
+};
+
+/**
  * Save game asset for the MO56 project.
  */
 UCLASS()
@@ -93,12 +130,16 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FName, FLevelWorldState> LevelStates;
 
-        /** Identifier for the primary player inventory. */
+        /** Inventories belonging to player pawns at the time of save. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FGuid PlayerInventoryId;
+        TSet<FGuid> PlayerInventoryIds;
 
-        /** Last known transform of the player character. */
+        /** World transforms recorded for each player inventory. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FTransform PlayerTransform = FTransform::Identity;
+        TMap<FGuid, FTransform> PlayerTransforms;
+
+        /** Per-player save state including controller information and skills. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        TMap<FGuid, FPlayerSaveData> PlayerStates;
 };
 

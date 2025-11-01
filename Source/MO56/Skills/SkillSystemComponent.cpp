@@ -1,7 +1,12 @@
+// Implementation: Manages server-authoritative skill and knowledge progression. Attach the
+// component to player characters, hook the delegates for UI updates, and register with the save
+// subsystem so per-player data persists across sessions.
 #include "Skills/SkillSystemComponent.h"
 
 #include "Engine/World.h"
+#include "Engine/GameInstance.h"
 #include "ItemData.h"
+#include "Save/MO56SaveSubsystem.h"
 #include "Skills/SkillTypes.h"
 #include "TimerManager.h"
 #include "UObject/Package.h"
@@ -17,6 +22,7 @@ namespace
 USkillSystemComponent::USkillSystemComponent()
 {
         PrimaryComponentTick.bCanEverTick = false;
+        SetIsReplicatedByDefault(true);
         InitializeDefaults();
 }
 
@@ -209,7 +215,21 @@ void USkillSystemComponent::GetKnowledgeEntries(TArray<FSkillKnowledgeEntry>& Ou
                 FSkillKnowledgeEntry& Entry = OutEntries.AddDefaulted_GetRef();
                 Entry.KnowledgeId = Pair.Key;
                 Entry.Value = Pair.Value;
-                Entry.DisplayName = SkillDefinitions::GetKnowledgeDisplayName(Pair.Key);
+
+                if (const FKnowledgeInfo* Info = SkillDefinitions::FindKnowledgeInfo(Pair.Key))
+                {
+                        Entry.DisplayName = Info->DisplayName;
+                        Entry.History = Info->History;
+                        Entry.ProgressionTips = Info->ProgressionTips;
+                        Entry.Icon = Info->Icon;
+                }
+                else
+                {
+                        Entry.DisplayName = FText::FromName(Pair.Key);
+                        Entry.History = FText::GetEmpty();
+                        Entry.ProgressionTips = FText::GetEmpty();
+                        Entry.Icon = TSoftObjectPtr<UTexture2D>();
+                }
         }
 
         OutEntries.Sort([](const FSkillKnowledgeEntry& A, const FSkillKnowledgeEntry& B)
@@ -223,27 +243,27 @@ void USkillSystemComponent::GetSkillEntries(TArray<FSkillDomainProgress>& OutEnt
         OutEntries.Reset();
         OutEntries.Reserve(SkillValues.Num());
 
-        const TArray<FSkillDomainInfo>& DomainInfos = SkillDefinitions::GetSkillDomains();
-
         for (const auto& Pair : SkillValues)
         {
                 FSkillDomainProgress& Entry = OutEntries.AddDefaulted_GetRef();
                 Entry.Domain = Pair.Key;
                 Entry.Value = Pair.Value;
+                Entry.RankText = SkillDefinitions::BuildRankText(Pair.Value);
 
-                const FName Tag = SkillDefinitions::GetSkillDomainTag(Pair.Key);
-                const FSkillDomainInfo* DomainInfo = DomainInfos.FindByPredicate([&](const FSkillDomainInfo& Info)
-                {
-                        return Info.Domain == Pair.Key;
-                });
-
-                if (DomainInfo)
+                if (const FSkillDomainInfo* DomainInfo = SkillDefinitions::FindDomainInfo(Pair.Key))
                 {
                         Entry.DisplayName = DomainInfo->DisplayName;
+                        Entry.History = DomainInfo->History;
+                        Entry.ProgressionTips = DomainInfo->ProgressionTips;
+                        Entry.Icon = DomainInfo->Icon;
                 }
                 else
                 {
+                        const FName Tag = SkillDefinitions::GetSkillDomainTag(Pair.Key);
                         Entry.DisplayName = FText::FromName(Tag);
+                        Entry.History = FText::GetEmpty();
+                        Entry.ProgressionTips = FText::GetEmpty();
+                        Entry.Icon = TSoftObjectPtr<UTexture2D>();
                 }
         }
 
@@ -290,6 +310,32 @@ void USkillSystemComponent::GetInspectionProgress(TArray<FSkillInspectionProgres
         }
 }
 
+void USkillSystemComponent::WriteToSaveData(FSkillSystemSaveData& OutData) const
+{
+        OutData.SkillValues = SkillValues;
+        OutData.KnowledgeValues = KnowledgeValues;
+}
+
+void USkillSystemComponent::ReadFromSaveData(const FSkillSystemSaveData& InData)
+{
+        SkillValues = InData.SkillValues;
+        KnowledgeValues = InData.KnowledgeValues;
+
+        for (const FSkillDomainInfo& DomainInfo : SkillDefinitions::GetSkillDomains())
+        {
+                float& Value = SkillValues.FindOrAdd(DomainInfo.Domain);
+                Value = FMath::Clamp(Value, 0.f, MaxProgressValue);
+        }
+
+        for (const FKnowledgeInfo& KnowledgeInfo : SkillDefinitions::GetKnowledgeDefinitions())
+        {
+                float& Value = KnowledgeValues.FindOrAdd(KnowledgeInfo.KnowledgeId);
+                Value = FMath::Clamp(Value, 0.f, MaxProgressValue);
+        }
+
+        BroadcastSkillUpdate();
+}
+
 bool USkillSystemComponent::HasCompletedInspectionForSource(const UObject* SourceContext, const FName& KnowledgeId) const
 {
         if (!SourceContext || KnowledgeId.IsNone())
@@ -321,6 +367,7 @@ void USkillSystemComponent::HandleInspectionCompleted(FGuid InspectionId)
 void USkillSystemComponent::BroadcastSkillUpdate()
 {
         OnSkillStateChanged.Broadcast();
+        NotifySaveSubsystemOfUpdate();
 }
 
 void USkillSystemComponent::BroadcastInspectionUpdate()
@@ -430,4 +477,18 @@ FSkillInspectionParams USkillSystemComponent::BuildParamsFromItem(const UItemDat
         }
 
         return Params;
+}
+
+void USkillSystemComponent::NotifySaveSubsystemOfUpdate() const
+{
+        if (UWorld* World = GetWorld())
+        {
+                if (UGameInstance* GameInstance = World->GetGameInstance())
+                {
+                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        {
+                                SaveSubsystem->NotifySkillComponentUpdated(const_cast<USkillSystemComponent*>(this));
+                        }
+                }
+        }
 }

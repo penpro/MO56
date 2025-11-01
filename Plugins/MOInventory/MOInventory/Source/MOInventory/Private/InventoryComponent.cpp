@@ -1,3 +1,6 @@
+// Implementation: Configure inventory slots in C++ or blueprints, then build UI widgets
+// that call the provided getters/mutators. Attach this component to pawns or containers
+// and ensure authority drives mutations so replication keeps clients in sync.
 #include "InventoryComponent.h"
 #include "ItemData.h"
 #include "ItemPickup.h"
@@ -12,6 +15,7 @@
 #include "GameFramework/Actor.h"
 #include "TimerManager.h"
 #include "UObject/Package.h"
+#include "Net/UnrealNetwork.h"
 
 #if WITH_EDITOR
 #include "UObject/UnrealType.h"
@@ -21,6 +25,7 @@ UInventoryComponent::UInventoryComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
     EnsureSlotCapacity();
+    SetIsReplicatedByDefault(true);
 }
 
 void UInventoryComponent::PostInitProperties()
@@ -33,12 +38,58 @@ void UInventoryComponent::PostInitProperties()
     }
 }
 
+void UInventoryComponent::OnRep_Slots()
+{
+    BroadcastInventoryChanged();
+}
+
+void UInventoryComponent::ServerSplitStackAtIndex_Implementation(int32 SlotIndex)
+{
+    SplitStackAtIndex(SlotIndex);
+}
+
+void UInventoryComponent::ServerDestroyItemAtIndex_Implementation(int32 SlotIndex)
+{
+    DestroyItemAtIndex(SlotIndex);
+}
+
+void UInventoryComponent::ServerDropItemAtIndex_Implementation(int32 SlotIndex)
+{
+    DropItemAtIndex(SlotIndex);
+}
+
+void UInventoryComponent::ServerDropSingleItemAtIndex_Implementation(int32 SlotIndex)
+{
+    DropSingleItemAtIndex(SlotIndex);
+}
+
+void UInventoryComponent::ServerTransferItemBetweenSlots_Implementation(int32 SourceSlotIndex, int32 TargetSlotIndex)
+{
+    TransferItemBetweenSlots(SourceSlotIndex, TargetSlotIndex);
+}
+
+void UInventoryComponent::ServerTransferItemToInventory_Implementation(UInventoryComponent* TargetInventory, int32 SourceSlotIndex, int32 TargetSlotIndex)
+{
+    TransferItemToInventory(TargetInventory, SourceSlotIndex, TargetSlotIndex);
+}
+
+void UInventoryComponent::ServerDebugSetSlot_Implementation(int32 SlotIndex, UItemData* Item, int32 Quantity)
+{
+    DebugSetSlot(SlotIndex, Item, Quantity);
+}
+
 void UInventoryComponent::InitializeComponent()
 {
     Super::InitializeComponent();
 
     EnsurePersistentId();
     EnsureSlotCapacity();
+}
+
+void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(UInventoryComponent, Slots);
 }
 
 int32 FItemStack::MaxStack() const
@@ -50,6 +101,10 @@ int32 FItemStack::MaxStack() const
 int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
+    if (GetOwner() && GetOwner()->GetLocalRole() != ROLE_Authority)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddItem should be called on the server for replicated inventories."));
+    }
     EnsureSlotCapacity();
     int32 Remaining = Count;
     Remaining -= AddToExistingStacks(Item, Remaining);
@@ -57,7 +112,7 @@ int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
     const int32 Added = Count - Remaining;
     if (Added > 0)
     {
-        OnInventoryUpdated.Broadcast();
+        BroadcastInventoryChanged();
     }
     return Added;
 }
@@ -104,6 +159,10 @@ int32 UInventoryComponent::AddToEmptySlots(UItemData* Item, int32 Count)
 int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
+    if (GetOwner() && GetOwner()->GetLocalRole() != ROLE_Authority)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RemoveItem should be called on the server for replicated inventories."));
+    }
     EnsureSlotCapacity();
     int32 Removed = 0;
     for (FItemStack& Slot : Slots)
@@ -124,7 +183,7 @@ int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
     }
     if (Removed > 0)
     {
-        OnInventoryUpdated.Broadcast();
+        BroadcastInventoryChanged();
     }
     return Removed;
 }
@@ -140,8 +199,59 @@ int32 UInventoryComponent::CountItem(UItemData* Item) const
     return Total;
 }
 
+void UInventoryComponent::GetSlotAtIndex(int32 SlotIndex, FItemStack& OutSlot) const
+{
+    if (Slots.IsValidIndex(SlotIndex))
+    {
+        OutSlot = Slots[SlotIndex];
+    }
+    else
+    {
+        OutSlot = FItemStack{};
+    }
+}
+
+bool UInventoryComponent::DebugSetSlot(int32 SlotIndex, UItemData* Item, int32 Quantity)
+{
+    if (!Slots.IsValidIndex(SlotIndex) || Quantity < 0)
+    {
+        return false;
+    }
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerDebugSetSlot(SlotIndex, Item, Quantity);
+            return false;
+        }
+    }
+
+    FItemStack& Slot = Slots[SlotIndex];
+    Slot.Item = Item;
+    Slot.Quantity = Quantity;
+
+    if (Slot.Quantity <= 0)
+    {
+        Slot.Quantity = 0;
+        Slot.Item = nullptr;
+    }
+
+    BroadcastInventoryChanged();
+    return true;
+}
+
 bool UInventoryComponent::SplitStackAtIndex(int32 SlotIndex)
 {
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerSplitStackAtIndex(SlotIndex);
+            return false;
+        }
+    }
+
     EnsureSlotCapacity();
 
     if (!Slots.IsValidIndex(SlotIndex))
@@ -171,12 +281,21 @@ bool UInventoryComponent::SplitStackAtIndex(int32 SlotIndex)
         return false;
     }
 
-    OnInventoryUpdated.Broadcast();
+    BroadcastInventoryChanged();
     return true;
 }
 
 bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
 {
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerDestroyItemAtIndex(SlotIndex);
+            return false;
+        }
+    }
+
     EnsureSlotCapacity();
 
     if (!Slots.IsValidIndex(SlotIndex))
@@ -193,12 +312,21 @@ bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
     Slot.Item = nullptr;
     Slot.Quantity = 0;
 
-    OnInventoryUpdated.Broadcast();
+    BroadcastInventoryChanged();
     return true;
 }
 
 bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
 {
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerDropItemAtIndex(SlotIndex);
+            return false;
+        }
+    }
+
     if (ActiveDropAllTimers.Contains(SlotIndex))
     {
         return true;
@@ -233,6 +361,15 @@ bool UInventoryComponent::DropItemAtIndex(int32 SlotIndex)
 
 bool UInventoryComponent::DropSingleItemAtIndex(int32 SlotIndex)
 {
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerDropSingleItemAtIndex(SlotIndex);
+            return false;
+        }
+    }
+
     if (ActiveDropAllTimers.Contains(SlotIndex))
     {
         return false;
@@ -246,6 +383,15 @@ bool UInventoryComponent::TransferItemToInventory(UInventoryComponent* TargetInv
     if (!TargetInventory || TargetInventory == this)
     {
         return false;
+    }
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerTransferItemToInventory(TargetInventory, SourceSlotIndex, TargetSlotIndex);
+            return false;
+        }
     }
 
     EnsureSlotCapacity();
@@ -331,12 +477,12 @@ bool UInventoryComponent::TransferItemToInventory(UInventoryComponent* TargetInv
 
     if (bChangedSource)
     {
-        OnInventoryUpdated.Broadcast();
+        BroadcastInventoryChanged();
     }
 
     if (bChangedTarget)
     {
-        TargetInventory->OnInventoryUpdated.Broadcast();
+        TargetInventory->BroadcastInventoryChanged();
     }
 
     return true;
@@ -488,6 +634,14 @@ void UInventoryComponent::EnsurePersistentId()
     }
 }
 
+void UInventoryComponent::OverridePersistentId(const FGuid& InPersistentId)
+{
+    if (InPersistentId.IsValid())
+    {
+        PersistentId = InPersistentId;
+    }
+}
+
 void UInventoryComponent::WriteToSaveData(FInventorySaveData& OutData) const
 {
     OutData.MaxSlots = MaxSlots;
@@ -533,7 +687,7 @@ void UInventoryComponent::ReadFromSaveData(const FInventorySaveData& InData)
         }
     }
 
-    OnInventoryUpdated.Broadcast();
+    BroadcastInventoryChanged();
 }
 
 void UInventoryComponent::ResolveItemIntoSlot(const FInventorySlotSaveData& SlotData, FItemStack& Slot)
@@ -585,6 +739,11 @@ bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
         return false;
     }
 
+    if (OwnerActor->GetLocalRole() != ROLE_Authority)
+    {
+        return false;
+    }
+
     UItemData* ItemData = Slot.Item;
     if (!ItemData)
     {
@@ -629,6 +788,8 @@ bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
         return false;
     }
 
+    SpawnedPickup->SetReplicates(true);
+    SpawnedPickup->SetReplicateMovement(true);
     SpawnedPickup->SetItem(ItemData);
     SpawnedPickup->SetQuantity(1);
     SpawnedPickup->SetPersistentId(FGuid::NewGuid());
@@ -641,7 +802,7 @@ bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
         Slot.Item = nullptr;
     }
 
-    OnInventoryUpdated.Broadcast();
+    BroadcastInventoryChanged();
     return true;
 }
 
@@ -675,6 +836,15 @@ void UInventoryComponent::ClearDropAllTimer(int32 SlotIndex)
 
 bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 TargetSlotIndex)
 {
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->GetLocalRole() != ROLE_Authority)
+        {
+            ServerTransferItemBetweenSlots(SourceSlotIndex, TargetSlotIndex);
+            return false;
+        }
+    }
+
     EnsureSlotCapacity();
 
     if (SourceSlotIndex == TargetSlotIndex)
@@ -730,12 +900,26 @@ bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 
         bInventoryChanged = true;
     }
 
-    if (bInventoryChanged)
+    const bool bResult = bInventoryChanged;
+    if (bResult)
     {
-        OnInventoryUpdated.Broadcast();
+        BroadcastInventoryChanged();
     }
 
-    return bInventoryChanged;
+    return bResult;
+}
+
+void UInventoryComponent::BroadcastInventoryChanged()
+{
+    OnInventoryUpdated.Broadcast();
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->HasAuthority())
+        {
+            OwnerActor->ForceNetUpdate();
+        }
+    }
 }
 
 void UInventoryComponent::EnsureSlotCapacity()

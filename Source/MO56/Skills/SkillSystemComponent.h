@@ -1,3 +1,6 @@
+// Implementation: Attach this component to characters that need skill/knowledge tracking.
+// Configure default values in C++, then use the blueprint-exposed getters to populate UI
+// widgets such as skill menus and inspection progress panels.
 #pragma once
 
 #include "Components/ActorComponent.h"
@@ -38,6 +41,7 @@ public:
         bool StartItemInspection(const UItemData* ItemData, UObject* SourceContext);
 
         /** Attempts to start an inspection using an inspectable component. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
         bool StartInspectableInspection(UInspectableComponent* Inspectable, const FSkillInspectionParams& Params);
 
         /** Cancels any inspection running for the specified source object. */
@@ -69,15 +73,19 @@ public:
         float CalculateTimeCost(float BaseTimeSeconds, ESkillDomain Domain, float EnvironmentModifiers) const;
 
         /** Populates an array with the current knowledge state for UI consumption. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
         void GetKnowledgeEntries(TArray<FSkillKnowledgeEntry>& OutEntries) const;
 
         /** Populates an array with current skill progress for UI consumption. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
         void GetSkillEntries(TArray<FSkillDomainProgress>& OutEntries) const;
 
         /** Populates an array with active inspection progress entries. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
         void GetInspectionProgress(TArray<FSkillInspectionProgress>& OutProgress) const;
 
         /** Returns true if the specified knowledge reward has already been claimed for the source. */
+        UFUNCTION(BlueprintPure, Category = "Skills")
         bool HasCompletedInspectionForSource(const UObject* SourceContext, const FName& KnowledgeId) const;
 
         /** Broadcast whenever a skill or knowledge value changes. */
@@ -87,6 +95,12 @@ public:
         /** Broadcast when active inspection timers are added or removed. */
         UPROPERTY(BlueprintAssignable, Category = "Skills")
         FOnInspectionStateChanged OnInspectionStateChanged;
+
+        /** Serializes the component state to a save data struct. */
+        void WriteToSaveData(FSkillSystemSaveData& OutData) const;
+
+        /** Restores the component state from save data. */
+        void ReadFromSaveData(const FSkillSystemSaveData& InData);
 
 protected:
         virtual void BeginPlay() override;
@@ -124,4 +138,6 @@ private:
         bool InternalStartInspection(const FSkillInspectionParams& Params, UObject* SourceContext);
 
         FSkillInspectionParams BuildParamsFromItem(const UItemData& ItemData) const;
+
+        void NotifySaveSubsystemOfUpdate() const;
 };
