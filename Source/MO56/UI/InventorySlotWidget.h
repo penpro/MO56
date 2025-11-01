@@ -35,6 +35,9 @@ public:
          */
         void InitializeSlot(UInventoryComponent* Inventory, int32 InSlotIndex);
 
+        /** Ensures the owning player controller has authority over the supplied inventory before mutating it. */
+        void EnsureInventoryOwnership(UInventoryComponent* Inventory) const;
+
         /** Returns true if the slot currently contains an item stack that can be split. */
         bool CanSplitStack() const;
 

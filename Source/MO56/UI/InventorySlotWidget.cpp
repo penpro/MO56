@@ -22,7 +22,7 @@
 
 namespace UE::InventorySlotWidget::Private
 {
-        static void RequestInventoryOwnership(UInventorySlotWidget* SlotWidget, UInventoryComponent* Inventory)
+        static void RequestInventoryOwnership(const UInventorySlotWidget* SlotWidget, UInventoryComponent* Inventory)
         {
                 if (!SlotWidget || !Inventory)
                 {
@@ -196,6 +196,11 @@ void UInventorySlotWidget::InitializeSlot(UInventoryComponent* Inventory, int32 
 {
         ObservedInventory = Inventory;
         SlotIndex = InSlotIndex;
+}
+
+void UInventorySlotWidget::EnsureInventoryOwnership(UInventoryComponent* Inventory) const
+{
+        UE::InventorySlotWidget::Private::RequestInventoryOwnership(this, Inventory);
 }
 
 bool UInventorySlotWidget::CanSplitStack() const
