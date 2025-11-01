@@ -1,3 +1,6 @@
+// Implementation: Configure inventory slots in C++ or blueprints, then build UI widgets
+// that call the provided getters/mutators. Attach this component to pawns or containers
+// and ensure authority drives mutations so replication keeps clients in sync.
 #include "InventoryComponent.h"
 #include "ItemData.h"
 #include "ItemPickup.h"
@@ -12,6 +15,7 @@
 #include "GameFramework/Actor.h"
 #include "TimerManager.h"
 #include "UObject/Package.h"
+#include "Net/UnrealNetwork.h"
 
 #if WITH_EDITOR
 #include "UObject/UnrealType.h"
@@ -21,6 +25,7 @@ UInventoryComponent::UInventoryComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
     EnsureSlotCapacity();
+    SetIsReplicatedByDefault(true);
 }
 
 void UInventoryComponent::PostInitProperties()
@@ -33,12 +38,23 @@ void UInventoryComponent::PostInitProperties()
     }
 }
 
+void UInventoryComponent::OnRep_Slots()
+{
+    OnInventoryUpdated.Broadcast();
+}
+
 void UInventoryComponent::InitializeComponent()
 {
     Super::InitializeComponent();
 
     EnsurePersistentId();
     EnsureSlotCapacity();
+}
+
+void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(UInventoryComponent, Slots);
 }
 
 int32 FItemStack::MaxStack() const
@@ -50,6 +66,10 @@ int32 FItemStack::MaxStack() const
 int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
+    if (GetOwner() && GetOwner()->GetLocalRole() != ROLE_Authority)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddItem should be called on the server for replicated inventories."));
+    }
     EnsureSlotCapacity();
     int32 Remaining = Count;
     Remaining -= AddToExistingStacks(Item, Remaining);
@@ -104,6 +124,10 @@ int32 UInventoryComponent::AddToEmptySlots(UItemData* Item, int32 Count)
 int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
 {
     if (!Item || Count <= 0) return 0;
+    if (GetOwner() && GetOwner()->GetLocalRole() != ROLE_Authority)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("RemoveItem should be called on the server for replicated inventories."));
+    }
     EnsureSlotCapacity();
     int32 Removed = 0;
     for (FItemStack& Slot : Slots)
@@ -138,6 +162,45 @@ int32 UInventoryComponent::CountItem(UItemData* Item) const
         if (Slot.Item == Item) { Total += Slot.Quantity; }
     }
     return Total;
+}
+
+void UInventoryComponent::GetSlotAtIndex(int32 SlotIndex, FItemStack& OutSlot) const
+{
+    if (Slots.IsValidIndex(SlotIndex))
+    {
+        OutSlot = Slots[SlotIndex];
+    }
+    else
+    {
+        OutSlot = FItemStack{};
+    }
+}
+
+bool UInventoryComponent::DebugSetSlot(int32 SlotIndex, UItemData* Item, int32 Quantity)
+{
+    if (!Slots.IsValidIndex(SlotIndex) || Quantity < 0)
+    {
+        return false;
+    }
+
+    if (GetOwner() && GetOwner()->GetLocalRole() != ROLE_Authority)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("DebugSetSlot must be executed on the authority for replicated inventories."));
+        return false;
+    }
+
+    FItemStack& Slot = Slots[SlotIndex];
+    Slot.Item = Item;
+    Slot.Quantity = Quantity;
+
+    if (Slot.Quantity <= 0)
+    {
+        Slot.Quantity = 0;
+        Slot.Item = nullptr;
+    }
+
+    OnInventoryUpdated.Broadcast();
+    return true;
 }
 
 bool UInventoryComponent::SplitStackAtIndex(int32 SlotIndex)
