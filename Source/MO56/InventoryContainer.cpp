@@ -123,6 +123,37 @@ void AInventoryContainer::Interact_Implementation(AActor* Interactor)
 
         if (AMO56Character* Character = Cast<AMO56Character>(Interactor))
         {
+                if (HasAuthority())
+                {
+                        if (AController* InstigatingController = Character->GetController())
+                        {
+                                SetOwner(InstigatingController);
+                        }
+                }
+
+                const bool bAlreadyActive = ActiveCharacters.Contains(Character);
+                if (bAlreadyActive)
+                {
+                        if (HasAuthority())
+                        {
+                                Character->CloseContainerInventoryForActor(this);
+
+                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(Character->GetController()))
+                                {
+                                        if (!MOController->IsLocalController())
+                                        {
+                                                MOController->ClientCloseContainerInventory(this);
+                                        }
+                                }
+                        }
+                        else if (Character->IsLocallyControlled())
+                        {
+                                Character->CloseContainerInventoryForActor(this);
+                        }
+
+                        return;
+                }
+
                 ActiveCharacters.Add(Character);
 
                 if (HasAuthority())

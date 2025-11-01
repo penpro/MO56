@@ -108,5 +108,8 @@ protected:
         TWeakObjectPtr<UInventorySlotMenuWidget> ActiveContextMenu;
 
         TWeakObjectPtr<USkillSystemComponent> SkillSystem;
+
+private:
+        void EnsureInventoryOwnership(UInventoryComponent* Inventory) const;
 };
 

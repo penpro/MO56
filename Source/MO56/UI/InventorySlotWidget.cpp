@@ -12,6 +12,8 @@
 #include "Engine/Texture2D.h"
 #include "GameFramework/PlayerController.h"
 #include "InventoryComponent.h"
+#include "InventoryContainer.h"
+#include "MO56PlayerController.h"
 #include "ItemData.h"
 #include "Skills/SkillSystemComponent.h"
 #include "InputCoreTypes.h"
@@ -20,11 +22,16 @@
 
 namespace UE::InventorySlotWidget::Private
 {
-        static bool InvokeInventoryBoolFunction(UInventoryComponent* Inventory, int32 SlotIndex, const FName& FunctionName)
+        static bool InvokeInventoryBoolFunction(UInventorySlotWidget* SlotWidget, UInventoryComponent* Inventory, int32 SlotIndex, const FName& FunctionName)
         {
                 if (!Inventory || SlotIndex == INDEX_NONE)
                 {
                         return false;
+                }
+
+                if (SlotWidget)
+                {
+                        SlotWidget->EnsureInventoryOwnership(Inventory);
                 }
 
                 if (UFunction* Function = Inventory->FindFunction(FunctionName))
@@ -45,7 +52,7 @@ namespace UE::InventorySlotWidget::Private
                 return false;
         }
 
-        static bool InvokeInventoryTransferFunction(UInventoryComponent* Inventory, int32 SourceSlotIndex, int32 TargetSlotIndex, const FName& FunctionName)
+        static bool InvokeInventoryTransferFunction(UInventorySlotWidget* SlotWidget, UInventoryComponent* Inventory, int32 SourceSlotIndex, int32 TargetSlotIndex, const FName& FunctionName)
         {
                 if (!Inventory)
                 {
@@ -55,6 +62,11 @@ namespace UE::InventorySlotWidget::Private
                 if (SourceSlotIndex == INDEX_NONE || TargetSlotIndex == INDEX_NONE)
                 {
                         return false;
+                }
+
+                if (SlotWidget)
+                {
+                        SlotWidget->EnsureInventoryOwnership(Inventory);
                 }
 
                 if (UFunction* Function = Inventory->FindFunction(FunctionName))
@@ -169,25 +181,25 @@ bool UInventorySlotWidget::HasItem() const
 bool UInventorySlotWidget::HandleSplitStack()
 {
         static const FName SplitStackAtIndexName(TEXT("SplitStackAtIndex"));
-        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, SplitStackAtIndexName);
+        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(this, ObservedInventory.Get(), SlotIndex, SplitStackAtIndexName);
 }
 
 bool UInventorySlotWidget::HandleDestroyItem()
 {
         static const FName DestroyItemAtIndexName(TEXT("DestroyItemAtIndex"));
-        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DestroyItemAtIndexName);
+        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(this, ObservedInventory.Get(), SlotIndex, DestroyItemAtIndexName);
 }
 
 bool UInventorySlotWidget::HandleDropAllItems()
 {
         static const FName DropItemAtIndexName(TEXT("DropItemAtIndex"));
-        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DropItemAtIndexName);
+        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(this, ObservedInventory.Get(), SlotIndex, DropItemAtIndexName);
 }
 
 bool UInventorySlotWidget::HandleDropOneItem()
 {
         static const FName DropSingleItemAtIndexName(TEXT("DropSingleItemAtIndex"));
-        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(ObservedInventory.Get(), SlotIndex, DropSingleItemAtIndexName);
+        return UE::InventorySlotWidget::Private::InvokeInventoryBoolFunction(this, ObservedInventory.Get(), SlotIndex, DropSingleItemAtIndexName);
 }
 
 void UInventorySlotWidget::CloseContextMenu()
@@ -209,6 +221,36 @@ void UInventorySlotWidget::NotifyContextMenuClosed(UInventorySlotMenuWidget* Clo
 void UInventorySlotWidget::SetSkillSystem(USkillSystemComponent* InSkillSystem)
 {
         SkillSystem = InSkillSystem;
+}
+
+void UInventorySlotWidget::EnsureInventoryOwnership(UInventoryComponent* Inventory) const
+{
+        if (!Inventory)
+        {
+                return;
+        }
+
+        AActor* InventoryOwner = Inventory->GetOwner();
+        if (!InventoryOwner)
+        {
+                return;
+        }
+
+        if (AInventoryContainer* ContainerActor = Cast<AInventoryContainer>(InventoryOwner))
+        {
+                if (APlayerController* OwningPlayer = GetOwningPlayer())
+                {
+                        if (ContainerActor->GetOwner() == OwningPlayer)
+                        {
+                                return;
+                        }
+
+                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(OwningPlayer))
+                        {
+                                MOController->RequestContainerInventoryOwnership(ContainerActor);
+                        }
+                }
+        }
 }
 
 bool UInventorySlotWidget::HandleInspectItem()
@@ -332,21 +374,26 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
                                         if (SourceIndex != SlotIndex)
                                         {
                                                 static const FName TransferFunctionName(TEXT("TransferItemBetweenSlots"));
-                                                if (UE::InventorySlotWidget::Private::InvokeInventoryTransferFunction(TargetInventory, SourceIndex, SlotIndex, TransferFunctionName))
+                                                if (UE::InventorySlotWidget::Private::InvokeInventoryTransferFunction(this, TargetInventory, SourceIndex, SlotIndex, TransferFunctionName))
                                                 {
                                                         CloseContextMenu();
                                                         return true;
                                                 }
                                         }
                                 }
-                                else if (SourceInventory->TransferItemToInventory(TargetInventory, SourceIndex, SlotIndex))
+                                else
                                 {
-                                        CloseContextMenu();
-                                        return true;
+                                        EnsureInventoryOwnership(SourceInventory);
+                                        EnsureInventoryOwnership(TargetInventory);
+                                        if (SourceInventory->TransferItemToInventory(TargetInventory, SourceIndex, SlotIndex))
+                                        {
+                                                CloseContextMenu();
+                                                return true;
+                                        }
                                 }
                         }
                 }
-        }
+}
 
         return Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
 }

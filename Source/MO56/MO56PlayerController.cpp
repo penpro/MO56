@@ -204,6 +204,44 @@ void AMO56PlayerController::NotifyPawnContextFocus(APawn* TargetPawn, bool bHasF
         }
 }
 
+void AMO56PlayerController::RequestContainerInventoryOwnership(AInventoryContainer* ContainerActor)
+{
+        if (!ContainerActor)
+        {
+                return;
+        }
+
+        if (HasAuthority())
+        {
+                ContainerActor->SetOwner(this);
+        }
+        else
+        {
+                ServerRequestContainerInventoryOwnership(ContainerActor);
+        }
+}
+
+void AMO56PlayerController::NotifyContainerInventoryClosed(AInventoryContainer* ContainerActor)
+{
+        if (!ContainerActor)
+        {
+                return;
+        }
+
+        if (HasAuthority())
+        {
+                if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
+                {
+                        ContainerActor->NotifyInventoryClosed(OwningCharacter);
+                        OwningCharacter->CloseContainerInventoryForActor(ContainerActor, false);
+                }
+        }
+        else
+        {
+                ServerNotifyContainerInventoryClosed(ContainerActor);
+        }
+}
+
 void AMO56PlayerController::ServerExecuteNewGame_Implementation(const FString& LevelName)
 {
         HandleNewGameOnServer(LevelName);
@@ -245,6 +283,30 @@ void AMO56PlayerController::ServerSetPawnContext_Implementation(APawn* TargetPaw
         HandlePawnContext(TargetPawn, bHasFocus);
 }
 
+void AMO56PlayerController::ServerRequestContainerInventoryOwnership_Implementation(AInventoryContainer* ContainerActor)
+{
+        if (!ContainerActor)
+        {
+                return;
+        }
+
+        ContainerActor->SetOwner(this);
+}
+
+void AMO56PlayerController::ServerNotifyContainerInventoryClosed_Implementation(AInventoryContainer* ContainerActor)
+{
+        if (!ContainerActor)
+        {
+                return;
+        }
+
+        if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
+        {
+                ContainerActor->NotifyInventoryClosed(OwningCharacter);
+                OwningCharacter->CloseContainerInventoryForActor(ContainerActor, false);
+        }
+}
+
 void AMO56PlayerController::ClientOpenPawnInventoryResponse_Implementation(APawn* TargetPawn)
 {
         HandleOpenPawnInventory(TargetPawn);
@@ -267,9 +329,17 @@ void AMO56PlayerController::ClientOpenContainerInventory_Implementation(AInvento
                 {
                         ContainerInventory = ContainerActor->FindComponentByClass<UInventoryComponent>();
                 }
-        }
+}
 
-        OwningCharacter->OpenContainerInventory(ContainerInventory, ContainerActor);
+OwningCharacter->OpenContainerInventory(ContainerInventory, ContainerActor);
+}
+
+void AMO56PlayerController::ClientCloseContainerInventory_Implementation(AInventoryContainer* ContainerActor)
+{
+if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
+{
+OwningCharacter->CloseContainerInventoryForActor(ContainerActor);
+}
 }
 
 void AMO56PlayerController::ClientEnsureGameInput_Implementation()
