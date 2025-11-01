@@ -24,6 +24,7 @@
 #include "DrawDebugHelpers.h"
 
 #include "InventoryComponent.h" // from MOInventory
+#include "Crafting/CraftingSystemComponent.h"
 #include "MO56PlayerController.h"
 #include "UI/HUDWidget.h"
 #include "UI/InventoryUpdateInterface.h"
@@ -84,6 +85,7 @@ AMO56Character::AMO56Character()
         Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
         CharacterStatus = CreateDefaultSubobject<UCharacterStatusComponent>(TEXT("CharacterStatus"));
         SkillSystem = CreateDefaultSubobject<USkillSystemComponent>(TEXT("SkillSystem"));
+        CraftingSystem = CreateDefaultSubobject<UCraftingSystemComponent>(TEXT("CraftingSystem"));
 
         WorldContextMenuClass = UWorldActorContextMenuWidget::StaticClass();
 

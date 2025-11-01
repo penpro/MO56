@@ -25,6 +25,7 @@ class AActor;
 class AInventoryContainer;
 class UGameMenuWidget;
 class USkillSystemComponent;
+class UCraftingSystemComponent;
 class UCharacterSkillMenu;
 class UInspectionCountdownWidget;
 class UWorldActorContextMenuWidget;
@@ -57,6 +58,9 @@ class AMO56Character : public ACharacter
 
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Skills", meta = (AllowPrivateAccess = "true"))
         USkillSystemComponent* SkillSystem;
+
+        UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Crafting", meta = (AllowPrivateAccess = "true"))
+        UCraftingSystemComponent* CraftingSystem;
 	
 protected:
 
@@ -154,6 +158,9 @@ public:
 
         UFUNCTION(BlueprintPure, Category = "Skills")
         USkillSystemComponent* GetSkillSystemComponent() const { return SkillSystem; }
+
+        UFUNCTION(BlueprintPure, Category = "Crafting")
+        UCraftingSystemComponent* GetCraftingSystemComponent() const { return CraftingSystem; }
 
 public:
 
