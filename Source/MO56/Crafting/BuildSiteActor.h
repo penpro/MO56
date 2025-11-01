@@ -10,6 +10,8 @@ class UStaticMeshComponent;
 class USphereComponent;
 class UInventoryComponent;
 
+using FBuildMaterialsMap = TMap<FName, int32>;
+
 USTRUCT(BlueprintType)
 struct MO56_API FBuildMaterialEntry
 {
@@ -88,7 +90,7 @@ protected:
         TObjectPtr<USphereComponent> InteractionSphere;
 
         UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Build")
-        TMap<FName, int32> MaterialsRemaining;
+        FBuildMaterialsMap MaterialsRemaining;
 
         UPROPERTY(ReplicatedUsing = OnRep_Materials)
         TArray<FBuildMaterialEntry> ReplicatedMaterials;
