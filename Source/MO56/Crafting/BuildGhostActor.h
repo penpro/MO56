@@ -3,7 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Engine/EngineTypes.h"
-#include "PhysicsEngine/CollisionShape.h"
+#include "CollisionShape.h"
+#include "CollisionQueryParams.h"
 #include "BuildGhostActor.generated.h"
 
 class UStaticMeshComponent;
