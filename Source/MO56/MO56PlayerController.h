@@ -71,13 +71,19 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Control")
         void RequestPossessPawn(APawn* TargetPawn);
 
-        UFUNCTION(BlueprintCallable, Category = "Control")
-        void RequestOpenPawnInventory(APawn* TargetPawn);
+UFUNCTION(BlueprintCallable, Category = "Control")
+void RequestOpenPawnInventory(APawn* TargetPawn);
 
-        UFUNCTION(BlueprintCallable, Category = "Control")
-        void NotifyPawnContextFocus(APawn* TargetPawn, bool bHasFocus);
+UFUNCTION(BlueprintCallable, Category = "Control")
+void NotifyPawnContextFocus(APawn* TargetPawn, bool bHasFocus);
 
-        FGuid GetPlayerSaveId() const { return PlayerSaveId; }
+UFUNCTION(BlueprintCallable, Category = "Inventory")
+void RequestContainerInventoryOwnership(AInventoryContainer* ContainerActor);
+
+UFUNCTION(BlueprintCallable, Category = "Inventory")
+void NotifyContainerInventoryClosed(AInventoryContainer* ContainerActor);
+
+FGuid GetPlayerSaveId() const { return PlayerSaveId; }
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -104,14 +110,23 @@ protected:
         UFUNCTION(Server, Reliable)
         void ServerSetPawnContext(APawn* TargetPawn, bool bHasFocus);
 
-        UFUNCTION(Client, Reliable)
-        void ClientOpenPawnInventoryResponse(APawn* TargetPawn);
+UFUNCTION(Client, Reliable)
+void ClientOpenPawnInventoryResponse(APawn* TargetPawn);
 
-        UFUNCTION(Client, Reliable)
-        void ClientOpenContainerInventory(AInventoryContainer* ContainerActor);
+UFUNCTION(Client, Reliable)
+void ClientOpenContainerInventory(AInventoryContainer* ContainerActor);
 
-        UFUNCTION(Client, Reliable)
-        void ClientEnsureGameInput();
+UFUNCTION(Client, Reliable)
+void ClientCloseContainerInventory(AInventoryContainer* ContainerActor);
+
+UFUNCTION(Client, Reliable)
+void ClientEnsureGameInput();
+
+UFUNCTION(Server, Reliable)
+void ServerRequestContainerInventoryOwnership(AInventoryContainer* ContainerActor);
+
+UFUNCTION(Server, Reliable)
+void ServerNotifyContainerInventoryClosed(AInventoryContainer* ContainerActor);
 
 private:
         void HandleNewGameOnServer(const FString& LevelName);
