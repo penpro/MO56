@@ -1,3 +1,7 @@
+// Implementation: Game instance subsystem that serializes inventories and pickups. Register
+// pawn/container inventory components in BeginPlay so their state is captured; call
+// SaveGame/LoadGame from UI or gameplay logic. Extend this subsystem when persisting new
+// systems such as quests or crafting.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -7,6 +11,9 @@
 
 class AItemPickup;
 class UInventoryComponent;
+class USkillSystemComponent;
+class AMO56PlayerController;
+class AMO56Character;
 
 USTRUCT(BlueprintType)
 struct FSaveGameSummary
@@ -72,17 +79,40 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Save")
         void ResetToNewGame();
 
+        /** Creates a brand-new save slot populated with the current runtime state. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        FSaveGameSummary CreateNewSaveSlot();
+
+        /** Updates the active slot used when calling SaveGame/LoadGame. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        void SetActiveSaveSlot(const FString& SlotName, int32 UserIndex);
+
         /** Registers an inventory component so its state is serialized. */
-        void RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory);
+        void RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& OwningPlayerId = FGuid());
 
         /** Stops tracking the specified inventory component. */
         void UnregisterInventoryComponent(UInventoryComponent* InventoryComponent);
+
+        /** Registers a skill component for save serialization. */
+        void RegisterSkillComponent(USkillSystemComponent* SkillComponent, const FGuid& OwningPlayerId = FGuid());
+
+        /** Stops tracking the specified skill component. */
+        void UnregisterSkillComponent(USkillSystemComponent* SkillComponent);
 
         /** Registers a pickup actor for persistence tracking. */
         void RegisterWorldPickup(AItemPickup* Pickup);
 
         /** Unregisters a pickup actor from persistence tracking. */
         void UnregisterWorldPickup(AItemPickup* Pickup);
+
+        /** Notifies the subsystem that a controller is ready and should be associated with save data. */
+        void NotifyPlayerControllerReady(AMO56PlayerController* Controller);
+
+        /** Associates a possessed character with its owning player for persistence. */
+        void RegisterPlayerCharacter(AMO56Character* Character, AMO56PlayerController* Controller);
+
+        /** Called when a skill component changes to refresh the active save. */
+        void NotifySkillComponentUpdated(USkillSystemComponent* SkillComponent);
 
         /** Returns the active save game object. */
         UFUNCTION(BlueprintPure, Category = "Save")
@@ -99,9 +129,20 @@ private:
         UPROPERTY()
         TObjectPtr<UMO56SaveGame> CurrentSaveGame = nullptr;
 
+        FString ActiveSaveSlotName;
+        int32 ActiveSaveUserIndex = SaveUserIndex;
+
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
+        TSet<FGuid> PlayerInventoryIds;
         TMap<FGuid, TWeakObjectPtr<AItemPickup>> TrackedPickups;
         TMap<FGuid, FName> PickupToLevelMap;
+
+        TMap<UInventoryComponent*, FGuid> InventoryToPlayerId;
+        TMap<USkillSystemComponent*, FGuid> SkillComponentToPlayerId;
+        TMap<FGuid, TWeakObjectPtr<USkillSystemComponent>> PlayerToSkillComponent;
+        TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> PlayerToInventoryComponent;
+        TMap<FGuid, TWeakObjectPtr<AMO56PlayerController>> PlayerControllers;
+        TMap<FGuid, TWeakObjectPtr<AMO56Character>> PlayerCharacters;
 
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
         FDelegateHandle PostWorldInitHandle;
@@ -126,18 +167,26 @@ private:
         void RefreshInventorySaveData();
         void RefreshTrackedPickups();
 
-        bool IsPlayerInventoryComponent(const UInventoryComponent* InventoryComponent) const;
-
         FName ResolveLevelName(const AActor& Actor) const;
         FName ResolveLevelName(const UWorld& World) const;
 
         void BindPickupDelegates(AItemPickup& Pickup);
         void UnbindPickupDelegates(AItemPickup& Pickup);
 
-        void ApplyPlayerTransform();
+        void ApplyPlayerTransforms();
         bool ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave);
+
+        void SanitizeLoadedSave(UMO56SaveGame& Save);
+
+        bool IsAuthoritative() const;
+        FString GenerateUniqueSaveSlotName() const;
 
         UFUNCTION()
         void HandleInventoryComponentUpdated();
+
+        void HandleSkillComponentRegistered(USkillSystemComponent* SkillComponent, const FGuid& PlayerId);
+        void HandleInventoryRegistered(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& PlayerId);
+        void SyncPlayerSaveData(const FGuid& PlayerId);
+        void ApplyPlayerStateFromSave(const FGuid& PlayerId);
 };
 

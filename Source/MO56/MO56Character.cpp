@@ -1,10 +1,11 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-// MO56Character.cpp
-
+// Implementation: Handles input, UI widgets, inventory management, and multiplayer context
+// menus. Blueprint subclasses can extend this behaviour and react to the replicated AI control
+// flags when players take over different pawns.
 #include "MO56Character.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
@@ -39,11 +40,13 @@
 #include "UI/WorldActorContextMenuWidget.h"
 #include "Skills/InspectableComponent.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
+#include "Net/UnrealNetwork.h"
+#include "MO56PlayerController.h"
 
 AMO56Character::AMO56Character()
 {
-	// Set size for collision capsule
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+        // Set size for collision capsule
+        GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -82,6 +85,14 @@ AMO56Character::AMO56Character()
         SkillSystem = CreateDefaultSubobject<USkillSystemComponent>(TEXT("SkillSystem"));
 
         WorldContextMenuClass = UWorldActorContextMenuWidget::StaticClass();
+
+        bReplicates = true;
+        SetReplicateMovement(true);
+
+        if (USkeletalMeshComponent* MeshComponent = GetMesh())
+        {
+                MeshComponent->SetIsReplicated(true);
+        }
 }
 
 
@@ -238,7 +249,18 @@ void AMO56Character::BeginPlay()
                 {
                         if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                         {
-                                SaveSubsystem->RegisterInventoryComponent(Inventory, true);
+                                FGuid PlayerId;
+                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(GetController()))
+                                {
+                                        PlayerId = MOController->GetPlayerSaveId();
+                                }
+
+                                SaveSubsystem->RegisterInventoryComponent(Inventory, true, PlayerId);
+
+                                if (SkillSystem)
+                                {
+                                        SaveSubsystem->RegisterSkillComponent(SkillSystem, PlayerId);
+                                }
 
                                 if (GameMenuWidgetInstance)
                                 {
@@ -268,6 +290,11 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
                         if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                         {
                                 SaveSubsystem->UnregisterInventoryComponent(Inventory);
+
+                                if (SkillSystem)
+                                {
+                                        SaveSubsystem->UnregisterSkillComponent(SkillSystem);
+                                }
                         }
                 }
         }
@@ -323,6 +350,62 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
         }
 
         Super::EndPlay(EndPlayReason);
+}
+
+void AMO56Character::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+        Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+        DOREPLIFETIME(AMO56Character, bIsPossessed);
+        DOREPLIFETIME(AMO56Character, bEnableAI);
+}
+
+void AMO56Character::PossessedBy(AController* NewController)
+{
+        Super::PossessedBy(NewController);
+        bIsPossessed = true;
+        OnRep_IsPossessed();
+
+        if (HasAuthority())
+        {
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        {
+                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(NewController))
+                                {
+                                        SaveSubsystem->RegisterPlayerCharacter(this, MOController);
+                                }
+                        }
+                }
+        }
+}
+
+void AMO56Character::UnPossessed()
+{
+        Super::UnPossessed();
+        bIsPossessed = false;
+        OnRep_IsPossessed();
+}
+
+void AMO56Character::OnRep_IsPossessed()
+{
+        // Intentionally empty; blueprint subclasses can react via IsPossessedByPlayer().
+}
+
+void AMO56Character::SetEnableAI(bool bEnable)
+{
+        if (!HasAuthority())
+        {
+                UE_LOG(LogMO56, Warning, TEXT("SetEnableAI should be invoked on the authority."));
+                return;
+        }
+
+        if (bEnableAI != bEnable)
+        {
+                bEnableAI = bEnable;
+                ForceNetUpdate();
+        }
 }
 
 
@@ -568,6 +651,11 @@ void AMO56Character::Tick(float DeltaSeconds)
 {
         Super::Tick(DeltaSeconds);
 
+        if (bContextFocusActive && !FocusedContextPawn.IsValid() && ActiveWorldContextMenu)
+        {
+                CloseWorldContextMenu();
+        }
+
         if (CharacterStatus)
         {
                 const FVector Velocity = GetVelocity();
@@ -796,24 +884,49 @@ void AMO56Character::CloseWorldContextMenu()
         if (ActiveWorldContextMenu)
         {
                 ActiveWorldContextMenu->DismissMenu();
-                ActiveWorldContextMenu = nullptr;
+        }
+        else if (bContextFocusActive && FocusedContextPawn.IsValid())
+        {
+                if (AMO56PlayerController* PC = Cast<AMO56PlayerController>(GetController()))
+                {
+                        PC->NotifyPawnContextFocus(FocusedContextPawn.Get(), false);
+                }
+
+                FocusedContextPawn = nullptr;
+                bContextFocusActive = false;
                 UpdateInventoryInputState(IsAnyInventoryPanelVisible());
         }
 }
 
-bool AMO56Character::TryOpenWorldContextMenu()
+void AMO56Character::HandleWorldContextMenuDismissed()
 {
-        if (!SkillSystem)
+        if (ActiveWorldContextMenu)
         {
-                return false;
+                ActiveWorldContextMenu->OnMenuDismissed.RemoveAll(this);
+                ActiveWorldContextMenu = nullptr;
         }
 
+        if (FocusedContextPawn.IsValid() && bContextFocusActive)
+        {
+                if (AMO56PlayerController* PC = Cast<AMO56PlayerController>(GetController()))
+                {
+                        PC->NotifyPawnContextFocus(FocusedContextPawn.Get(), false);
+                }
+        }
+
+        FocusedContextPawn = nullptr;
+        bContextFocusActive = false;
+        UpdateInventoryInputState(IsAnyInventoryPanelVisible());
+}
+
+bool AMO56Character::TryOpenWorldContextMenu()
+{
         if (!WorldContextMenuClass)
         {
                 return false;
         }
 
-        APlayerController* PC = Cast<APlayerController>(GetController());
+        AMO56PlayerController* PC = Cast<AMO56PlayerController>(GetController());
         if (!PC)
         {
                 return false;
@@ -847,14 +960,64 @@ bool AMO56Character::TryOpenWorldContextMenu()
         }
 
         UInspectableComponent* Inspectable = HitActor->FindComponentByClass<UInspectableComponent>();
-        if (!Inspectable)
+        TArray<FSkillInspectionParams> InspectionParams;
+        if (Inspectable && SkillSystem)
         {
-                return false;
+                Inspectable->BuildInspectionParams(SkillSystem, InspectionParams);
         }
 
-        TArray<FSkillInspectionParams> InspectionParams;
-        Inspectable->BuildInspectionParams(SkillSystem, InspectionParams);
-        if (InspectionParams.Num() == 0)
+        TArray<UWorldActorContextMenuWidget::FContextAction> AdditionalActions;
+        if (APawn* TargetPawn = Cast<APawn>(HitActor))
+        {
+                TWeakObjectPtr<AMO56PlayerController> WeakPC = PC;
+                TWeakObjectPtr<APawn> WeakPawn = TargetPawn;
+
+                AdditionalActions.Emplace(NSLOCTEXT("WorldContextMenu", "PossessPawn", "Possess"), [WeakPC, WeakPawn]()
+                {
+                        if (AMO56PlayerController* Controller = WeakPC.Get())
+                        {
+                                if (APawn* Pawn = WeakPawn.Get())
+                                {
+                                        Controller->RequestPossessPawn(Pawn);
+                                }
+                        }
+                });
+
+                AdditionalActions.Emplace(NSLOCTEXT("WorldContextMenu", "OpenPawnInventory", "Open Inventory"), [WeakPC, WeakPawn]()
+                {
+                        if (AMO56PlayerController* Controller = WeakPC.Get())
+                        {
+                                if (APawn* Pawn = WeakPawn.Get())
+                                {
+                                        Controller->RequestOpenPawnInventory(Pawn);
+                                }
+                        }
+                });
+
+                const bool bSwitchingPawn = FocusedContextPawn.Get() != TargetPawn;
+
+                if (bContextFocusActive && bSwitchingPawn && FocusedContextPawn.IsValid())
+                {
+                        PC->NotifyPawnContextFocus(FocusedContextPawn.Get(), false);
+                        bContextFocusActive = false;
+                }
+
+                FocusedContextPawn = TargetPawn;
+
+                if (!bContextFocusActive || bSwitchingPawn)
+                {
+                        PC->NotifyPawnContextFocus(TargetPawn, true);
+                        bContextFocusActive = true;
+                }
+        }
+        else if (bContextFocusActive && FocusedContextPawn.IsValid())
+        {
+                PC->NotifyPawnContextFocus(FocusedContextPawn.Get(), false);
+                bContextFocusActive = false;
+                FocusedContextPawn = nullptr;
+        }
+
+        if (InspectionParams.Num() == 0 && AdditionalActions.Num() == 0)
         {
                 return false;
         }
@@ -862,26 +1025,25 @@ bool AMO56Character::TryOpenWorldContextMenu()
         if (ActiveWorldContextMenu)
         {
                 ActiveWorldContextMenu->DismissMenu();
-                ActiveWorldContextMenu = nullptr;
         }
 
-        UWorldActorContextMenuWidget* MenuInstance = nullptr;
-        if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
-        {
-                MenuInstance = CreateWidget<UWorldActorContextMenuWidget>(PlayerController, WorldContextMenuClass);
-        }
-        else
-        {
-                MenuInstance = CreateWidget<UWorldActorContextMenuWidget>(GetWorld(), WorldContextMenuClass);
-        }
-
+        UWorldActorContextMenuWidget* MenuInstance = CreateWidget<UWorldActorContextMenuWidget>(PC, WorldContextMenuClass);
         if (!MenuInstance)
         {
                 return false;
         }
 
         ActiveWorldContextMenu = MenuInstance;
-        ActiveWorldContextMenu->InitializeMenu(Inspectable, SkillSystem, InspectionParams);
+        if (InspectionParams.Num() > 0)
+        {
+                ActiveWorldContextMenu->InitializeMenu(Inspectable, SkillSystem, InspectionParams, MoveTemp(AdditionalActions));
+        }
+        else
+        {
+                ActiveWorldContextMenu->InitializeWithActions(MoveTemp(AdditionalActions));
+        }
+
+        ActiveWorldContextMenu->OnMenuDismissed.AddUObject(this, &AMO56Character::HandleWorldContextMenuDismissed);
         ActiveWorldContextMenu->AddToViewport(1000);
 
         FVector2D ViewportPosition = FVector2D::ZeroVector;
@@ -1030,6 +1192,15 @@ void AMO56Character::CloseContainerInventoryForActor(AActor* ContainerActor, boo
         {
                 UpdateInventoryInputState(IsAnyInventoryPanelVisible());
         }
+}
+
+void AMO56Character::CloseAllPlayerMenus()
+{
+        SetInventoryVisible(false);
+        SetSkillMenuVisible(false);
+        SetCharacterStatusVisible(false);
+        SetGameMenuVisible(false);
+        CloseWorldContextMenu();
 }
 
 void AMO56Character::CloseActiveContainerInventory(bool bNotifyContainer)
