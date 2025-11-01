@@ -1,3 +1,6 @@
+// Implementation: Registers inventories and world pickups, serializing them into the active
+// UMO56SaveGame. Call SaveGame/LoadGame through this subsystem so multiplayer hosts persist
+// shared state across sessions.
 #include "Save/MO56SaveSubsystem.h"
 
 #include "Algo/RemoveIf.h"
@@ -56,6 +59,7 @@ void UMO56SaveSubsystem::Deinitialize()
 
         WorldSpawnHandles.Empty();
         RegisteredInventories.Empty();
+        PlayerInventoryIds.Empty();
         TrackedPickups.Empty();
         PickupToLevelMap.Empty();
         CurrentSaveGame = nullptr;
@@ -106,10 +110,15 @@ bool UMO56SaveSubsystem::LoadGame()
 
 void UMO56SaveSubsystem::ResetToNewGame()
 {
+        UGameplayStatics::DeleteGameInSlot(SaveSlotName, SaveUserIndex);
+
         CurrentSaveGame = NewObject<UMO56SaveGame>(this);
         const FDateTime NowUtc = FDateTime::UtcNow();
         CurrentSaveGame->InitialSaveTimestamp = NowUtc;
         CurrentSaveGame->LastSaveTimestamp = NowUtc;
+        PlayerInventoryIds.Empty();
+        CurrentSaveGame->PlayerInventoryIds.Empty();
+        CurrentSaveGame->PlayerTransforms.Empty();
 
         TArray<TWeakObjectPtr<AItemPickup>> PickupsToDestroy;
         PickupsToDestroy.Reserve(TrackedPickups.Num());
@@ -157,6 +166,11 @@ void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* Invento
         const FGuid InventoryId = InventoryComponent->GetPersistentId();
         RegisteredInventories.Add(InventoryId, InventoryComponent);
 
+        if (bIsPlayerInventory)
+        {
+                PlayerInventoryIds.Add(InventoryId);
+        }
+
         InventoryComponent->OnInventoryUpdated.AddUniqueDynamic(this, &UMO56SaveSubsystem::HandleInventoryComponentUpdated);
 
         if (!CurrentSaveGame)
@@ -164,32 +178,28 @@ void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* Invento
                 LoadOrCreateSaveGame();
         }
 
-        if (bIsPlayerInventory && CurrentSaveGame)
-        {
-                CurrentSaveGame->PlayerInventoryId = InventoryId;
-        }
-
         if (CurrentSaveGame)
         {
+                if (bIsPlayerInventory)
+                {
+                        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
+                }
+
                 TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
 
                 if (const FInventorySaveData* SavedData = CurrentSaveGame->InventoryStates.Find(InventoryId))
                 {
                         InventoryComponent->ReadFromSaveData(*SavedData);
                 }
-                else if (bIsPlayerInventory && CurrentSaveGame->PlayerInventoryId.IsValid())
-                {
-                        if (const FInventorySaveData* PlayerData = CurrentSaveGame->InventoryStates.Find(CurrentSaveGame->PlayerInventoryId))
-                        {
-                                InventoryComponent->ReadFromSaveData(*PlayerData);
-                        }
-                }
 
                 if (bIsPlayerInventory)
                 {
-                        if (APawn* OwningPawn = Cast<APawn>(InventoryComponent->GetOwner()))
+                        if (const FTransform* SavedTransform = CurrentSaveGame->PlayerTransforms.Find(InventoryId))
                         {
-                                OwningPawn->SetActorTransform(CurrentSaveGame->PlayerTransform);
+                                if (APawn* OwningPawn = Cast<APawn>(InventoryComponent->GetOwner()))
+                                {
+                                        OwningPawn->SetActorTransform(*SavedTransform);
+                                }
                         }
                 }
         }
@@ -203,6 +213,20 @@ void UMO56SaveSubsystem::UnregisterInventoryComponent(UInventoryComponent* Inven
         }
 
         const FGuid InventoryId = InventoryComponent->GetPersistentId();
+        if (CurrentSaveGame)
+        {
+                FInventorySaveData& SaveData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
+                InventoryComponent->WriteToSaveData(SaveData);
+
+                if (PlayerInventoryIds.Contains(InventoryId))
+                {
+                        if (APawn* OwningPawn = Cast<APawn>(InventoryComponent->GetOwner()))
+                        {
+                                CurrentSaveGame->PlayerTransforms.FindOrAdd(InventoryId) = OwningPawn->GetActorTransform();
+                        }
+                }
+        }
+
         RegisteredInventories.Remove(InventoryId);
         InventoryComponent->OnInventoryUpdated.RemoveDynamic(this, &UMO56SaveSubsystem::HandleInventoryComponentUpdated);
 }
@@ -432,6 +456,10 @@ void UMO56SaveSubsystem::LoadOrCreateSaveGame()
         if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SaveSlotName, SaveUserIndex))
         {
                 CurrentSaveGame = Cast<UMO56SaveGame>(Loaded);
+                if (CurrentSaveGame)
+                {
+                        SanitizeLoadedSave(*CurrentSaveGame);
+                }
         }
 
         if (!CurrentSaveGame)
@@ -441,6 +469,8 @@ void UMO56SaveSubsystem::LoadOrCreateSaveGame()
                 CurrentSaveGame->InitialSaveTimestamp = NowUtc;
                 CurrentSaveGame->LastSaveTimestamp = NowUtc;
         }
+
+        PlayerInventoryIds = CurrentSaveGame->PlayerInventoryIds;
 }
 
 void UMO56SaveSubsystem::ApplySaveToInventories()
@@ -473,7 +503,7 @@ void UMO56SaveSubsystem::ApplySaveToInventories()
                 }
         }
 
-        ApplyPlayerTransform();
+        ApplyPlayerTransforms();
 }
 
 void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
@@ -593,7 +623,13 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 UInventoryComponent* Inventory = It.Value().Get();
                 if (!Inventory)
                 {
-                        CurrentSaveGame->InventoryStates.Remove(InventoryId);
+                        const bool bTrackedPlayer = PlayerInventoryIds.Contains(InventoryId);
+                        if (!bTrackedPlayer)
+                        {
+                                CurrentSaveGame->InventoryStates.Remove(InventoryId);
+                                CurrentSaveGame->PlayerTransforms.Remove(InventoryId);
+                        }
+
                         It.RemoveCurrent();
                         continue;
                 }
@@ -601,16 +637,20 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 FInventorySaveData& SaveData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
                 Inventory->WriteToSaveData(SaveData);
 
-                if (IsPlayerInventoryComponent(Inventory))
+                if (PlayerInventoryIds.Contains(InventoryId))
                 {
-                        CurrentSaveGame->PlayerInventoryId = InventoryId;
-
                         if (APawn* OwningPawn = Cast<APawn>(Inventory->GetOwner()))
                         {
-                                CurrentSaveGame->PlayerTransform = OwningPawn->GetActorTransform();
+                                CurrentSaveGame->PlayerTransforms.FindOrAdd(InventoryId) = OwningPawn->GetActorTransform();
                         }
                 }
+                else
+                {
+                        CurrentSaveGame->PlayerTransforms.Remove(InventoryId);
+                }
         }
+
+        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
 }
 
 void UMO56SaveSubsystem::RefreshTrackedPickups()
@@ -664,17 +704,6 @@ void UMO56SaveSubsystem::RefreshTrackedPickups()
         }
 }
 
-bool UMO56SaveSubsystem::IsPlayerInventoryComponent(const UInventoryComponent* InventoryComponent) const
-{
-        if (!InventoryComponent)
-        {
-                return false;
-        }
-
-        const AActor* Owner = InventoryComponent->GetOwner();
-        return Owner && Owner->IsA<AMO56Character>();
-}
-
 FName UMO56SaveSubsystem::ResolveLevelName(const AActor& Actor) const
 {
         if (const ULevel* Level = Actor.GetLevel())
@@ -715,31 +744,25 @@ void UMO56SaveSubsystem::UnbindPickupDelegates(AItemPickup& Pickup)
         Pickup.OnPickupDestroyed.RemoveDynamic(this, &UMO56SaveSubsystem::HandlePickupDestroyed);
 }
 
-void UMO56SaveSubsystem::ApplyPlayerTransform()
+void UMO56SaveSubsystem::ApplyPlayerTransforms()
 {
-        if (!CurrentSaveGame || !CurrentSaveGame->PlayerInventoryId.IsValid())
+        if (!CurrentSaveGame)
         {
                 return;
         }
 
-        const FTransform& TargetTransform = CurrentSaveGame->PlayerTransform;
-
-        for (auto It = RegisteredInventories.CreateIterator(); It; ++It)
+        for (const TPair<FGuid, FTransform>& Entry : CurrentSaveGame->PlayerTransforms)
         {
-                if (It.Key() != CurrentSaveGame->PlayerInventoryId)
+                if (TWeakObjectPtr<UInventoryComponent>* InventoryPtr = RegisteredInventories.Find(Entry.Key))
                 {
-                        continue;
-                }
-
-                if (UInventoryComponent* Inventory = It.Value().Get())
-                {
-                        if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
+                        if (UInventoryComponent* Inventory = InventoryPtr->Get())
                         {
-                                PawnOwner->SetActorTransform(TargetTransform);
+                                if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
+                                {
+                                        PawnOwner->SetActorTransform(Entry.Value);
+                                }
                         }
                 }
-
-                break;
         }
 }
 
@@ -750,7 +773,9 @@ bool UMO56SaveSubsystem::ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave)
                 return false;
         }
 
+        SanitizeLoadedSave(*LoadedSave);
         CurrentSaveGame = LoadedSave;
+        PlayerInventoryIds = CurrentSaveGame->PlayerInventoryIds;
 
         ApplySaveToInventories();
 
@@ -761,6 +786,31 @@ bool UMO56SaveSubsystem::ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave)
 
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("LoadGame: success"));
         return true;
+}
+
+void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
+{
+        for (auto It = Save.PlayerInventoryIds.CreateIterator(); It; ++It)
+        {
+                if (!Save.InventoryStates.Contains(*It))
+                {
+                        It.RemoveCurrent();
+                }
+        }
+
+        for (auto It = Save.PlayerTransforms.CreateIterator(); It; ++It)
+        {
+                if (!Save.InventoryStates.Contains(It.Key()))
+                {
+                        It.RemoveCurrent();
+                }
+        }
+
+        if (Save.PlayerInventoryIds.Num() == 0 && Save.InventoryStates.Num() == 1)
+        {
+                const FGuid LegacyId = Save.InventoryStates.CreateConstIterator()->Key;
+                Save.PlayerInventoryIds.Add(LegacyId);
+        }
 }
 
 bool UMO56SaveSubsystem::LoadGameBySlot(const FString& SlotName, int32 UserIndex)
