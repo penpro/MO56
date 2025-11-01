@@ -170,7 +170,11 @@ void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry
 
         for (const FSkillKnowledgeEntry& Entry : KnowledgeEntries)
         {
-                const TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass ? SkillEntryWidgetClass : USkillListEntryWidget::StaticClass();
+                TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
+                if (!EntryClass)
+                {
+                        EntryClass = USkillListEntryWidget::StaticClass();
+                }
                 USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
                 if (!EntryWidget)
                 {
@@ -194,7 +198,11 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
 
         for (const FSkillDomainProgress& Entry : SkillEntries)
         {
-                const TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass ? SkillEntryWidgetClass : USkillListEntryWidget::StaticClass();
+                TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
+                if (!EntryClass)
+                {
+                        EntryClass = USkillListEntryWidget::StaticClass();
+                }
                 USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
                 if (!EntryWidget)
                 {

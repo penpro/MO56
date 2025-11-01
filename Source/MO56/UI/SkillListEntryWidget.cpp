@@ -8,7 +8,6 @@
 #include "Components/TextBlock.h"
 #include "Skills/SkillTypes.h"
 #include "Engine/Texture2D.h"
-#include "Slate/SlateEnums.h"
 
 USkillListEntryWidget::USkillListEntryWidget(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)

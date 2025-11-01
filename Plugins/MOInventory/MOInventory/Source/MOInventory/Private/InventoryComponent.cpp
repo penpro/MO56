@@ -900,7 +900,8 @@ bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 
         bInventoryChanged = true;
     }
 
-    if (bInventoryChanged)
+    const bool bResult = bInventoryChanged;
+    if (bResult)
     {
         BroadcastInventoryChanged();
     }
@@ -919,7 +920,20 @@ void UInventoryComponent::BroadcastInventoryChanged()
     }
 }
 
-    return bInventoryChanged;
+    return bResult;
+}
+
+void UInventoryComponent::BroadcastInventoryChanged()
+{
+    OnInventoryUpdated.Broadcast();
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->HasAuthority())
+        {
+            OwnerActor->ForceNetUpdate();
+        }
+    }
 }
 
 void UInventoryComponent::BroadcastInventoryChanged()
