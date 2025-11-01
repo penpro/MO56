@@ -294,10 +294,10 @@ void AMO56PlayerController::HandlePawnContext(APawn* TargetPawn, bool bHasFocus)
                 return;
         }
 
-        if (AMO56Character* Character = Cast<AMO56Character>(TargetPawn))
-        {
-                Character->SetEnableAI(!bHasFocus);
-        }
+    if (AMO56Character* TargetCharacter = Cast<AMO56Character>(TargetPawn))
+    {
+        TargetCharacter->SetEnableAI(!bHasFocus);
+    }
 }
 
 UMO56SaveSubsystem* AMO56PlayerController::GetSaveSubsystem() const
