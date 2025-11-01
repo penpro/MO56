@@ -24,6 +24,7 @@ UCharacterStatusComponent::UCharacterStatusComponent()
 {
         PrimaryComponentTick.bCanEverTick = true;
         PrimaryComponentTick.TickInterval = 0.25f;
+        SetIsReplicatedByDefault(true);
 }
 
 void UCharacterStatusComponent::BeginPlay()
