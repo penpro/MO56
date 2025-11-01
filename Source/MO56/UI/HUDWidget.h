@@ -5,6 +5,9 @@
 
 class UPanelWidget;
 class UWidget;
+class UCharacterSkillMenu;
+class UInspectionCountdownWidget;
+class USkillSystemComponent;
 
 /**
  * HUD widget containing named slots for core gameplay UI elements.
@@ -72,7 +75,81 @@ public:
         UFUNCTION(BlueprintCallable, Category = "HUD")
         void SetCharacterSkillWidget(UWidget* Widget);
 
+        /** Configures the skill menu that should be lazily created for the HUD. */
+        void ConfigureSkillMenu(TSubclassOf<UCharacterSkillMenu> InMenuClass, USkillSystemComponent* InSkillSystem);
+
+        /** Ensures that the skill menu instance exists, creating it if necessary. */
+        UCharacterSkillMenu* EnsureSkillMenuInstance();
+
+        /** Toggles the visibility of the skill menu, returning the new visibility state. */
+        bool ToggleSkillMenu();
+
+        /** Explicitly sets the skill menu visibility. */
+        void SetSkillMenuVisibility(bool bVisible);
+
+        /** Returns true if the skill menu is currently visible. */
+        bool IsSkillMenuVisible() const;
+
+        /** Returns the underlying skill menu instance, if it exists. */
+        UCharacterSkillMenu* GetSkillMenuInstance() const { return SkillMenuInstance.Get(); }
+
+        /** Registers the inspection countdown class that should be displayed during timers. */
+        void ConfigureInspectionCountdown(TSubclassOf<UInspectionCountdownWidget> InCountdownClass);
+
+        /** Ensures the countdown overlay is instantiated. */
+        UInspectionCountdownWidget* EnsureCountdownOverlay();
+
+        /** Shows the inspection countdown overlay. */
+        void ShowInspection(const FText& Description, float DurationSeconds);
+
+        /** Updates the inspection countdown overlay. */
+        void UpdateInspection(float ElapsedSeconds, float DurationSeconds);
+
+        /** Hides the inspection countdown overlay. */
+        void HideInspection();
+
+protected:
+        virtual void NativeDestruct() override;
+
 private:
         void AddWidgetToContainer(UPanelWidget* Container, UWidget* Widget, bool bClearChildren);
+
+        void SetSkillSystemComponent(USkillSystemComponent* InSkillSystem);
+        void BindSkillDelegates(USkillSystemComponent* InSkillSystem);
+        void UnbindSkillDelegates(USkillSystemComponent* InSkillSystem);
+
+        UFUNCTION()
+        void HandleInspectionStarted(const FText& Description, float Duration);
+
+        UFUNCTION()
+        void HandleInspectionProgress(float Elapsed, float Duration);
+
+        UFUNCTION()
+        void HandleInspectionCompleted();
+
+        UFUNCTION()
+        void HandleInspectionCancelled(FName Reason);
+
+        UFUNCTION()
+        void HandleCountdownCancelRequested();
+
+        void UpdateCountdownVisibility(bool bVisible) const;
+        void HideCountdownInternal();
+
+private:
+        UPROPERTY(EditAnywhere, Category = "Skills")
+        TSubclassOf<UCharacterSkillMenu> SkillMenuClass;
+
+        UPROPERTY(Transient)
+        TObjectPtr<UCharacterSkillMenu> SkillMenuInstance;
+
+        UPROPERTY(Transient)
+        TWeakObjectPtr<USkillSystemComponent> SkillSystemRef;
+
+        UPROPERTY(EditAnywhere, Category = "Inspection")
+        TSubclassOf<UInspectionCountdownWidget> InspectionCountdownClass;
+
+        UPROPERTY(Transient)
+        TObjectPtr<UInspectionCountdownWidget> InspectionCountdownInstance;
 };
 
