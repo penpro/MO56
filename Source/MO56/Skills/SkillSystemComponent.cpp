@@ -17,6 +17,7 @@ namespace
 USkillSystemComponent::USkillSystemComponent()
 {
         PrimaryComponentTick.bCanEverTick = false;
+        SetIsReplicatedByDefault(true);
         InitializeDefaults();
 }
 

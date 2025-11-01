@@ -1,3 +1,6 @@
+// Implementation: Place this actor in a level and assign a widget-driven inventory component
+// in its blueprint. Characters that interact will open the container panel; add this class to
+// actors that should expose shared loot between multiple players.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -54,6 +57,6 @@ protected:
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
         FText InteractPrompt;
 
-        /** Character currently viewing the container inventory. */
-        TWeakObjectPtr<AMO56Character> ActiveCharacter;
+        /** Characters currently viewing the container inventory. */
+        TSet<TWeakObjectPtr<AMO56Character>> ActiveCharacters;
 };

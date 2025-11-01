@@ -1,3 +1,6 @@
+// Implementation: Menu entries are generated at runtime and call into player controller or
+// skill subsystem callbacks. Use InitializeMenu/InitializeWithActions to populate options
+// and listen to OnMenuDismissed to restore AI behaviour when the widget closes.
 #include "UI/WorldActorContextMenuWidget.h"
 
 #include "Skills/InspectableComponent.h"
@@ -10,17 +13,37 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-void UWorldActorContextMenuWidget::InitializeMenu(UInspectableComponent* Inspectable, USkillSystemComponent* InSkillSystem, const TArray<FSkillInspectionParams>& InParams)
+void UWorldActorContextMenuWidget::InitializeMenu(UInspectableComponent* Inspectable, USkillSystemComponent* InSkillSystem, const TArray<FSkillInspectionParams>& InParams, TArray<FContextAction>&& AdditionalActions)
 {
         InspectableComponent = Inspectable;
         SkillSystem = InSkillSystem;
-        InspectionOptions.Reset();
+        BuildEntriesFromInspection(InParams);
 
-        for (const FSkillInspectionParams& Params : InParams)
+        for (FContextAction& Action : AdditionalActions)
         {
-                if (Params.IsValid())
+                if (!Action.Label.IsEmpty() && Action.Callback)
                 {
-                        InspectionOptions.Add(Params);
+                        MenuEntries.Add(MoveTemp(Action));
+                }
+        }
+
+        if (RootWidget.IsValid())
+        {
+                RebuildWidget();
+        }
+}
+
+void UWorldActorContextMenuWidget::InitializeWithActions(TArray<FContextAction>&& Actions)
+{
+        InspectableComponent.Reset();
+        SkillSystem.Reset();
+        MenuEntries.Reset();
+
+        for (FContextAction& Action : Actions)
+        {
+                if (!Action.Label.IsEmpty() && Action.Callback)
+                {
+                        MenuEntries.Add(MoveTemp(Action));
                 }
         }
 
@@ -41,7 +64,7 @@ TSharedRef<SWidget> UWorldActorContextMenuWidget::RebuildWidget()
 
         TSharedRef<SVerticalBox> MenuContent = SNew(SVerticalBox);
 
-        if (InspectionOptions.Num() == 0)
+        if (MenuEntries.Num() == 0)
         {
                 MenuContent->AddSlot()
                         .AutoHeight()
@@ -53,27 +76,15 @@ TSharedRef<SWidget> UWorldActorContextMenuWidget::RebuildWidget()
         }
         else
         {
-                for (int32 Index = 0; Index < InspectionOptions.Num(); ++Index)
+                for (int32 Index = 0; Index < MenuEntries.Num(); ++Index)
                 {
-                        const FSkillInspectionParams& Params = InspectionOptions[Index];
-                        FText ButtonLabel = Params.Description;
-                        if (ButtonLabel.IsEmpty())
-                        {
-                                ButtonLabel = SkillDefinitions::GetKnowledgeDisplayName(Params.KnowledgeId);
-                        }
-
-                        if (ButtonLabel.IsEmpty())
-                        {
-                                ButtonLabel = NSLOCTEXT("WorldContextMenu", "InspectFallback", "Inspect");
-                        }
-
                         MenuContent->AddSlot()
                                 .AutoHeight()
                                 .Padding(4.f)
                                 [
                                         SNew(SButton)
-                                        .Text(ButtonLabel)
-                                        .OnClicked(FOnClicked::CreateUObject(this, &UWorldActorContextMenuWidget::HandleInspectOptionClicked, Index))
+                                        .Text(MenuEntries[Index].Label)
+                                        .OnClicked(FOnClicked::CreateUObject(this, &UWorldActorContextMenuWidget::HandleEntryClicked, Index))
                                 ];
                 }
         }
@@ -95,6 +106,7 @@ void UWorldActorContextMenuWidget::ReleaseSlateResources(bool bReleaseChildren)
 void UWorldActorContextMenuWidget::NativeDestruct()
 {
         CloseInternal();
+        OnMenuDismissed.Broadcast();
         Super::NativeDestruct();
 }
 
@@ -104,17 +116,16 @@ void UWorldActorContextMenuWidget::NativeOnMouseLeave(const FPointerEvent& InMou
         DismissMenu();
 }
 
-FReply UWorldActorContextMenuWidget::HandleInspectOptionClicked(int32 OptionIndex)
+FReply UWorldActorContextMenuWidget::HandleEntryClicked(int32 OptionIndex)
 {
-        USkillSystemComponent* System = SkillSystem.Get();
-        UInspectableComponent* Inspectable = InspectableComponent.Get();
-
-        if (System && Inspectable && InspectionOptions.IsValidIndex(OptionIndex))
+        if (MenuEntries.IsValidIndex(OptionIndex))
         {
-                if (System->StartInspectableInspection(Inspectable, InspectionOptions[OptionIndex]))
+                if (MenuEntries[OptionIndex].Callback)
                 {
-                        DismissMenu();
+                        MenuEntries[OptionIndex].Callback();
                 }
+
+                DismissMenu();
         }
 
         return FReply::Handled();
@@ -124,5 +135,40 @@ void UWorldActorContextMenuWidget::CloseInternal()
 {
         InspectableComponent.Reset();
         SkillSystem.Reset();
-        InspectionOptions.Reset();
+        MenuEntries.Reset();
+}
+
+void UWorldActorContextMenuWidget::BuildEntriesFromInspection(const TArray<FSkillInspectionParams>& InParams)
+{
+        MenuEntries.Reset();
+
+        USkillSystemComponent* System = SkillSystem.Get();
+        UInspectableComponent* Inspectable = InspectableComponent.Get();
+
+        for (const FSkillInspectionParams& Params : InParams)
+        {
+                if (!Params.IsValid())
+                {
+                        continue;
+                }
+
+                FText ButtonLabel = Params.Description;
+                if (ButtonLabel.IsEmpty())
+                {
+                        ButtonLabel = SkillDefinitions::GetKnowledgeDisplayName(Params.KnowledgeId);
+                }
+
+                if (ButtonLabel.IsEmpty())
+                {
+                        ButtonLabel = NSLOCTEXT("WorldContextMenu", "InspectFallback", "Inspect");
+                }
+
+                MenuEntries.Emplace(ButtonLabel, [System, Inspectable, Params]()
+                {
+                        if (System && Inspectable)
+                        {
+                                System->StartInspectableInspection(Inspectable, Params);
+                        }
+                });
+        }
 }
