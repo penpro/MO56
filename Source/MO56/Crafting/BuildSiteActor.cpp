@@ -43,6 +43,22 @@ void ABuildSiteActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
         DOREPLIFETIME(ABuildSiteActor, Recipe);
 }
 
+TArray<FBuildMaterialEntry> ABuildSiteActor::GetMaterialsRemaining() const
+{
+        if (HasAuthority())
+        {
+                TArray<FBuildMaterialEntry> Snapshot;
+                Snapshot.Reserve(MaterialsRemaining.Num());
+                for (const TPair<FName, int32>& Pair : MaterialsRemaining)
+                {
+                        Snapshot.Emplace(Pair.Key, Pair.Value);
+                }
+                return Snapshot;
+        }
+
+        return ReplicatedMaterials;
+}
+
 void ABuildSiteActor::InitializeFromRecipe(UCraftingRecipe* InRecipe)
 {
         if (!HasAuthority())
@@ -139,7 +155,14 @@ void ABuildSiteActor::SpawnCompletedActor()
 
 void ABuildSiteActor::NotifyProgressChanged()
 {
-        OnBuildProgress.Broadcast(Recipe, MaterialsRemaining);
+        TArray<FBuildMaterialEntry> MaterialSnapshot;
+        MaterialSnapshot.Reserve(MaterialsRemaining.Num());
+        for (const TPair<FName, int32>& Pair : MaterialsRemaining)
+        {
+                MaterialSnapshot.Emplace(Pair.Key, Pair.Value);
+        }
+
+        OnBuildProgress.Broadcast(Recipe, MaterialSnapshot);
 
         if (BlueprintMesh && BlueprintFillParameter != NAME_None)
         {
