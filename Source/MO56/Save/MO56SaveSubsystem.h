@@ -1,3 +1,7 @@
+// Implementation: Game instance subsystem that serializes inventories and pickups. Register
+// pawn/container inventory components in BeginPlay so their state is captured; call
+// SaveGame/LoadGame from UI or gameplay logic. Extend this subsystem when persisting new
+// systems such as quests or crafting.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -100,6 +104,7 @@ private:
         TObjectPtr<UMO56SaveGame> CurrentSaveGame = nullptr;
 
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
+        TSet<FGuid> PlayerInventoryIds;
         TMap<FGuid, TWeakObjectPtr<AItemPickup>> TrackedPickups;
         TMap<FGuid, FName> PickupToLevelMap;
 
@@ -126,16 +131,16 @@ private:
         void RefreshInventorySaveData();
         void RefreshTrackedPickups();
 
-        bool IsPlayerInventoryComponent(const UInventoryComponent* InventoryComponent) const;
-
         FName ResolveLevelName(const AActor& Actor) const;
         FName ResolveLevelName(const UWorld& World) const;
 
         void BindPickupDelegates(AItemPickup& Pickup);
         void UnbindPickupDelegates(AItemPickup& Pickup);
 
-        void ApplyPlayerTransform();
+        void ApplyPlayerTransforms();
         bool ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave);
+
+        void SanitizeLoadedSave(UMO56SaveGame& Save);
 
         UFUNCTION()
         void HandleInventoryComponentUpdated();
