@@ -22,6 +22,36 @@
 
 namespace UE::InventorySlotWidget::Private
 {
+        static void RequestInventoryOwnership(UInventorySlotWidget* SlotWidget, UInventoryComponent* Inventory)
+        {
+                if (!SlotWidget || !Inventory)
+                {
+                        return;
+                }
+
+                AActor* InventoryOwner = Inventory->GetOwner();
+                if (!InventoryOwner)
+                {
+                        return;
+                }
+
+                if (AInventoryContainer* ContainerActor = Cast<AInventoryContainer>(InventoryOwner))
+                {
+                        if (APlayerController* OwningPlayer = SlotWidget->GetOwningPlayer())
+                        {
+                                if (ContainerActor->GetOwner() == OwningPlayer)
+                                {
+                                        return;
+                                }
+
+                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(OwningPlayer))
+                                {
+                                        MOController->RequestContainerInventoryOwnership(ContainerActor);
+                                }
+                        }
+                }
+        }
+
         static bool InvokeInventoryBoolFunction(UInventorySlotWidget* SlotWidget, UInventoryComponent* Inventory, int32 SlotIndex, const FName& FunctionName)
         {
                 if (!Inventory || SlotIndex == INDEX_NONE)
@@ -31,7 +61,7 @@ namespace UE::InventorySlotWidget::Private
 
                 if (SlotWidget)
                 {
-                        SlotWidget->EnsureInventoryOwnership(Inventory);
+                        RequestInventoryOwnership(SlotWidget, Inventory);
                 }
 
                 if (UFunction* Function = Inventory->FindFunction(FunctionName))
@@ -66,7 +96,7 @@ namespace UE::InventorySlotWidget::Private
 
                 if (SlotWidget)
                 {
-                        SlotWidget->EnsureInventoryOwnership(Inventory);
+                        RequestInventoryOwnership(SlotWidget, Inventory);
                 }
 
                 if (UFunction* Function = Inventory->FindFunction(FunctionName))
@@ -383,8 +413,8 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDrag
                                 }
                                 else
                                 {
-                                        EnsureInventoryOwnership(SourceInventory);
-                                        EnsureInventoryOwnership(TargetInventory);
+                                        UE::InventorySlotWidget::Private::RequestInventoryOwnership(this, SourceInventory);
+                                        UE::InventorySlotWidget::Private::RequestInventoryOwnership(this, TargetInventory);
                                         if (SourceInventory->TransferItemToInventory(TargetInventory, SourceIndex, SlotIndex))
                                         {
                                                 CloseContextMenu();
