@@ -1,7 +1,11 @@
+// Implementation: Add this actor to the level or blueprint, configure the inventory
+// component slots in the editor, and hook up UI widgets to display its contents. Multiple
+// characters can open the container simultaneously in multiplayer sessions.
 #include "InventoryContainer.h"
 
 #include "InventoryComponent.h"
 #include "MO56Character.h"
+#include "MO56PlayerController.h"
 #include "Components/SceneComponent.h"
 #include "Algo/AllOf.h"
 #include "Internationalization/Text.h"
@@ -14,6 +18,9 @@ AInventoryContainer::AInventoryContainer()
         SetRootComponent(Root);
 
         InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+
+        bReplicates = true;
+        SetReplicateMovement(true);
 }
 
 void AInventoryContainer::BeginPlay()
@@ -53,11 +60,14 @@ void AInventoryContainer::EndPlay(const EEndPlayReason::Type EndPlayReason)
                 InventoryComponent->OnInventoryUpdated.RemoveDynamic(this, &AInventoryContainer::HandleInventoryUpdated);
         }
 
-        if (AMO56Character* Character = ActiveCharacter.Get())
+        for (TWeakObjectPtr<AMO56Character>& CharacterPtr : ActiveCharacters)
         {
-                Character->CloseContainerInventoryForActor(this);
-                ActiveCharacter = nullptr;
+                if (AMO56Character* Character = CharacterPtr.Get())
+                {
+                        Character->CloseContainerInventoryForActor(this);
+                }
         }
+        ActiveCharacters.Empty();
 
         Super::EndPlay(EndPlayReason);
 }
@@ -82,15 +92,23 @@ void AInventoryContainer::HandleInventoryUpdated()
                         HandleContainerEmptied();
                 }
         }
+
+        if (HasAuthority())
+        {
+                ForceNetUpdate();
+        }
 }
 
 void AInventoryContainer::HandleContainerEmptied()
 {
-        if (AMO56Character* Character = ActiveCharacter.Get())
+        for (TWeakObjectPtr<AMO56Character>& CharacterPtr : ActiveCharacters)
         {
-                Character->CloseContainerInventoryForActor(this);
-                ActiveCharacter = nullptr;
+                if (AMO56Character* Character = CharacterPtr.Get())
+                {
+                        Character->CloseContainerInventoryForActor(this);
+                }
         }
+        ActiveCharacters.Empty();
 
         Destroy();
 }
@@ -104,16 +122,24 @@ void AInventoryContainer::Interact_Implementation(AActor* Interactor)
 
         if (AMO56Character* Character = Cast<AMO56Character>(Interactor))
         {
-                if (AMO56Character* PreviousCharacter = ActiveCharacter.Get())
+                ActiveCharacters.Add(Character);
+
+                if (HasAuthority())
                 {
-                        if (PreviousCharacter != Character)
+                        Character->OpenContainerInventory(InventoryComponent, this);
+
+                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(Character->GetController()))
                         {
-                                PreviousCharacter->CloseContainerInventoryForActor(this);
+                                if (!MOController->IsLocalController())
+                                {
+                                        MOController->ClientOpenContainerInventory(this);
+                                }
                         }
                 }
-
-                ActiveCharacter = Character;
-                Character->OpenContainerInventory(InventoryComponent, this);
+                else if (Character->IsLocallyControlled())
+                {
+                        Character->OpenContainerInventory(InventoryComponent, this);
+                }
         }
 }
 
@@ -129,8 +155,5 @@ FText AInventoryContainer::GetInteractText_Implementation() const
 
 void AInventoryContainer::NotifyInventoryClosed(AMO56Character* Character)
 {
-        if (ActiveCharacter.Get() == Character)
-        {
-                ActiveCharacter = nullptr;
-        }
+        ActiveCharacters.Remove(Character);
 }

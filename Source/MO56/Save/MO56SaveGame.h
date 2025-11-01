@@ -1,3 +1,6 @@
+// Implementation: Create a MO56SaveGame asset via the save subsystem; inventories and
+// world actors register automatically. When adding new systems, extend this data container
+// with serializable fields and update UMO56SaveSubsystem to read/write them.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -93,12 +96,12 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FName, FLevelWorldState> LevelStates;
 
-        /** Identifier for the primary player inventory. */
+        /** Inventories belonging to player pawns at the time of save. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FGuid PlayerInventoryId;
+        TSet<FGuid> PlayerInventoryIds;
 
-        /** Last known transform of the player character. */
+        /** World transforms recorded for each player inventory. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FTransform PlayerTransform = FTransform::Identity;
+        TMap<FGuid, FTransform> PlayerTransforms;
 };
 

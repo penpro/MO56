@@ -1,4 +1,6 @@
-// InventoryComponent.h
+// Implementation: Add this component to any actor that needs an editable inventory.
+// Configure MaxSlots/weight in the component details, then create blueprint widgets that
+// call the blueprint-exposed functions to read/write slot data for UI and testing.
 #pragma once
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -51,10 +53,10 @@ struct MOINVENTORY_API FItemStack
 {
     GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TObjectPtr<UItemData> Item = nullptr;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Quantity = 0;
 
     bool IsEmpty() const { return Item == nullptr || Quantity <= 0; }
@@ -72,6 +74,7 @@ public:
     UInventoryComponent();
 
     virtual void InitializeComponent() override;
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (ClampMin = "1"))
     int32 MaxSlots = 24;
@@ -123,6 +126,14 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
 
+    /** Returns the slot contents at the provided index. */
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    void GetSlotAtIndex(int32 SlotIndex, FItemStack& OutSlot) const;
+
+    /** Assigns an item stack to a specific slot for debugging or editor testing. */
+    UFUNCTION(BlueprintCallable, Category = "Inventory|Debug")
+    bool DebugSetSlot(int32 SlotIndex, UItemData* Item, int32 Quantity);
+
     /** Returns the total weight of all items currently stored (in kilograms). */
     UFUNCTION(BlueprintPure, Category = "Inventory|Capacity")
     float GetTotalWeight() const;
@@ -146,7 +157,7 @@ public:
     void ReadFromSaveData(const FInventorySaveData& InData);
 
 private:
-    UPROPERTY(VisibleAnywhere, Category = "Inventory")
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_Slots, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
     TArray<FItemStack> Slots;
 
     int32 AddToExistingStacks(UItemData* Item, int32 Count);
@@ -160,6 +171,9 @@ private:
     void ResolveItemIntoSlot(const FInventorySlotSaveData& SlotData, FItemStack& Slot);
 
     TMap<int32, FTimerHandle> ActiveDropAllTimers;
+
+    UFUNCTION()
+    void OnRep_Slots();
 
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
