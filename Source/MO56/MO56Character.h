@@ -148,6 +148,12 @@ public:
         /** Collapse every UI panel that the character manages (inventory, status, skills, menu, world context). */
         void CloseAllPlayerMenus();
 
+        UFUNCTION(BlueprintPure, Category = "Inventory")
+        UInventoryComponent* GetInventoryComponent() const { return Inventory; }
+
+        UFUNCTION(BlueprintPure, Category = "Skills")
+        USkillSystemComponent* GetSkillSystemComponent() const { return SkillSystem; }
+
 public:
 
         /** Interact Input Action */

@@ -249,7 +249,18 @@ void AMO56Character::BeginPlay()
                 {
                         if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                         {
-                                SaveSubsystem->RegisterInventoryComponent(Inventory, true);
+                                FGuid PlayerId;
+                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(GetController()))
+                                {
+                                        PlayerId = MOController->GetPlayerSaveId();
+                                }
+
+                                SaveSubsystem->RegisterInventoryComponent(Inventory, true, PlayerId);
+
+                                if (SkillSystem)
+                                {
+                                        SaveSubsystem->RegisterSkillComponent(SkillSystem, PlayerId);
+                                }
 
                                 if (GameMenuWidgetInstance)
                                 {
@@ -279,6 +290,11 @@ void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
                         if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                         {
                                 SaveSubsystem->UnregisterInventoryComponent(Inventory);
+
+                                if (SkillSystem)
+                                {
+                                        SaveSubsystem->UnregisterSkillComponent(SkillSystem);
+                                }
                         }
                 }
         }
@@ -349,6 +365,20 @@ void AMO56Character::PossessedBy(AController* NewController)
         Super::PossessedBy(NewController);
         bIsPossessed = true;
         OnRep_IsPossessed();
+
+        if (HasAuthority())
+        {
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        {
+                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(NewController))
+                                {
+                                        SaveSubsystem->RegisterPlayerCharacter(this, MOController);
+                                }
+                        }
+                }
+        }
 }
 
 void AMO56Character::UnPossessed()

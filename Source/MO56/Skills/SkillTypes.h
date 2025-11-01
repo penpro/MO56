@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "SkillTypes.generated.h"
 
+class UTexture2D;
+
 /**
  * Enumeration describing high-level survival skill domains.
  */
@@ -39,10 +41,14 @@ struct FSkillDomainInfo
         {
         }
 
-        FSkillDomainInfo(ESkillDomain InDomain, const FName& InTag, const FText& InDisplayName)
+        FSkillDomainInfo(ESkillDomain InDomain, const FName& InTag, const FText& InDisplayName,
+                        const FText& InHistory, const FText& InProgressionTips, const TSoftObjectPtr<UTexture2D>& InIcon)
                 : Domain(InDomain)
                 , Tag(InTag)
                 , DisplayName(InDisplayName)
+                , History(InHistory)
+                , ProgressionTips(InProgressionTips)
+                , Icon(InIcon)
         {
         }
 
@@ -57,6 +63,18 @@ struct FSkillDomainInfo
         /** Localized domain display name. */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
         FText DisplayName;
+
+        /** Lore or historical context for the domain. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText History;
+
+        /** Guidance describing how to progress the domain. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText ProgressionTips;
+
+        /** Optional icon used when rendering the domain. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        TSoftObjectPtr<UTexture2D> Icon;
 };
 
 /**
@@ -72,10 +90,14 @@ struct FKnowledgeInfo
         {
         }
 
-        FKnowledgeInfo(const FName& InId, const FText& InDisplayName, const FName& InRelatedSkillTag)
+        FKnowledgeInfo(const FName& InId, const FText& InDisplayName, const FName& InRelatedSkillTag,
+                       const FText& InHistory, const FText& InProgressionTips, const TSoftObjectPtr<UTexture2D>& InIcon)
                 : KnowledgeId(InId)
                 , DisplayName(InDisplayName)
                 , RelatedSkillTag(InRelatedSkillTag)
+                , History(InHistory)
+                , ProgressionTips(InProgressionTips)
+                , Icon(InIcon)
         {
         }
 
@@ -90,6 +112,18 @@ struct FKnowledgeInfo
         /** Tag referencing the primary skill domain associated with this knowledge. */
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
         FName RelatedSkillTag;
+
+        /** Lore or historical context used in info widgets. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText History;
+
+        /** Tips explaining how to advance this knowledge. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText ProgressionTips;
+
+        /** Optional icon used when rendering the knowledge entry. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        TSoftObjectPtr<UTexture2D> Icon;
 };
 
 /** Lightweight structure exposed to UI to display knowledge progress. */
@@ -106,6 +140,15 @@ struct FSkillKnowledgeEntry
 
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
         float Value = 0.f;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText History;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText ProgressionTips;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        TSoftObjectPtr<UTexture2D> Icon;
 };
 
 /** Lightweight structure exposed to UI to display skill progress. */
@@ -122,6 +165,18 @@ struct FSkillDomainProgress
 
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
         float Value = 0.f;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText RankText;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText History;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText ProgressionTips;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        TSoftObjectPtr<UTexture2D> Icon;
 };
 
 /** Data describing an active inspection timer. */
@@ -184,6 +239,21 @@ struct FSkillInspectionParams
         }
 };
 
+/** Serializable snapshot of a skill component. */
+USTRUCT(BlueprintType)
+struct FSkillSystemSaveData
+{
+        GENERATED_BODY()
+
+        /** Stored skill domain progress (0..100). */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills")
+        TMap<ESkillDomain, float> SkillValues;
+
+        /** Stored knowledge values (0..100). */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skills")
+        TMap<FName, float> KnowledgeValues;
+};
+
 namespace SkillDefinitions
 {
         /** Returns the static array of domain metadata. */
@@ -200,4 +270,13 @@ namespace SkillDefinitions
 
         /** Returns the localized name for the provided knowledge identifier. */
         FText GetKnowledgeDisplayName(const FName& KnowledgeId);
+
+        /** Resolves static metadata for a skill domain. */
+        const FSkillDomainInfo* FindDomainInfo(ESkillDomain Domain);
+
+        /** Resolves static metadata for a knowledge identifier. */
+        const FKnowledgeInfo* FindKnowledgeInfo(const FName& KnowledgeId);
+
+        /** Computes a rank descriptor based on the supplied value (0..100). */
+        FText BuildRankText(float Value);
 }

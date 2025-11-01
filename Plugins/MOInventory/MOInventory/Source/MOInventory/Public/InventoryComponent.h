@@ -150,6 +150,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory|Save")
     FGuid GetPersistentId() const { return PersistentId; }
 
+    /** Overrides the persistent identifier. Reserved for save/load systems. */
+    void OverridePersistentId(const FGuid& InPersistentId);
+
     /** Serializes the inventory content into the provided save data structure. */
     void WriteToSaveData(FInventorySaveData& OutData) const;
 
@@ -174,6 +177,29 @@ private:
 
     UFUNCTION()
     void OnRep_Slots();
+
+    void BroadcastInventoryChanged();
+
+    UFUNCTION(Server, Reliable)
+    void ServerSplitStackAtIndex(int32 SlotIndex);
+
+    UFUNCTION(Server, Reliable)
+    void ServerDestroyItemAtIndex(int32 SlotIndex);
+
+    UFUNCTION(Server, Reliable)
+    void ServerDropItemAtIndex(int32 SlotIndex);
+
+    UFUNCTION(Server, Reliable)
+    void ServerDropSingleItemAtIndex(int32 SlotIndex);
+
+    UFUNCTION(Server, Reliable)
+    void ServerTransferItemBetweenSlots(int32 SourceSlotIndex, int32 TargetSlotIndex);
+
+    UFUNCTION(Server, Reliable)
+    void ServerTransferItemToInventory(UInventoryComponent* TargetInventory, int32 SourceSlotIndex, int32 TargetSlotIndex);
+
+    UFUNCTION(Server, Reliable)
+    void ServerDebugSetSlot(int32 SlotIndex, UItemData* Item, int32 Quantity);
 
 #if WITH_EDITOR
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

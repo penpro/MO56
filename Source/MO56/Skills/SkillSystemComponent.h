@@ -96,6 +96,12 @@ public:
         UPROPERTY(BlueprintAssignable, Category = "Skills")
         FOnInspectionStateChanged OnInspectionStateChanged;
 
+        /** Serializes the component state to a save data struct. */
+        void WriteToSaveData(FSkillSystemSaveData& OutData) const;
+
+        /** Restores the component state from save data. */
+        void ReadFromSaveData(const FSkillSystemSaveData& InData);
+
 protected:
         virtual void BeginPlay() override;
 
@@ -132,4 +138,6 @@ private:
         bool InternalStartInspection(const FSkillInspectionParams& Params, UObject* SourceContext);
 
         FSkillInspectionParams BuildParamsFromItem(const UItemData& ItemData) const;
+
+        void NotifySaveSubsystemOfUpdate() const;
 };

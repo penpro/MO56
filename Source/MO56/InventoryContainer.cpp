@@ -18,6 +18,7 @@ AInventoryContainer::AInventoryContainer()
         SetRootComponent(Root);
 
         InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+        InventoryComponent->SetIsReplicated(true);
 
         bReplicates = true;
         SetReplicateMovement(true);

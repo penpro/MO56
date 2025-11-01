@@ -140,6 +140,7 @@ void UMO56SaveSubsystem::ResetToNewGame()
         CurrentSaveGame->PlayerTransforms.Empty();
         CurrentSaveGame->InventoryStates.Empty();
         CurrentSaveGame->LevelStates.Empty();
+        CurrentSaveGame->PlayerStates.Empty();
 
         TArray<TWeakObjectPtr<AItemPickup>> PickupsToDestroy;
         PickupsToDestroy.Reserve(TrackedPickups.Num());
@@ -172,6 +173,12 @@ void UMO56SaveSubsystem::ResetToNewGame()
 
         TrackedPickups.Empty();
         PickupToLevelMap.Empty();
+        InventoryToPlayerId.Empty();
+        SkillComponentToPlayerId.Empty();
+        PlayerToSkillComponent.Empty();
+        PlayerToInventoryComponent.Empty();
+        PlayerControllers.Empty();
+        PlayerCharacters.Empty();
 
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ResetToNewGame: save data cleared."));
 }
@@ -233,7 +240,7 @@ void UMO56SaveSubsystem::SetActiveSaveSlot(const FString& SlotName, int32 UserIn
         LoadOrCreateSaveGame();
 }
 
-void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory)
+void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& OwningPlayerId)
 {
         if (!InventoryComponent)
         {
@@ -245,47 +252,7 @@ void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* Invento
                 return;
         }
 
-        InventoryComponent->EnsurePersistentId();
-        const FGuid InventoryId = InventoryComponent->GetPersistentId();
-        RegisteredInventories.Add(InventoryId, InventoryComponent);
-
-        if (bIsPlayerInventory)
-        {
-                PlayerInventoryIds.Add(InventoryId);
-        }
-
-        InventoryComponent->OnInventoryUpdated.AddUniqueDynamic(this, &UMO56SaveSubsystem::HandleInventoryComponentUpdated);
-
-        if (!CurrentSaveGame)
-        {
-                LoadOrCreateSaveGame();
-        }
-
-        if (CurrentSaveGame)
-        {
-                if (bIsPlayerInventory)
-                {
-                        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
-                }
-
-                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
-
-                if (const FInventorySaveData* SavedData = CurrentSaveGame->InventoryStates.Find(InventoryId))
-                {
-                        InventoryComponent->ReadFromSaveData(*SavedData);
-                }
-
-                if (bIsPlayerInventory)
-                {
-                        if (const FTransform* SavedTransform = CurrentSaveGame->PlayerTransforms.Find(InventoryId))
-                        {
-                                if (APawn* OwningPawn = Cast<APawn>(InventoryComponent->GetOwner()))
-                                {
-                                        OwningPawn->SetActorTransform(*SavedTransform);
-                                }
-                        }
-                }
-        }
+        HandleInventoryRegistered(InventoryComponent, bIsPlayerInventory, OwningPlayerId);
 }
 
 void UMO56SaveSubsystem::UnregisterInventoryComponent(UInventoryComponent* InventoryComponent)
@@ -316,7 +283,133 @@ void UMO56SaveSubsystem::UnregisterInventoryComponent(UInventoryComponent* Inven
         }
 
         RegisteredInventories.Remove(InventoryId);
+        InventoryToPlayerId.Remove(InventoryComponent);
+
         InventoryComponent->OnInventoryUpdated.RemoveDynamic(this, &UMO56SaveSubsystem::HandleInventoryComponentUpdated);
+}
+
+void UMO56SaveSubsystem::RegisterSkillComponent(USkillSystemComponent* SkillComponent, const FGuid& OwningPlayerId)
+{
+        if (!SkillComponent || !IsAuthoritative())
+        {
+                return;
+        }
+
+        HandleSkillComponentRegistered(SkillComponent, OwningPlayerId);
+}
+
+void UMO56SaveSubsystem::UnregisterSkillComponent(USkillSystemComponent* SkillComponent)
+{
+        if (!SkillComponent || !IsAuthoritative())
+        {
+                return;
+        }
+
+        if (const FGuid* PlayerIdPtr = SkillComponentToPlayerId.Find(SkillComponent))
+        {
+                if (PlayerIdPtr->IsValid())
+                {
+                        SyncPlayerSaveData(*PlayerIdPtr);
+                        PlayerToSkillComponent.Remove(*PlayerIdPtr);
+                }
+        }
+
+        SkillComponentToPlayerId.Remove(SkillComponent);
+}
+
+void UMO56SaveSubsystem::NotifyPlayerControllerReady(AMO56PlayerController* Controller)
+{
+        if (!Controller || !IsAuthoritative())
+        {
+                return;
+        }
+
+        FGuid PlayerId = Controller->GetPlayerSaveId();
+        const int32 ControllerId = Controller->PlayerState ? Controller->PlayerState->GetPlayerId() : INDEX_NONE;
+
+        if (!PlayerId.IsValid() && CurrentSaveGame)
+        {
+                        for (auto& Pair : CurrentSaveGame->PlayerStates)
+                        {
+                                if (Pair.Value.ControllerId == ControllerId && Pair.Value.PlayerId.IsValid())
+                                {
+                                        PlayerId = Pair.Value.PlayerId;
+                                        break;
+                                }
+                        }
+        }
+
+        if (!PlayerId.IsValid())
+        {
+                PlayerId = FGuid::NewGuid();
+        }
+
+        Controller->SetPlayerSaveId(PlayerId);
+        PlayerControllers.FindOrAdd(PlayerId) = Controller;
+
+        if (!CurrentSaveGame)
+        {
+                LoadOrCreateSaveGame();
+        }
+
+        if (CurrentSaveGame)
+        {
+                FPlayerSaveData& PlayerData = CurrentSaveGame->PlayerStates.FindOrAdd(PlayerId);
+                PlayerData.PlayerId = PlayerId;
+                PlayerData.ControllerId = ControllerId;
+                if (Controller->PlayerState)
+                {
+                        PlayerData.PlayerName = Controller->PlayerState->GetPlayerName();
+                }
+        }
+
+}
+
+void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO56PlayerController* Controller)
+{
+        if (!Character || !IsAuthoritative())
+        {
+                return;
+        }
+
+        const FGuid PlayerId = Controller ? Controller->GetPlayerSaveId() : FGuid();
+        if (!PlayerId.IsValid())
+        {
+                return;
+        }
+
+        PlayerCharacters.FindOrAdd(PlayerId) = Character;
+
+        if (UInventoryComponent* Inventory = Character->GetInventoryComponent())
+        {
+                InventoryToPlayerId.Add(Inventory, PlayerId);
+                PlayerToInventoryComponent.FindOrAdd(PlayerId) = Inventory;
+        }
+
+        if (USkillSystemComponent* Skill = Character->GetSkillSystemComponent())
+        {
+                SkillComponentToPlayerId.Add(Skill, PlayerId);
+                PlayerToSkillComponent.FindOrAdd(PlayerId) = Skill;
+        }
+
+        ApplyPlayerStateFromSave(PlayerId);
+        SyncPlayerSaveData(PlayerId);
+}
+
+void UMO56SaveSubsystem::NotifySkillComponentUpdated(USkillSystemComponent* SkillComponent)
+{
+        if (!SkillComponent || !IsAuthoritative() || bIsApplyingSave)
+        {
+                return;
+        }
+
+        if (const FGuid* PlayerIdPtr = SkillComponentToPlayerId.Find(SkillComponent))
+        {
+                if (PlayerIdPtr->IsValid())
+                {
+                        SyncPlayerSaveData(*PlayerIdPtr);
+                }
+        }
 }
 
 void UMO56SaveSubsystem::RegisterWorldPickup(AItemPickup* Pickup)
@@ -753,6 +846,8 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 return;
         }
 
+        TSet<FGuid> PlayersToSync;
+
         for (auto It = RegisteredInventories.CreateIterator(); It; ++It)
         {
                 const FGuid InventoryId = It.Key();
@@ -784,6 +879,22 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 {
                         CurrentSaveGame->PlayerTransforms.Remove(InventoryId);
                 }
+
+                if (const FGuid* PlayerIdPtr = InventoryToPlayerId.Find(Inventory))
+                {
+                        if (PlayerIdPtr->IsValid())
+                        {
+                                PlayerToInventoryComponent.FindOrAdd(*PlayerIdPtr) = Inventory;
+                                PlayersToSync.Add(*PlayerIdPtr);
+                        }
+                }
+        }
+
+        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
+
+        for (const FGuid& PlayerId : PlayersToSync)
+        {
+                SyncPlayerSaveData(PlayerId);
         }
 
         CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
@@ -897,15 +1008,33 @@ void UMO56SaveSubsystem::ApplyPlayerTransforms()
                 return;
         }
 
-        for (const TPair<FGuid, FTransform>& Entry : CurrentSaveGame->PlayerTransforms)
+        for (const TPair<FGuid, FPlayerSaveData>& Entry : CurrentSaveGame->PlayerStates)
         {
-                if (TWeakObjectPtr<UInventoryComponent>* InventoryPtr = RegisteredInventories.Find(Entry.Key))
+                const FGuid PlayerId = Entry.Key;
+                const FPlayerSaveData& PlayerData = Entry.Value;
+
+                if (!PlayerData.InventoryId.IsValid())
                 {
-                        if (UInventoryComponent* Inventory = InventoryPtr->Get())
+                        continue;
+                }
+
+                if (UInventoryComponent* const* InventoryPtr = RegisteredInventories.Find(PlayerData.InventoryId))
+                {
+                        if (UInventoryComponent* Inventory = *InventoryPtr)
                         {
                                 if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
                                 {
-                                        PawnOwner->SetActorTransform(Entry.Value);
+                                        PawnOwner->SetActorTransform(PlayerData.Transform);
+                                }
+                        }
+                }
+                else if (const TWeakObjectPtr<UInventoryComponent>* PlayerInventoryPtr = PlayerToInventoryComponent.Find(PlayerId))
+                {
+                        if (UInventoryComponent* Inventory = PlayerInventoryPtr->Get())
+                        {
+                                if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
+                                {
+                                        PawnOwner->SetActorTransform(PlayerData.Transform);
                                 }
                         }
                 }
@@ -954,6 +1083,15 @@ void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
                 if (!Save.InventoryStates.Contains(It.Key()))
                 {
                         It.RemoveCurrent();
+                }
+        }
+
+        for (auto It = Save.PlayerStates.CreateIterator(); It; ++It)
+        {
+                FPlayerSaveData& PlayerData = It.Value();
+                if (!PlayerData.InventoryId.IsValid() || !Save.InventoryStates.Contains(PlayerData.InventoryId))
+                {
+                        PlayerData.InventoryId.Invalidate();
                 }
         }
 
@@ -1081,6 +1219,195 @@ void UMO56SaveSubsystem::HandleInventoryComponentUpdated()
                 }
         }
 
+        RefreshInventorySaveData();
         SaveGame();
+}
+
+void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& PlayerId)
+{
+        if (!InventoryComponent)
+        {
+                return;
+        }
+
+        InventoryComponent->EnsurePersistentId();
+        FGuid InventoryId = InventoryComponent->GetPersistentId();
+
+        if (bIsPlayerInventory && CurrentSaveGame && PlayerId.IsValid())
+        {
+                if (const FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
+                {
+                        if (PlayerData->InventoryId.IsValid() && PlayerData->InventoryId != InventoryId)
+                        {
+                                RegisteredInventories.Remove(InventoryId);
+                                InventoryComponent->OverridePersistentId(PlayerData->InventoryId);
+                                InventoryId = InventoryComponent->GetPersistentId();
+                        }
+                }
+        }
+
+        RegisteredInventories.Add(InventoryId, InventoryComponent);
+
+        if (bIsPlayerInventory)
+        {
+                PlayerInventoryIds.Add(InventoryId);
+                InventoryToPlayerId.Add(InventoryComponent, PlayerId);
+
+                if (PlayerId.IsValid())
+                {
+                        PlayerToInventoryComponent.FindOrAdd(PlayerId) = InventoryComponent;
+                        SyncPlayerSaveData(PlayerId);
+                }
+
+                if (CurrentSaveGame)
+                {
+                        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
+                }
+        }
+
+        InventoryComponent->OnInventoryUpdated.AddUniqueDynamic(this, &UMO56SaveSubsystem::HandleInventoryComponentUpdated);
+
+        if (!CurrentSaveGame)
+        {
+                LoadOrCreateSaveGame();
+        }
+
+        if (CurrentSaveGame)
+        {
+                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+
+                if (const FInventorySaveData* SavedData = CurrentSaveGame->InventoryStates.Find(InventoryId))
+                {
+                        InventoryComponent->ReadFromSaveData(*SavedData);
+                }
+
+                if (bIsPlayerInventory && PlayerId.IsValid())
+                {
+                        ApplyPlayerStateFromSave(PlayerId);
+                }
+        }
+}
+
+void UMO56SaveSubsystem::HandleSkillComponentRegistered(USkillSystemComponent* SkillComponent, const FGuid& PlayerId)
+{
+        if (!SkillComponent)
+        {
+                return;
+        }
+
+        SkillComponentToPlayerId.Add(SkillComponent, PlayerId);
+
+        if (PlayerId.IsValid())
+        {
+                PlayerToSkillComponent.FindOrAdd(PlayerId) = SkillComponent;
+
+                if (CurrentSaveGame)
+                {
+                        if (const FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
+                        {
+                                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                                SkillComponent->ReadFromSaveData(PlayerData->SkillState);
+                        }
+                }
+        }
+}
+
+void UMO56SaveSubsystem::SyncPlayerSaveData(const FGuid& PlayerId)
+{
+        if (!CurrentSaveGame || !PlayerId.IsValid() || !IsAuthoritative())
+        {
+                return;
+        }
+
+        FPlayerSaveData& PlayerData = CurrentSaveGame->PlayerStates.FindOrAdd(PlayerId);
+        PlayerData.PlayerId = PlayerId;
+
+        if (const TWeakObjectPtr<AMO56PlayerController>* ControllerPtr = PlayerControllers.Find(PlayerId))
+        {
+                if (AMO56PlayerController* Controller = ControllerPtr->Get())
+                {
+                        if (Controller->PlayerState)
+                        {
+                                PlayerData.PlayerName = Controller->PlayerState->GetPlayerName();
+                                PlayerData.ControllerId = Controller->PlayerState->GetPlayerId();
+                        }
+                }
+        }
+
+        if (const TWeakObjectPtr<UInventoryComponent>* InventoryPtr = PlayerToInventoryComponent.Find(PlayerId))
+        {
+                if (UInventoryComponent* Inventory = InventoryPtr->Get())
+                {
+                        const FGuid InventoryId = Inventory->GetPersistentId();
+                        PlayerData.InventoryId = InventoryId;
+
+                        FInventorySaveData& InventoryData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
+                        Inventory->WriteToSaveData(InventoryData);
+
+                        if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
+                        {
+                                PlayerData.Transform = PawnOwner->GetActorTransform();
+                                CurrentSaveGame->PlayerTransforms.FindOrAdd(InventoryId) = PlayerData.Transform;
+                        }
+                }
+        }
+
+        if (const TWeakObjectPtr<USkillSystemComponent>* SkillPtr = PlayerToSkillComponent.Find(PlayerId))
+        {
+                if (USkillSystemComponent* Skill = SkillPtr->Get())
+                {
+                        Skill->WriteToSaveData(PlayerData.SkillState);
+                }
+        }
+
+        CurrentSaveGame->PlayerStates.Add(PlayerId, PlayerData);
+}
+
+void UMO56SaveSubsystem::ApplyPlayerStateFromSave(const FGuid& PlayerId)
+{
+        if (!CurrentSaveGame || !PlayerId.IsValid() || !IsAuthoritative())
+        {
+                return;
+        }
+
+        if (FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
+        {
+                if (PlayerData->InventoryId.IsValid())
+                {
+                        if (const TWeakObjectPtr<UInventoryComponent>* InventoryPtr = PlayerToInventoryComponent.Find(PlayerId))
+                        {
+                                if (UInventoryComponent* Inventory = InventoryPtr->Get())
+                                {
+                                        const FGuid CurrentId = Inventory->GetPersistentId();
+                                        if (CurrentId != PlayerData->InventoryId)
+                                        {
+                                                RegisteredInventories.Remove(CurrentId);
+                                                Inventory->OverridePersistentId(PlayerData->InventoryId);
+                                                RegisteredInventories.Add(PlayerData->InventoryId, Inventory);
+                                        }
+
+                                        if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(PlayerData->InventoryId))
+                                        {
+                                                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                                                Inventory->ReadFromSaveData(*SavedInventory);
+                                        }
+
+                                        if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
+                                        {
+                                                PawnOwner->SetActorTransform(PlayerData->Transform);
+                                        }
+                                }
+                        }
+                }
+
+                if (const TWeakObjectPtr<USkillSystemComponent>* SkillPtr = PlayerToSkillComponent.Find(PlayerId))
+                {
+                        if (USkillSystemComponent* Skill = SkillPtr->Get())
+                        {
+                                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                                Skill->ReadFromSaveData(PlayerData->SkillState);
+                        }
+                }
+        }
 }
 

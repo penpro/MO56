@@ -16,12 +16,13 @@
 #include "InventoryContainer.h"
 #include "MO56Character.h"
 #include "Save/MO56SaveSubsystem.h"
+#include "Net/UnrealNetwork.h"
 
 void AMO56PlayerController::BeginPlay()
 {
-	Super::BeginPlay();
+        Super::BeginPlay();
 
-	// only spawn touch controls on local player controllers
+        // only spawn touch controls on local player controllers
 	if (SVirtualJoystick::ShouldDisplayTouchInterface() && IsLocalPlayerController())
 	{
 		// spawn the mobile controls widget
@@ -36,9 +37,32 @@ void AMO56PlayerController::BeginPlay()
 
 			UE_LOG(LogMO56, Error, TEXT("Could not spawn mobile controls widget."));
 
-		}
+                }
 
-	}
+        }
+
+        if (HasAuthority())
+        {
+                if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
+                {
+                        SaveSubsystem->NotifyPlayerControllerReady(this);
+
+                        if (APawn* ControlledPawn = GetPawn())
+                        {
+                                if (AMO56Character* Character = Cast<AMO56Character>(ControlledPawn))
+                                {
+                                        SaveSubsystem->RegisterPlayerCharacter(Character, this);
+                                }
+                        }
+                }
+        }
+}
+
+void AMO56PlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+        Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+        DOREPLIFETIME(AMO56PlayerController, PlayerSaveId);
 }
 
 void AMO56PlayerController::SetupInputComponent()
@@ -451,4 +475,15 @@ UMO56SaveSubsystem* AMO56PlayerController::GetSaveSubsystem() const
         }
 
         return nullptr;
+}
+
+void AMO56PlayerController::SetPlayerSaveId(const FGuid& InId)
+{
+        if (!HasAuthority())
+        {
+                return;
+        }
+
+        PlayerSaveId = InId;
+        ForceNetUpdate();
 }
