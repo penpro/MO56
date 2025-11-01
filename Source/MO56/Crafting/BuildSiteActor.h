@@ -62,7 +62,7 @@ public:
         UCraftingRecipe* GetRecipe() const { return Recipe; }
 
         UFUNCTION(BlueprintPure, Category = "Build")
-        TMap<FName, int32> GetMaterialsRemaining() const;
+        TArray<FBuildMaterialEntry> GetMaterialsRemaining() const;
 
         /** Fired whenever the materials map changes. */
         UPROPERTY(BlueprintAssignable, Category = "Build")
@@ -89,8 +89,7 @@ protected:
         UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
         TObjectPtr<USphereComponent> InteractionSphere;
 
-        UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Build")
-        FBuildMaterialsMap MaterialsRemaining;
+        TMap<FName, int32> MaterialsRemaining;
 
         UPROPERTY(ReplicatedUsing = OnRep_Materials)
         TArray<FBuildMaterialEntry> ReplicatedMaterials;

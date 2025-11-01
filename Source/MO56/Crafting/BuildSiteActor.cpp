@@ -43,9 +43,20 @@ void ABuildSiteActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
         DOREPLIFETIME(ABuildSiteActor, Recipe);
 }
 
-TMap<FName, int32> ABuildSiteActor::GetMaterialsRemaining() const
+TArray<FBuildMaterialEntry> ABuildSiteActor::GetMaterialsRemaining() const
 {
-        return MaterialsRemaining;
+        if (HasAuthority())
+        {
+                TArray<FBuildMaterialEntry> Snapshot;
+                Snapshot.Reserve(MaterialsRemaining.Num());
+                for (const TPair<FName, int32>& Pair : MaterialsRemaining)
+                {
+                        Snapshot.Emplace(Pair.Key, Pair.Value);
+                }
+                return Snapshot;
+        }
+
+        return ReplicatedMaterials;
 }
 
 void ABuildSiteActor::InitializeFromRecipe(UCraftingRecipe* InRecipe)
