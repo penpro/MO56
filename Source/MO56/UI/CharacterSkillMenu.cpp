@@ -11,7 +11,6 @@
 #include "UI/SkillListEntryWidget.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
-#include "Slate/SlateEnums.h"
 
 UCharacterSkillMenu::UCharacterSkillMenu(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)

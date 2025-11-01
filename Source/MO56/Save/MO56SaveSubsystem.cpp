@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerState.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
 #include "ItemData.h"
@@ -17,6 +18,7 @@
 #include "Misc/Paths.h"
 #include "Templates/UnrealTemplate.h"
 #include "MO56Character.h"
+#include "Skills/SkillSystemComponent.h"
 #include "HAL/FileManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
@@ -325,7 +327,8 @@ void UMO56SaveSubsystem::NotifyPlayerControllerReady(AMO56PlayerController* Cont
         }
 
         FGuid PlayerId = Controller->GetPlayerSaveId();
-        const int32 ControllerId = Controller->PlayerState ? Controller->PlayerState->GetPlayerId() : INDEX_NONE;
+        APlayerState* PlayerState = Controller->GetPlayerState<APlayerState>();
+        const int32 ControllerId = PlayerState ? PlayerState->GetPlayerId() : INDEX_NONE;
 
         if (!PlayerId.IsValid() && CurrentSaveGame)
         {
@@ -357,9 +360,9 @@ void UMO56SaveSubsystem::NotifyPlayerControllerReady(AMO56PlayerController* Cont
                 FPlayerSaveData& PlayerData = CurrentSaveGame->PlayerStates.FindOrAdd(PlayerId);
                 PlayerData.PlayerId = PlayerId;
                 PlayerData.ControllerId = ControllerId;
-                if (Controller->PlayerState)
+                if (PlayerState)
                 {
-                        PlayerData.PlayerName = Controller->PlayerState->GetPlayerName();
+                        PlayerData.PlayerName = PlayerState->GetPlayerName();
                 }
         }
 
@@ -898,6 +901,13 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
         }
 
         CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
+
+        for (const FGuid& PlayerId : PlayersToSync)
+        {
+                SyncPlayerSaveData(PlayerId);
+        }
+
+        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
 }
 
 void UMO56SaveSubsystem::RefreshTrackedPickups()
@@ -1018,9 +1028,9 @@ void UMO56SaveSubsystem::ApplyPlayerTransforms()
                         continue;
                 }
 
-                if (UInventoryComponent* const* InventoryPtr = RegisteredInventories.Find(PlayerData.InventoryId))
+                if (TWeakObjectPtr<UInventoryComponent>* InventoryPtr = RegisteredInventories.Find(PlayerData.InventoryId))
                 {
-                        if (UInventoryComponent* Inventory = *InventoryPtr)
+                        if (UInventoryComponent* Inventory = InventoryPtr->Get())
                         {
                                 if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
                                 {
@@ -1326,10 +1336,10 @@ void UMO56SaveSubsystem::SyncPlayerSaveData(const FGuid& PlayerId)
         {
                 if (AMO56PlayerController* Controller = ControllerPtr->Get())
                 {
-                        if (Controller->PlayerState)
+                        if (APlayerState* PlayerState = Controller->GetPlayerState<APlayerState>())
                         {
-                                PlayerData.PlayerName = Controller->PlayerState->GetPlayerName();
-                                PlayerData.ControllerId = Controller->PlayerState->GetPlayerId();
+                                PlayerData.PlayerName = PlayerState->GetPlayerName();
+                                PlayerData.ControllerId = PlayerState->GetPlayerId();
                         }
                 }
         }

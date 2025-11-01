@@ -49,9 +49,9 @@ void AMO56PlayerController::BeginPlay()
 
                         if (APawn* ControlledPawn = GetPawn())
                         {
-                                if (AMO56Character* Character = Cast<AMO56Character>(ControlledPawn))
+                                if (AMO56Character* ControlledCharacter = Cast<AMO56Character>(ControlledPawn))
                                 {
-                                        SaveSubsystem->RegisterPlayerCharacter(Character, this);
+                                        SaveSubsystem->RegisterPlayerCharacter(ControlledCharacter, this);
                                 }
                         }
                 }

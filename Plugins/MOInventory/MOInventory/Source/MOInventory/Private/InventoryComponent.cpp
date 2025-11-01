@@ -922,6 +922,19 @@ void UInventoryComponent::BroadcastInventoryChanged()
     return bInventoryChanged;
 }
 
+void UInventoryComponent::BroadcastInventoryChanged()
+{
+    OnInventoryUpdated.Broadcast();
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->HasAuthority())
+        {
+            OwnerActor->ForceNetUpdate();
+        }
+    }
+}
+
 void UInventoryComponent::EnsureSlotCapacity()
 {
     const int32 DesiredSlots = FMath::Max(1, MaxSlots);
