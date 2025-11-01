@@ -3,6 +3,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/World.h"
+#include "PhysicsEngine/CollisionShape.h"
 
 ABuildGhostActor::ABuildGhostActor()
 {

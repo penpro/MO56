@@ -2,12 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "CollisionQueryParams.h"
-#include "CollisionShape.h"
 #include "BuildGhostActor.generated.h"
 
 class UStaticMeshComponent;
 class UMaterialInterface;
+struct FCollisionQueryParams;
+struct FCollisionShape;
 
 /**
  * Client-only placement hologram that previews buildable placement.
