@@ -1,3 +1,6 @@
+// Implementation: Bind this widget to the character HUD, set the button class names in UMG,
+// and ensure the owning player controller is AMO56PlayerController so game flow requests
+// are executed on the server.
 #include "UI/GameMenuWidget.h"
 
 #include "Components/Button.h"
@@ -7,6 +10,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Save/MO56SaveSubsystem.h"
 #include "UI/SaveGameMenuWidget.h"
+#include "MO56PlayerController.h"
 
 void UGameMenuWidget::NativeOnInitialized()
 {
@@ -20,6 +24,21 @@ void UGameMenuWidget::NativeOnInitialized()
         if (LoadGameButton)
         {
                 LoadGameButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleLoadGameClicked);
+        }
+
+        if (CreateNewSaveButton)
+        {
+                CreateNewSaveButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleCreateNewSaveClicked);
+        }
+
+        if (SaveGameButton)
+        {
+                SaveGameButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleSaveGameClicked);
+        }
+
+        if (SaveAndExitButton)
+        {
+                SaveAndExitButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleSaveAndExitClicked);
         }
 
         if (ExitGameButton)
@@ -52,10 +71,9 @@ void UGameMenuWidget::SetSaveSubsystem(UMO56SaveSubsystem* Subsystem)
 void UGameMenuWidget::HandleNewGameClicked()
 {
         ClearFocusWidget();
-        EnsureSaveSubsystem();
-        if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+        if (AMO56PlayerController* PC = ResolvePlayerController())
         {
-                SaveSubsystem->ResetToNewGame();
+                PC->RequestNewGame();
         }
 }
 
@@ -66,7 +84,14 @@ void UGameMenuWidget::HandleLoadGameClicked()
         {
                 if (!FocusContainer || !SaveGameMenuClass)
                 {
-                        SaveSubsystem->LoadGame();
+                        if (AMO56PlayerController* PC = ResolvePlayerController())
+                        {
+                                PC->RequestLoadGame();
+                        }
+                        else
+                        {
+                                SaveSubsystem->LoadGame();
+                        }
                         return;
                 }
 
@@ -93,6 +118,60 @@ void UGameMenuWidget::HandleLoadGameClicked()
                         SaveGameMenuInstance->RefreshSaveEntries();
                         ShowFocusWidget(SaveGameMenuInstance);
                 }
+        }
+}
+
+void UGameMenuWidget::HandleCreateNewSaveClicked()
+{
+        EnsureSaveSubsystem();
+
+        bool bCreated = false;
+
+        if (AMO56PlayerController* PC = ResolvePlayerController())
+        {
+                bCreated = PC->RequestCreateNewSaveSlot();
+        }
+        else if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+        {
+                const FSaveGameSummary Summary = SaveSubsystem->CreateNewSaveSlot();
+                bCreated = !Summary.SlotName.IsEmpty();
+        }
+
+        if (bCreated && FocusContainer && SaveGameMenuClass)
+        {
+                HandleLoadGameClicked();
+        }
+}
+
+void UGameMenuWidget::HandleSaveGameClicked()
+{
+        ClearFocusWidget();
+        if (AMO56PlayerController* PC = ResolvePlayerController())
+        {
+                PC->RequestSaveGame();
+        }
+        else if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+        {
+                SaveSubsystem->SaveGame();
+        }
+}
+
+void UGameMenuWidget::HandleSaveAndExitClicked()
+{
+        ClearFocusWidget();
+        if (AMO56PlayerController* PC = ResolvePlayerController())
+        {
+                PC->RequestSaveAndExit();
+        }
+        else
+        {
+                EnsureSaveSubsystem();
+                if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+                {
+                        SaveSubsystem->SaveGame();
+                }
+
+                HandleExitGameClicked();
         }
 }
 
@@ -146,5 +225,10 @@ void UGameMenuWidget::HandleSaveGameLoaded()
 {
         ClearFocusWidget();
         SetVisibility(ESlateVisibility::Collapsed);
+}
+
+AMO56PlayerController* UGameMenuWidget::ResolvePlayerController() const
+{
+        return Cast<AMO56PlayerController>(GetOwningPlayer());
 }
 

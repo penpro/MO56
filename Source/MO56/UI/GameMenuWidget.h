@@ -1,3 +1,7 @@
+// Implementation: Create a UMG widget inheriting from this class, bind the buttons named
+// NewGameButton/LoadGameButton/CreateNewSaveButton/SaveGameButton/SaveAndExitButton/ExitGameButton, and place a
+// panel named FocusContainer for nested menus. Assign the widget class to the character HUD
+// so menu actions forward to the player controller and save subsystem.
 #pragma once
 
 #include "Blueprint/UserWidget.h"
@@ -8,6 +12,7 @@ class UPanelWidget;
 class UUserWidget;
 class USaveGameMenuWidget;
 class UMO56SaveSubsystem;
+class AMO56PlayerController;
 
 /**
  * Simple in-game menu used to trigger save/load operations and exit the game.
@@ -33,6 +38,15 @@ protected:
         TObjectPtr<UButton> LoadGameButton;
 
         UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UButton> CreateNewSaveButton;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UButton> SaveGameButton;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UButton> SaveAndExitButton;
+
+        UPROPERTY(meta = (BindWidgetOptional))
         TObjectPtr<UButton> ExitGameButton;
 
         /** Container that hosts focusable child widgets such as the save menu. */
@@ -50,12 +64,23 @@ protected:
         void HandleLoadGameClicked();
 
         UFUNCTION()
+        void HandleCreateNewSaveClicked();
+
+        UFUNCTION()
+        void HandleSaveGameClicked();
+
+        UFUNCTION()
+        void HandleSaveAndExitClicked();
+
+        UFUNCTION()
         void HandleExitGameClicked();
 
 private:
         void EnsureSaveSubsystem();
         void ShowFocusWidget(UUserWidget* Widget);
         void ClearFocusWidget();
+
+        AMO56PlayerController* ResolvePlayerController() const;
 
         UFUNCTION()
         void HandleSaveGameLoaded();

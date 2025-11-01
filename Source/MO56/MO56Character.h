@@ -1,5 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// Implementation: This character wires input, inventory, status, and skill menus for both
+// single-player and multiplayer. Derive a blueprint, assign widget classes, and use the
+// provided replicated properties to drive AI enable/disable states when players take over
+// different pawns.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -23,6 +27,7 @@ class UGameMenuWidget;
 class USkillSystemComponent;
 class UCharacterSkillMenu;
 class UWorldActorContextMenuWidget;
+class APawn;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
@@ -54,9 +59,9 @@ class AMO56Character : public ACharacter
 	
 protected:
 
-	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, Category="Input")
-	UInputAction* JumpAction;
+        /** Jump Input Action */
+        UPROPERTY(EditAnywhere, Category="Input")
+        UInputAction* JumpAction;
 
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, Category="Input")
@@ -82,12 +87,18 @@ protected:
         virtual void BeginPlay() override;
         virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
         virtual void Tick(float DeltaSeconds) override;
+        virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+        virtual void PossessedBy(AController* NewController) override;
+        virtual void UnPossessed() override;
 
         UFUNCTION()
         void HandleInventoryUpdated();
 
         UFUNCTION(BlueprintImplementableEvent, Category = "Inventory")
         void OnInventoryUpdated();
+
+        UFUNCTION()
+        void OnRep_IsPossessed();
 
 protected:
 
@@ -124,6 +135,7 @@ protected:
         void CloseActiveContainerInventory(bool bNotifyContainer);
         void CloseWorldContextMenu();
         bool TryOpenWorldContextMenu();
+        void HandleWorldContextMenuDismissed();
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -132,6 +144,9 @@ protected:
 public:
         void OpenContainerInventory(UInventoryComponent* ContainerInventory, AActor* ContainerActor);
         void CloseContainerInventoryForActor(AActor* ContainerActor, bool bClosePlayerInventory = true);
+
+        /** Collapse every UI panel that the character manages (inventory, status, skills, menu, world context). */
+        void CloseAllPlayerMenus();
 
 public:
 
@@ -207,10 +222,12 @@ public:
 
         UPROPERTY(Transient)
         TObjectPtr<UWorldActorContextMenuWidget> ActiveWorldContextMenu;
+        TWeakObjectPtr<APawn> FocusedContextPawn;
+        bool bContextFocusActive = false;
 
-	/** Handles move inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoMove(float Right, float Forward);
+        /** Handles move inputs from either controls or UI interfaces */
+        UFUNCTION(BlueprintCallable, Category="Input")
+        virtual void DoMove(float Right, float Forward);
 
 	/** Handles look inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
@@ -226,10 +243,26 @@ public:
 
 public:
 
-	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+        /** Returns CameraBoom subobject **/
+        FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
 
-	/** Returns FollowCamera subobject **/
-	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+        /** Returns FollowCamera subobject **/
+        FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+        UFUNCTION(BlueprintCallable, Category = "Control")
+        void SetEnableAI(bool bEnable);
+
+        UFUNCTION(BlueprintPure, Category = "Control")
+        bool IsAIEnabled() const { return bEnableAI; }
+
+        UFUNCTION(BlueprintPure, Category = "Control")
+        bool IsPossessedByPlayer() const { return bIsPossessed; }
+
+protected:
+        UPROPERTY(ReplicatedUsing = OnRep_IsPossessed, BlueprintReadOnly, Category = "Control")
+        bool bIsPossessed = false;
+
+        UPROPERTY(Replicated, BlueprintReadOnly, Category = "Control")
+        bool bEnableAI = true;
 };
 

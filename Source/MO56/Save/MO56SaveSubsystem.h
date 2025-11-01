@@ -1,3 +1,7 @@
+// Implementation: Game instance subsystem that serializes inventories and pickups. Register
+// pawn/container inventory components in BeginPlay so their state is captured; call
+// SaveGame/LoadGame from UI or gameplay logic. Extend this subsystem when persisting new
+// systems such as quests or crafting.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -72,6 +76,14 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Save")
         void ResetToNewGame();
 
+        /** Creates a brand-new save slot populated with the current runtime state. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        FSaveGameSummary CreateNewSaveSlot();
+
+        /** Updates the active slot used when calling SaveGame/LoadGame. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        void SetActiveSaveSlot(const FString& SlotName, int32 UserIndex);
+
         /** Registers an inventory component so its state is serialized. */
         void RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory);
 
@@ -99,7 +111,11 @@ private:
         UPROPERTY()
         TObjectPtr<UMO56SaveGame> CurrentSaveGame = nullptr;
 
+        FString ActiveSaveSlotName;
+        int32 ActiveSaveUserIndex = SaveUserIndex;
+
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
+        TSet<FGuid> PlayerInventoryIds;
         TMap<FGuid, TWeakObjectPtr<AItemPickup>> TrackedPickups;
         TMap<FGuid, FName> PickupToLevelMap;
 
@@ -126,16 +142,19 @@ private:
         void RefreshInventorySaveData();
         void RefreshTrackedPickups();
 
-        bool IsPlayerInventoryComponent(const UInventoryComponent* InventoryComponent) const;
-
         FName ResolveLevelName(const AActor& Actor) const;
         FName ResolveLevelName(const UWorld& World) const;
 
         void BindPickupDelegates(AItemPickup& Pickup);
         void UnbindPickupDelegates(AItemPickup& Pickup);
 
-        void ApplyPlayerTransform();
+        void ApplyPlayerTransforms();
         bool ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave);
+
+        void SanitizeLoadedSave(UMO56SaveGame& Save);
+
+        bool IsAuthoritative() const;
+        FString GenerateUniqueSaveSlotName() const;
 
         UFUNCTION()
         void HandleInventoryComponentUpdated();

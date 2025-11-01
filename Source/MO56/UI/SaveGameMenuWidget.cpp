@@ -5,6 +5,7 @@
 #include "Save/MO56SaveSubsystem.h"
 #include "UI/SaveGameDataWidget.h"
 #include "GameFramework/PlayerController.h"
+#include "MO56PlayerController.h"
 
 void USaveGameMenuWidget::NativeConstruct()
 {
@@ -84,12 +85,20 @@ void USaveGameMenuWidget::RebuildEntries(const TArray<FSaveGameSummary>& Summari
 
 void USaveGameMenuWidget::HandleEntryLoadRequested(const FSaveGameSummary& Summary)
 {
-        if (UMO56SaveSubsystem* Subsystem = ResolveSubsystem())
+        bool bLoaded = false;
+
+        if (AMO56PlayerController* PC = Cast<AMO56PlayerController>(GetOwningPlayer()))
         {
-                if (Subsystem->LoadGameBySlot(Summary.SlotName, Summary.UserIndex))
-                {
-                        OnSaveLoaded.Broadcast();
-                }
+                bLoaded = PC->RequestLoadGameBySlot(Summary.SlotName, Summary.UserIndex);
+        }
+        else if (UMO56SaveSubsystem* Subsystem = ResolveSubsystem())
+        {
+                bLoaded = Subsystem->LoadGameBySlot(Summary.SlotName, Summary.UserIndex);
+        }
+
+        if (bLoaded)
+        {
+                OnSaveLoaded.Broadcast();
         }
 }
 
