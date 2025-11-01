@@ -3,6 +3,7 @@
 // menu can populate entries and show history/progression details when players inspect a skill.
 #include "UI/CharacterSkillMenu.h"
 
+#include "Logging/LogMacros.h"
 #include "Components/PanelWidget.h"
 #include "Components/TextBlock.h"
 #include "Engine/World.h"
@@ -11,6 +12,8 @@
 #include "UI/SkillListEntryWidget.h"
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogCharacterSkillMenu, Log, All);
 
 UCharacterSkillMenu::UCharacterSkillMenu(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
@@ -44,9 +47,55 @@ void UCharacterSkillMenu::SetSkillSystemComponent(USkillSystemComponent* InSkill
         HideSkillInfo();
 }
 
+void UCharacterSkillMenu::InitWithSkills(USkillSystemComponent* InSkillSystem)
+{
+        SetSkillSystemComponent(InSkillSystem);
+}
+
+void UCharacterSkillMenu::RebuildFromSkills(USkillSystemComponent* InSkillSystem)
+{
+        if (InSkillSystem && SkillSystem.Get() != InSkillSystem)
+        {
+                SetSkillSystemComponent(InSkillSystem);
+        }
+
+        if (!SkillSystem.IsValid())
+        {
+                if (KnowledgeList)
+                {
+                        KnowledgeList->ClearChildren();
+                }
+
+                if (SkillList)
+                {
+                        SkillList->ClearChildren();
+                }
+
+                HideSkillInfo();
+                return;
+        }
+
+        TArray<FSkillKnowledgeEntry> KnowledgeEntries;
+        SkillSystem->GetKnowledgeEntries(KnowledgeEntries);
+        RebuildKnowledgeList(KnowledgeEntries);
+
+        TArray<FSkillDomainProgress> SkillEntries;
+        SkillSystem->GetSkillEntries(SkillEntries);
+
+        UE_LOG(LogCharacterSkillMenu, Log, TEXT("RebuildFromSkills -> %d skill entries"), SkillEntries.Num());
+
+        RebuildSkillList(SkillEntries, true);
+
+        if (SkillEntries.Num() == 0 && KnowledgeEntries.Num() == 0)
+        {
+                HideSkillInfo();
+        }
+}
+
 void UCharacterSkillMenu::NativeConstruct()
 {
         Super::NativeConstruct();
+        UE_LOG(LogCharacterSkillMenu, Log, TEXT("CharacterSkillMenu Constructed (%s)"), *GetName());
         RefreshSkillData();
         RefreshInspectionStatus();
         HideSkillInfo();
@@ -102,7 +151,7 @@ void UCharacterSkillMenu::RefreshSkillData()
 
         TArray<FSkillDomainProgress> SkillEntries;
         SkillSystem->GetSkillEntries(SkillEntries);
-        RebuildSkillList(SkillEntries);
+        RebuildSkillList(SkillEntries, false);
 
         if (SkillEntries.Num() == 0 && KnowledgeEntries.Num() == 0)
         {
@@ -187,7 +236,7 @@ void UCharacterSkillMenu::RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry
         }
 }
 
-void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& SkillEntries)
+void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& SkillEntries, bool bLogEntries)
 {
         if (!SkillList)
         {
@@ -196,6 +245,7 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
 
         SkillList->ClearChildren();
 
+        int32 EntryIndex = 0;
         for (const FSkillDomainProgress& Entry : SkillEntries)
         {
                 TSubclassOf<USkillListEntryWidget> EntryClass = SkillEntryWidgetClass;
@@ -206,12 +256,21 @@ void UCharacterSkillMenu::RebuildSkillList(const TArray<FSkillDomainProgress>& S
                 USkillListEntryWidget* EntryWidget = CreateWidget<USkillListEntryWidget>(this, EntryClass);
                 if (!EntryWidget)
                 {
+                        ++EntryIndex;
                         continue;
                 }
 
                 EntryWidget->SetupFromSkill(Entry);
                 EntryWidget->OnInfoRequested().AddUObject(this, &UCharacterSkillMenu::HandleSkillInfoRequested);
                 SkillList->AddChild(EntryWidget);
+
+                if (bLogEntries)
+                {
+                        const FString EntryName = !Entry.DisplayName.IsEmpty() ? Entry.DisplayName.ToString() : SkillDefinitions::GetSkillDomainTag(Entry.Domain).ToString();
+                        UE_LOG(LogCharacterSkillMenu, Log, TEXT("Added skill entry [%d]: %s"), EntryIndex, *EntryName);
+                }
+
+                ++EntryIndex;
         }
 }
 

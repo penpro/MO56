@@ -17,11 +17,13 @@ namespace
         constexpr float DefaultKnowledgeGain = 5.f;
         constexpr float DefaultInspectionDuration = 20.f;
         constexpr float DefaultInspectionSkillXP = 3.f;
+        constexpr float SkillXPPerLevel = 10.f;
 }
 
 USkillSystemComponent::USkillSystemComponent()
 {
-        PrimaryComponentTick.bCanEverTick = false;
+        PrimaryComponentTick.bCanEverTick = true;
+        PrimaryComponentTick.bStartWithTickEnabled = false;
         SetIsReplicatedByDefault(true);
         InitializeDefaults();
 }
@@ -30,6 +32,68 @@ void USkillSystemComponent::BeginPlay()
 {
         Super::BeginPlay();
         InitializeDefaults();
+}
+
+void USkillSystemComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+        Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+        if (ActiveInspections.Num() == 0)
+        {
+                SetComponentTickEnabled(false);
+                return;
+        }
+
+        const FActiveInspection* ActiveInspection = nullptr;
+        for (const auto& Pair : ActiveInspections)
+        {
+                ActiveInspection = &Pair.Value;
+                break;
+        }
+
+        if (!ActiveInspection)
+        {
+                SetComponentTickEnabled(false);
+                return;
+        }
+
+        const float Duration = ActiveInspection->Params.Duration;
+        float Elapsed = 0.f;
+
+        if (UWorld* World = GetWorld())
+        {
+                const FTimerManager& Manager = World->GetTimerManager();
+                if (Manager.IsTimerActive(ActiveInspection->TimerHandle))
+                {
+                        const float Remaining = Manager.GetTimerRemaining(ActiveInspection->TimerHandle);
+                        Elapsed = Duration > 0.f ? Duration - FMath::Max(0.f, Remaining) : 0.f;
+                }
+                else if (Manager.IsTimerPaused(ActiveInspection->TimerHandle))
+                {
+                        const float Remaining = Manager.GetTimerRemaining(ActiveInspection->TimerHandle);
+                        Elapsed = Duration > 0.f ? Duration - FMath::Max(0.f, Remaining) : 0.f;
+                }
+                else
+                {
+                        Elapsed = Duration;
+                }
+        }
+        else
+        {
+                const double Now = FPlatformTime::Seconds();
+                Elapsed = static_cast<float>(Now - ActiveInspection->StartTime);
+        }
+
+        if (Duration > 0.f)
+        {
+                Elapsed = FMath::Clamp(Elapsed, 0.f, Duration);
+        }
+        else
+        {
+                Elapsed = 0.f;
+        }
+
+        OnInspectionProgress.Broadcast(Elapsed, Duration);
 }
 
 void USkillSystemComponent::InitializeDefaults()
@@ -121,26 +185,7 @@ bool USkillSystemComponent::StartInspectableInspection(UInspectableComponent* In
 
 void USkillSystemComponent::CancelInspection(UObject* SourceContext)
 {
-        if (!SourceContext)
-        {
-                return;
-        }
-
-        for (auto It = ActiveInspections.CreateIterator(); It; ++It)
-        {
-                FActiveInspection& Inspection = It.Value();
-                if (Inspection.Source.Get() == SourceContext)
-                {
-                        if (UWorld* World = GetWorld())
-                        {
-                                World->GetTimerManager().ClearTimer(Inspection.TimerHandle);
-                        }
-
-                        It.RemoveCurrent();
-                        BroadcastInspectionUpdate();
-                        break;
-                }
-        }
+        CancelInspectionForSource(SourceContext, TEXT("ExternalCancel"));
 }
 
 bool USkillSystemComponent::IsInspecting(const UObject* SourceContext) const
@@ -273,6 +318,42 @@ void USkillSystemComponent::GetSkillEntries(TArray<FSkillDomainProgress>& OutEnt
         });
 }
 
+void USkillSystemComponent::GetSkillDomainEntries(TArray<FSkillDomainEntry>& OutEntries) const
+{
+        OutEntries.Reset();
+        OutEntries.Reserve(SkillValues.Num());
+
+        for (const auto& Pair : SkillValues)
+        {
+                FSkillDomainEntry& Entry = OutEntries.AddDefaulted_GetRef();
+                Entry.Domain = Pair.Key;
+                Entry.TotalProgress = FMath::Clamp(Pair.Value, 0.f, MaxProgressValue);
+                Entry.Tag = SkillDefinitions::GetSkillDomainTag(Pair.Key);
+
+                if (const FSkillDomainInfo* DomainInfo = SkillDefinitions::FindDomainInfo(Pair.Key))
+                {
+                        Entry.DisplayName = DomainInfo->DisplayName;
+                }
+                else
+                {
+                        Entry.DisplayName = FText::FromName(Entry.Tag);
+                }
+
+                const float LevelFloor = FMath::FloorToFloat(Entry.TotalProgress / SkillXPPerLevel);
+                Entry.Level = FMath::Clamp(static_cast<int32>(LevelFloor), 0, 1000);
+
+                const float LevelBase = Entry.Level * SkillXPPerLevel;
+                const float RemainingToCap = FMath::Max(0.f, MaxProgressValue - LevelBase);
+                Entry.CurrentXP = FMath::Clamp(Entry.TotalProgress - LevelBase, 0.f, RemainingToCap);
+                Entry.NextLevelXP = RemainingToCap > 0.f ? FMath::Min(SkillXPPerLevel, RemainingToCap) : 0.f;
+        }
+
+        OutEntries.Sort([](const FSkillDomainEntry& A, const FSkillDomainEntry& B)
+        {
+                return A.DisplayName.ToString() < B.DisplayName.ToString();
+        });
+}
+
 void USkillSystemComponent::GetInspectionProgress(TArray<FSkillInspectionProgress>& OutProgress) const
 {
         OutProgress.Reset();
@@ -354,13 +435,30 @@ bool USkillSystemComponent::HasCompletedInspectionForSource(const UObject* Sourc
         return false;
 }
 
+void USkillSystemComponent::CancelCurrentInspection(const FName& Reason)
+{
+        for (auto It = ActiveInspections.CreateIterator(); It; ++It)
+        {
+                CancelInspectionInternal(It.Key(), Reason);
+                break;
+        }
+}
+
+bool USkillSystemComponent::HasActiveInspection() const
+{
+        return ActiveInspections.Num() > 0;
+}
+
 void USkillSystemComponent::HandleInspectionCompleted(FGuid InspectionId)
 {
         if (FActiveInspection* Inspection = ActiveInspections.Find(InspectionId))
         {
+                OnInspectionProgress.Broadcast(Inspection->Params.Duration, Inspection->Params.Duration);
                 CompleteInspectionInternal(*Inspection);
                 ActiveInspections.Remove(InspectionId);
                 BroadcastInspectionUpdate();
+                OnInspectionCompleted.Broadcast();
+                UpdateInspectionTickState();
         }
 }
 
@@ -373,6 +471,76 @@ void USkillSystemComponent::BroadcastSkillUpdate()
 void USkillSystemComponent::BroadcastInspectionUpdate()
 {
         OnInspectionStateChanged.Broadcast();
+}
+
+void USkillSystemComponent::UpdateInspectionTickState()
+{
+        const bool bShouldTick = ActiveInspections.Num() > 0;
+        SetComponentTickEnabled(bShouldTick);
+}
+
+bool USkillSystemComponent::CancelInspectionForSource(UObject* SourceContext, const FName& Reason)
+{
+        if (!SourceContext)
+        {
+                return false;
+        }
+
+        for (auto It = ActiveInspections.CreateIterator(); It; ++It)
+        {
+                if (It.Value().Source.Get() == SourceContext)
+                {
+                        CancelInspectionInternal(It.Key(), Reason);
+                        return true;
+                }
+        }
+
+        return false;
+}
+
+void USkillSystemComponent::CancelInspectionInternal(const FGuid& InspectionId, const FName& Reason)
+{
+        if (FActiveInspection* Inspection = ActiveInspections.Find(InspectionId))
+        {
+                if (UWorld* World = GetWorld())
+                {
+                        World->GetTimerManager().ClearTimer(Inspection->TimerHandle);
+                }
+
+                FActiveInspection InspectionCopy = *Inspection;
+                ActiveInspections.Remove(InspectionId);
+                BroadcastInspectionUpdate();
+                NotifyInspectionCancelled(InspectionCopy, Reason);
+                UpdateInspectionTickState();
+        }
+}
+
+void USkillSystemComponent::NotifyInspectionStarted(const FActiveInspection& InspectionEntry)
+{
+        const FText Description = ResolveInspectionDescription(InspectionEntry.Params);
+        OnInspectionStarted.Broadcast(Description, InspectionEntry.Params.Duration);
+        OnInspectionProgress.Broadcast(0.f, InspectionEntry.Params.Duration);
+        UpdateInspectionTickState();
+}
+
+void USkillSystemComponent::NotifyInspectionCancelled(const FActiveInspection& InspectionEntry, const FName& Reason)
+{
+        OnInspectionCancelled.Broadcast(Reason);
+
+        if (ActiveInspections.Num() == 0)
+        {
+                OnInspectionProgress.Broadcast(0.f, InspectionEntry.Params.Duration);
+        }
+}
+
+FText USkillSystemComponent::ResolveInspectionDescription(const FSkillInspectionParams& Params) const
+{
+        if (!Params.Description.IsEmpty())
+        {
+                return Params.Description;
+        }
+
+        return SkillDefinitions::GetKnowledgeDisplayName(Params.KnowledgeId);
 }
 
 void USkillSystemComponent::RemoveExpiredSources() const
@@ -423,7 +591,7 @@ bool USkillSystemComponent::InternalStartInspection(const FSkillInspectionParams
 
         if (SourceContext)
         {
-                CancelInspection(SourceContext);
+                CancelInspectionForSource(SourceContext, TEXT("Replaced"));
         }
 
         if (UWorld* World = GetWorld())
@@ -439,6 +607,7 @@ bool USkillSystemComponent::InternalStartInspection(const FSkillInspectionParams
                 CompletionDelegate.BindUObject(this, &USkillSystemComponent::HandleInspectionCompleted, InspectionId);
                 World->GetTimerManager().SetTimer(Inspection.TimerHandle, CompletionDelegate, Params.Duration > 0.f ? Params.Duration : DefaultInspectionDuration, false);
 
+                NotifyInspectionStarted(Inspection);
                 BroadcastInspectionUpdate();
                 return true;
         }
@@ -448,8 +617,14 @@ bool USkillSystemComponent::InternalStartInspection(const FSkillInspectionParams
         Immediate.Id = FGuid::NewGuid();
         Immediate.Params = Params;
         Immediate.Source = SourceContext;
+        Immediate.StartTime = FPlatformTime::Seconds();
+
+        NotifyInspectionStarted(Immediate);
+        OnInspectionProgress.Broadcast(Immediate.Params.Duration, Immediate.Params.Duration);
         CompleteInspectionInternal(Immediate);
         BroadcastInspectionUpdate();
+        OnInspectionCompleted.Broadcast();
+        UpdateInspectionTickState();
         return true;
 }
 

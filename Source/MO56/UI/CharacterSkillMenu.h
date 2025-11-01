@@ -29,6 +29,14 @@ public:
         /** Assigns the skill system that drives the menu. */
         void SetSkillSystemComponent(USkillSystemComponent* InSkillSystem);
 
+        /** Initializes the menu using the provided skill system component. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
+        void InitWithSkills(USkillSystemComponent* InSkillSystem);
+
+        /** Rebuilds the menu entries from the supplied component. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
+        void RebuildFromSkills(USkillSystemComponent* InSkillSystem);
+
 protected:
         virtual void NativeConstruct() override;
         virtual void NativeDestruct() override;
@@ -53,7 +61,7 @@ private:
         void HandleInspectionRefreshTimer();
 
         void RebuildKnowledgeList(const TArray<FSkillKnowledgeEntry>& KnowledgeEntries);
-        void RebuildSkillList(const TArray<FSkillDomainProgress>& SkillEntries);
+        void RebuildSkillList(const TArray<FSkillDomainProgress>& SkillEntries, bool bLogEntries = false);
 
 private:
         UPROPERTY(meta = (BindWidgetOptional))

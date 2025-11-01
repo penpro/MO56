@@ -12,6 +12,10 @@ class UInspectableComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSkillStateChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInspectionStateChanged);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInspectionStarted, const FText&, Description, float, Duration);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInspectionProgress, float, Elapsed, float, Duration);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInspectionCompleted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInspectionCancelled, FName, Reason);
 
 /**
  * Component responsible for tracking player knowledge and skill progression.
@@ -80,6 +84,10 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Skills")
         void GetSkillEntries(TArray<FSkillDomainProgress>& OutEntries) const;
 
+        /** Populates the menu-friendly domain entries including level progress. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
+        void GetSkillDomainEntries(TArray<FSkillDomainEntry>& OutEntries) const;
+
         /** Populates an array with active inspection progress entries. */
         UFUNCTION(BlueprintCallable, Category = "Skills")
         void GetInspectionProgress(TArray<FSkillInspectionProgress>& OutProgress) const;
@@ -87,6 +95,14 @@ public:
         /** Returns true if the specified knowledge reward has already been claimed for the source. */
         UFUNCTION(BlueprintPure, Category = "Skills")
         bool HasCompletedInspectionForSource(const UObject* SourceContext, const FName& KnowledgeId) const;
+
+        /** Cancels the first active inspection and reports the provided reason. */
+        UFUNCTION(BlueprintCallable, Category = "Skills")
+        void CancelCurrentInspection(const FName& Reason);
+
+        /** Returns true if any inspection timers are currently active. */
+        UFUNCTION(BlueprintPure, Category = "Skills")
+        bool HasActiveInspection() const;
 
         /** Broadcast whenever a skill or knowledge value changes. */
         UPROPERTY(BlueprintAssignable, Category = "Skills")
@@ -96,6 +112,22 @@ public:
         UPROPERTY(BlueprintAssignable, Category = "Skills")
         FOnInspectionStateChanged OnInspectionStateChanged;
 
+        /** Broadcast when an inspection countdown begins. */
+        UPROPERTY(BlueprintAssignable, Category = "Skills")
+        FOnInspectionStarted OnInspectionStarted;
+
+        /** Broadcast periodically while an inspection is running. */
+        UPROPERTY(BlueprintAssignable, Category = "Skills")
+        FOnInspectionProgress OnInspectionProgress;
+
+        /** Broadcast when an inspection finishes successfully. */
+        UPROPERTY(BlueprintAssignable, Category = "Skills")
+        FOnInspectionCompleted OnInspectionCompleted;
+
+        /** Broadcast when an inspection is cancelled. */
+        UPROPERTY(BlueprintAssignable, Category = "Skills")
+        FOnInspectionCancelled OnInspectionCancelled;
+
         /** Serializes the component state to a save data struct. */
         void WriteToSaveData(FSkillSystemSaveData& OutData) const;
 
@@ -104,6 +136,8 @@ public:
 
 protected:
         virtual void BeginPlay() override;
+        virtual void TickComponent(float DeltaTime, ELevelTick TickType,
+                                   FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
         struct FActiveInspection
@@ -140,4 +174,11 @@ private:
         FSkillInspectionParams BuildParamsFromItem(const UItemData& ItemData) const;
 
         void NotifySaveSubsystemOfUpdate() const;
+
+        void UpdateInspectionTickState();
+        bool CancelInspectionForSource(UObject* SourceContext, const FName& Reason);
+        void CancelInspectionInternal(const FGuid& InspectionId, const FName& Reason);
+        void NotifyInspectionStarted(const FActiveInspection& InspectionEntry);
+        void NotifyInspectionCancelled(const FActiveInspection& InspectionEntry, const FName& Reason);
+        FText ResolveInspectionDescription(const FSkillInspectionParams& Params) const;
 };

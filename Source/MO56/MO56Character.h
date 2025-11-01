@@ -26,6 +26,7 @@ class AInventoryContainer;
 class UGameMenuWidget;
 class USkillSystemComponent;
 class UCharacterSkillMenu;
+class UInspectionCountdownWidget;
 class UWorldActorContextMenuWidget;
 class APawn;
 
@@ -197,6 +198,9 @@ public:
         TSubclassOf<class UCharacterSkillMenu> CharacterSkillMenuClass;
 
         UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+        TSubclassOf<class UInspectionCountdownWidget> InspectionCountdownWidgetClass;
+
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
         TSubclassOf<class UWorldActorContextMenuWidget> WorldContextMenuClass;
 
         /** Instance of the HUD widget */
@@ -216,9 +220,6 @@ public:
 
         UPROPERTY(Transient)
         TObjectPtr<class UGameMenuWidget> GameMenuWidgetInstance;
-
-        UPROPERTY(Transient)
-        TObjectPtr<class UCharacterSkillMenu> CharacterSkillMenuInstance;
 
         /** Inventory currently displayed in the container panel */
         TWeakObjectPtr<UInventoryComponent> ActiveContainerInventory;

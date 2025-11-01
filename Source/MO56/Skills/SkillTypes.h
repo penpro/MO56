@@ -179,6 +179,41 @@ struct FSkillDomainProgress
         TSoftObjectPtr<UTexture2D> Icon;
 };
 
+/** Aggregated skill domain entry exposed to menu widgets. */
+USTRUCT(BlueprintType)
+struct FSkillDomainEntry
+{
+        GENERATED_BODY()
+
+        /** Enumerated domain identifier for reference. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        ESkillDomain Domain = ESkillDomain::None;
+
+        /** Gameplay tag-style identifier (Skill.Domain). */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FName Tag = NAME_None;
+
+        /** Localized display name of the domain. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        FText DisplayName;
+
+        /** Current integer level derived from accumulated XP. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        int32 Level = 0;
+
+        /** Progress made towards the next level within the current tier. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float CurrentXP = 0.f;
+
+        /** XP threshold required to reach the following level. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float NextLevelXP = 0.f;
+
+        /** Total accumulated XP across all levels. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Skills")
+        float TotalProgress = 0.f;
+};
+
 /** Data describing an active inspection timer. */
 USTRUCT(BlueprintType)
 struct FSkillInspectionProgress
