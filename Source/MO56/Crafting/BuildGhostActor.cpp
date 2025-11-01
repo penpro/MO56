@@ -61,8 +61,6 @@ bool ABuildGhostActor::TestPlacementAtTransform(
                 FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(BuildGhostPlacement), /*bTraceComplex*/ false, this);
                 QueryParams.bFindInitialOverlaps = true;
 
-                const FCollisionObjectQueryParams ObjectParams = FCollisionObjectQueryParams::AllObjects;
-
                 const FCollisionShape Shape = bUseBox
                         ? FCollisionShape::MakeBox(BoxHalfExtent.GetAbs())
                         : FCollisionShape::MakeSphere(FMath::Max(0.f, SphereRadius));
@@ -72,8 +70,7 @@ bool ABuildGhostActor::TestPlacementAtTransform(
                         Rotation,
                         TraceChannel,
                         Shape,
-                        QueryParams,
-                        ObjectParams);
+                        QueryParams);
 
                 const bool bValidPlacement = !bHasOverlap;
                 SetPlacementValid(bValidPlacement);

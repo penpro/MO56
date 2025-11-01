@@ -10,6 +10,8 @@ class UStaticMeshComponent;
 class USphereComponent;
 class UInventoryComponent;
 
+using FBuildMaterialsMap = TMap<FName, int32>;
+
 USTRUCT(BlueprintType)
 struct MO56_API FBuildMaterialEntry
 {
@@ -30,7 +32,7 @@ struct MO56_API FBuildMaterialEntry
         int32 Remaining = 0;
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBuildSiteProgressUpdated, UCraftingRecipe*, Recipe, const TMap<FName, int32>&, MaterialsRemaining);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBuildSiteProgressUpdated, UCraftingRecipe*, Recipe, const FBuildMaterialsMap&, MaterialsRemaining);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildSiteCompleted, UCraftingRecipe*, Recipe);
 
 /**
@@ -60,7 +62,7 @@ public:
         UCraftingRecipe* GetRecipe() const { return Recipe; }
 
         UFUNCTION(BlueprintPure, Category = "Build")
-        const TMap<FName, int32>& GetMaterialsRemaining() const { return MaterialsRemaining; }
+        const FBuildMaterialsMap& GetMaterialsRemaining() const { return MaterialsRemaining; }
 
         /** Fired whenever the materials map changes. */
         UPROPERTY(BlueprintAssignable, Category = "Build")
@@ -88,7 +90,7 @@ protected:
         TObjectPtr<USphereComponent> InteractionSphere;
 
         UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Build")
-        TMap<FName, int32> MaterialsRemaining;
+        FBuildMaterialsMap MaterialsRemaining;
 
         UPROPERTY(ReplicatedUsing = OnRep_Materials)
         TArray<FBuildMaterialEntry> ReplicatedMaterials;
