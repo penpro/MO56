@@ -10,6 +10,8 @@ class UStaticMeshComponent;
 class USphereComponent;
 class UInventoryComponent;
 
+using FBuildMaterialsMap = TMap<FName, int32>;
+
 USTRUCT(BlueprintType)
 struct MO56_API FBuildMaterialEntry
 {
