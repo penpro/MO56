@@ -7,6 +7,7 @@
 #include "GameFramework/SaveGame.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
+#include "Skills/SkillTypes.h"
 #include "MO56SaveGame.generated.h"
 
 /**
@@ -64,6 +65,39 @@ struct FLevelWorldState
 };
 
 /**
+ * Save data for a single connected player.
+ */
+USTRUCT(BlueprintType)
+struct FPlayerSaveData
+{
+        GENERATED_BODY()
+
+        /** Persistent identifier generated for the player controller. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FGuid PlayerId;
+
+        /** Persistent identifier of the player's inventory component. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FGuid InventoryId;
+
+        /** Numeric controller id recorded at save time for matching reconnects. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        int32 ControllerId = INDEX_NONE;
+
+        /** Display name captured from the player state. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FString PlayerName;
+
+        /** Last known world transform for the possessed pawn. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FTransform Transform = FTransform::Identity;
+
+        /** Serialized skill system state. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
+        FSkillSystemSaveData SkillState;
+};
+
+/**
  * Save game asset for the MO56 project.
  */
 UCLASS()
@@ -103,5 +137,9 @@ public:
         /** World transforms recorded for each player inventory. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FGuid, FTransform> PlayerTransforms;
+
+        /** Per-player save state including controller information and skills. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        TMap<FGuid, FPlayerSaveData> PlayerStates;
 };
 

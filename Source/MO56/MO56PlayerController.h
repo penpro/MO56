@@ -19,9 +19,10 @@ class AInventoryContainer;
 UCLASS(abstract)
 class AMO56PlayerController : public APlayerController
 {
-        GENERATED_BODY()
+GENERATED_BODY()
 
-        friend class AInventoryContainer;
+friend class AInventoryContainer;
+friend class UMO56SaveSubsystem;
 
 protected:
 
@@ -40,11 +41,13 @@ protected:
 	/** Pointer to the mobile controls widget */
 	TObjectPtr<UUserWidget> MobileControlsWidget;
 
-        /** Gameplay initialization */
-        virtual void BeginPlay() override;
+/** Gameplay initialization */
+virtual void BeginPlay() override;
 
-        /** Input mapping context setup */
-        virtual void SetupInputComponent() override;
+/** Input mapping context setup */
+virtual void SetupInputComponent() override;
+
+virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
         UFUNCTION(BlueprintCallable, Category = "Game|Flow")
@@ -73,6 +76,8 @@ public:
 
         UFUNCTION(BlueprintCallable, Category = "Control")
         void NotifyPawnContextFocus(APawn* TargetPawn, bool bHasFocus);
+
+        FGuid GetPlayerSaveId() const { return PlayerSaveId; }
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -117,4 +122,9 @@ private:
         void HandleOpenPawnInventory(APawn* TargetPawn);
         void HandlePawnContext(APawn* TargetPawn, bool bHasFocus);
         UMO56SaveSubsystem* GetSaveSubsystem() const;
+
+        void SetPlayerSaveId(const FGuid& InId);
+
+        UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Save", meta = (AllowPrivateAccess = "true"))
+        FGuid PlayerSaveId;
 };

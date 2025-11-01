@@ -2,6 +2,7 @@
 
 #include "Blueprint/UserWidget.h"
 #include "TimerManager.h"
+#include "UObject/SoftObjectPtr.h"
 #include "CharacterSkillMenu.generated.h"
 
 struct FSkillDomainProgress;
@@ -10,6 +11,9 @@ struct FSkillKnowledgeEntry;
 class UPanelWidget;
 class UTextBlock;
 class USkillSystemComponent;
+class USkillListEntryWidget;
+class UImage;
+class UTexture2D;
 
 /**
  * Widget presenting knowledge and skill progression summaries.
@@ -30,6 +34,10 @@ protected:
         virtual void NativeDestruct() override;
 
 private:
+        void HandleSkillInfoRequested(const FText& Title, const FText& Rank, const FText& History, const FText& Tips, TSoftObjectPtr<UTexture2D> Icon);
+        void ShowSkillInfo(const FText& Title, const FText& Rank, const FText& History, const FText& Tips, TSoftObjectPtr<UTexture2D> Icon);
+        void HideSkillInfo();
+
         void RefreshSkillData();
         void RefreshInspectionStatus();
         void StartInspectionRefreshTimer();
@@ -56,6 +64,27 @@ private:
 
         UPROPERTY(meta = (BindWidgetOptional))
         TObjectPtr<UTextBlock> InspectionStatusText;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UPanelWidget> SkillInfoPanel;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> SkillInfoTitleText;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> SkillInfoRankText;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> SkillInfoHistoryText;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> SkillInfoTipsText;
+
+        UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UImage> SkillInfoIcon;
+
+        UPROPERTY(EditAnywhere, Category = "Skills")
+        TSubclassOf<USkillListEntryWidget> SkillEntryWidgetClass;
 
         TWeakObjectPtr<USkillSystemComponent> SkillSystem;
         FTimerHandle InspectionRefreshHandle;
