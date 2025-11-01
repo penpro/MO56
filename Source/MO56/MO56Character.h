@@ -145,6 +145,9 @@ public:
         void OpenContainerInventory(UInventoryComponent* ContainerInventory, AActor* ContainerActor);
         void CloseContainerInventoryForActor(AActor* ContainerActor, bool bClosePlayerInventory = true);
 
+        /** Collapse every UI panel that the character manages (inventory, status, skills, menu, world context). */
+        void CloseAllPlayerMenus();
+
 public:
 
         /** Interact Input Action */

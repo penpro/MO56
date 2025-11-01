@@ -209,11 +209,7 @@ void AMO56PlayerController::ClientEnsureGameInput_Implementation()
 {
         if (AMO56Character* MOCharacter = Cast<AMO56Character>(GetCharacter()))
         {
-                MOCharacter->SetInventoryVisible(false);
-                MOCharacter->SetSkillMenuVisible(false);
-                MOCharacter->SetCharacterStatusVisible(false);
-                MOCharacter->SetGameMenuVisible(false);
-                MOCharacter->CloseWorldContextMenu();
+                MOCharacter->CloseAllPlayerMenus();
         }
 
         FInputModeGameOnly InputMode;

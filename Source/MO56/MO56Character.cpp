@@ -1164,6 +1164,15 @@ void AMO56Character::CloseContainerInventoryForActor(AActor* ContainerActor, boo
         }
 }
 
+void AMO56Character::CloseAllPlayerMenus()
+{
+        SetInventoryVisible(false);
+        SetSkillMenuVisible(false);
+        SetCharacterStatusVisible(false);
+        SetGameMenuVisible(false);
+        CloseWorldContextMenu();
+}
+
 void AMO56Character::CloseActiveContainerInventory(bool bNotifyContainer)
 {
         if (ContainerInventoryWidgetInstance)
