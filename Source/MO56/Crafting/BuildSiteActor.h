@@ -30,7 +30,7 @@ struct MO56_API FBuildMaterialEntry
         int32 Remaining = 0;
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBuildSiteProgressUpdated, UCraftingRecipe*, Recipe, const TMap<FName, int32>&, MaterialsRemaining);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBuildSiteProgressUpdated, UCraftingRecipe*, Recipe, const TArray<FBuildMaterialEntry>&, MaterialsRemaining);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildSiteCompleted, UCraftingRecipe*, Recipe);
 
 /**
@@ -60,7 +60,7 @@ public:
         UCraftingRecipe* GetRecipe() const { return Recipe; }
 
         UFUNCTION(BlueprintPure, Category = "Build")
-        const TMap<FName, int32>& GetMaterialsRemaining() const { return MaterialsRemaining; }
+        TMap<FName, int32> GetMaterialsRemaining() const;
 
         /** Fired whenever the materials map changes. */
         UPROPERTY(BlueprintAssignable, Category = "Build")

@@ -22,7 +22,8 @@ public class MO56 : ModuleRules
                         "MOInventory",
                         "MOItems",
                         "Slate",
-                        "SlateCore"
+                        "SlateCore",
+                        "PhysicsCore"
                 });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
