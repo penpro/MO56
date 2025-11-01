@@ -139,8 +139,8 @@ bool UHUDWidget::IsSkillMenuVisible() const
 {
         if (const UCharacterSkillMenu* Menu = SkillMenuInstance.Get())
         {
-                const ESlateVisibility Visibility = Menu->GetVisibility();
-                return Visibility != ESlateVisibility::Collapsed && Visibility != ESlateVisibility::Hidden;
+                const ESlateVisibility MenuVisibility = Menu->GetVisibility();
+                return MenuVisibility != ESlateVisibility::Collapsed && MenuVisibility != ESlateVisibility::Hidden;
         }
 
         return false;
