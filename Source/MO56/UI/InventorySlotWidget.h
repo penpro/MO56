@@ -108,5 +108,6 @@ protected:
         TWeakObjectPtr<UInventorySlotMenuWidget> ActiveContextMenu;
 
         TWeakObjectPtr<USkillSystemComponent> SkillSystem;
+
 };
 
