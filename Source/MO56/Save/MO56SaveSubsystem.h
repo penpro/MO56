@@ -76,6 +76,14 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Save")
         void ResetToNewGame();
 
+        /** Creates a brand-new save slot populated with the current runtime state. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        FSaveGameSummary CreateNewSaveSlot();
+
+        /** Updates the active slot used when calling SaveGame/LoadGame. */
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        void SetActiveSaveSlot(const FString& SlotName, int32 UserIndex);
+
         /** Registers an inventory component so its state is serialized. */
         void RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory);
 
@@ -102,6 +110,9 @@ private:
 
         UPROPERTY()
         TObjectPtr<UMO56SaveGame> CurrentSaveGame = nullptr;
+
+        FString ActiveSaveSlotName;
+        int32 ActiveSaveUserIndex = SaveUserIndex;
 
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
         TSet<FGuid> PlayerInventoryIds;
@@ -141,6 +152,9 @@ private:
         bool ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave);
 
         void SanitizeLoadedSave(UMO56SaveGame& Save);
+
+        bool IsAuthoritative() const;
+        FString GenerateUniqueSaveSlotName() const;
 
         UFUNCTION()
         void HandleInventoryComponentUpdated();

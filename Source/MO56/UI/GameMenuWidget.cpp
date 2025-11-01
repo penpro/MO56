@@ -26,6 +26,11 @@ void UGameMenuWidget::NativeOnInitialized()
                 LoadGameButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleLoadGameClicked);
         }
 
+        if (CreateNewSaveButton)
+        {
+                CreateNewSaveButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleCreateNewSaveClicked);
+        }
+
         if (SaveGameButton)
         {
                 SaveGameButton->OnClicked.AddDynamic(this, &UGameMenuWidget::HandleSaveGameClicked);
@@ -79,7 +84,14 @@ void UGameMenuWidget::HandleLoadGameClicked()
         {
                 if (!FocusContainer || !SaveGameMenuClass)
                 {
-                        SaveSubsystem->LoadGame();
+                        if (AMO56PlayerController* PC = ResolvePlayerController())
+                        {
+                                PC->RequestLoadGame();
+                        }
+                        else
+                        {
+                                SaveSubsystem->LoadGame();
+                        }
                         return;
                 }
 
@@ -106,6 +118,28 @@ void UGameMenuWidget::HandleLoadGameClicked()
                         SaveGameMenuInstance->RefreshSaveEntries();
                         ShowFocusWidget(SaveGameMenuInstance);
                 }
+        }
+}
+
+void UGameMenuWidget::HandleCreateNewSaveClicked()
+{
+        EnsureSaveSubsystem();
+
+        bool bCreated = false;
+
+        if (AMO56PlayerController* PC = ResolvePlayerController())
+        {
+                bCreated = PC->RequestCreateNewSaveSlot();
+        }
+        else if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+        {
+                const FSaveGameSummary Summary = SaveSubsystem->CreateNewSaveSlot();
+                bCreated = !Summary.SlotName.IsEmpty();
+        }
+
+        if (bCreated && FocusContainer && SaveGameMenuClass)
+        {
+                HandleLoadGameClicked();
         }
 }
 

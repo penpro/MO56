@@ -14,13 +14,17 @@
 #include "ItemData.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h"
+#include "Misc/Paths.h"
 #include "Templates/UnrealTemplate.h"
 #include "MO56Character.h"
+#include "HAL/FileManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
 
 UMO56SaveSubsystem::UMO56SaveSubsystem()
 {
+        ActiveSaveSlotName = SaveSlotName;
+        ActiveSaveUserIndex = SaveUserIndex;
 }
 
 void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -67,6 +71,12 @@ void UMO56SaveSubsystem::Deinitialize()
 
 bool UMO56SaveSubsystem::SaveGame()
 {
+        if (!IsAuthoritative())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("SaveGame skipped on non-authority instance."));
+                return false;
+        }
+
         if (!CurrentSaveGame)
         {
                 LoadOrCreateSaveGame();
@@ -98,19 +108,28 @@ bool UMO56SaveSubsystem::SaveGame()
                 }
         }
 
-        const bool bSaved = UGameplayStatics::SaveGameToSlot(CurrentSaveGame, SaveSlotName, SaveUserIndex);
+        const FString SlotName = ActiveSaveSlotName.IsEmpty() ? SaveSlotName : ActiveSaveSlotName;
+        const bool bSaved = UGameplayStatics::SaveGameToSlot(CurrentSaveGame, SlotName, ActiveSaveUserIndex);
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("SaveGame: %s"), bSaved ? TEXT("Success") : TEXT("Failure"));
         return bSaved;
 }
 
 bool UMO56SaveSubsystem::LoadGame()
 {
-        return LoadGameBySlot(SaveSlotName, SaveUserIndex);
+        const FString SlotName = ActiveSaveSlotName.IsEmpty() ? SaveSlotName : ActiveSaveSlotName;
+        return LoadGameBySlot(SlotName, ActiveSaveUserIndex);
 }
 
 void UMO56SaveSubsystem::ResetToNewGame()
 {
-        UGameplayStatics::DeleteGameInSlot(SaveSlotName, SaveUserIndex);
+        if (!IsAuthoritative())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("ResetToNewGame ignored on non-authority instance."));
+                return;
+        }
+
+        const FString SlotName = ActiveSaveSlotName.IsEmpty() ? SaveSlotName : ActiveSaveSlotName;
+        UGameplayStatics::DeleteGameInSlot(SlotName, ActiveSaveUserIndex);
 
         CurrentSaveGame = NewObject<UMO56SaveGame>(this);
         const FDateTime NowUtc = FDateTime::UtcNow();
@@ -119,6 +138,8 @@ void UMO56SaveSubsystem::ResetToNewGame()
         PlayerInventoryIds.Empty();
         CurrentSaveGame->PlayerInventoryIds.Empty();
         CurrentSaveGame->PlayerTransforms.Empty();
+        CurrentSaveGame->InventoryStates.Empty();
+        CurrentSaveGame->LevelStates.Empty();
 
         TArray<TWeakObjectPtr<AItemPickup>> PickupsToDestroy;
         PickupsToDestroy.Reserve(TrackedPickups.Num());
@@ -155,9 +176,71 @@ void UMO56SaveSubsystem::ResetToNewGame()
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ResetToNewGame: save data cleared."));
 }
 
+FSaveGameSummary UMO56SaveSubsystem::CreateNewSaveSlot()
+{
+        FSaveGameSummary Summary;
+
+        if (!IsAuthoritative())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("CreateNewSaveSlot ignored on non-authority instance."));
+                return Summary;
+        }
+
+        if (!CurrentSaveGame)
+        {
+                LoadOrCreateSaveGame();
+        }
+
+        if (!CurrentSaveGame)
+        {
+                return Summary;
+        }
+
+        SaveGame();
+
+        const FString NewSlotName = GenerateUniqueSaveSlotName();
+        if (NewSlotName.IsEmpty())
+        {
+                return Summary;
+        }
+
+        const bool bSaved = UGameplayStatics::SaveGameToSlot(CurrentSaveGame, NewSlotName, ActiveSaveUserIndex);
+        if (!bSaved)
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("CreateNewSaveSlot: failed to persist slot %s"), *NewSlotName);
+                return Summary;
+        }
+
+        Summary.SlotName = NewSlotName;
+        Summary.UserIndex = ActiveSaveUserIndex;
+        Summary.InitialSaveTimestamp = CurrentSaveGame->InitialSaveTimestamp;
+        Summary.LastSaveTimestamp = CurrentSaveGame->LastSaveTimestamp;
+        Summary.TotalPlayTimeSeconds = CurrentSaveGame->TotalPlayTimeSeconds;
+        Summary.LastLevelName = CurrentSaveGame->LastLevelName;
+        Summary.InventoryCount = CurrentSaveGame->InventoryStates.Num();
+
+        ActiveSaveSlotName = NewSlotName;
+
+        return Summary;
+}
+
+void UMO56SaveSubsystem::SetActiveSaveSlot(const FString& SlotName, int32 UserIndex)
+{
+        ActiveSaveSlotName = SlotName.IsEmpty() ? SaveSlotName : SlotName;
+        ActiveSaveUserIndex = UserIndex >= 0 ? UserIndex : SaveUserIndex;
+
+        CurrentSaveGame = nullptr;
+        LoadOrCreateSaveGame();
+}
+
 void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory)
 {
         if (!InventoryComponent)
+        {
+                return;
+        }
+
+        if (!IsAuthoritative())
         {
                 return;
         }
@@ -212,6 +295,11 @@ void UMO56SaveSubsystem::UnregisterInventoryComponent(UInventoryComponent* Inven
                 return;
         }
 
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
         const FGuid InventoryId = InventoryComponent->GetPersistentId();
         if (CurrentSaveGame)
         {
@@ -234,6 +322,11 @@ void UMO56SaveSubsystem::UnregisterInventoryComponent(UInventoryComponent* Inven
 void UMO56SaveSubsystem::RegisterWorldPickup(AItemPickup* Pickup)
 {
         if (!Pickup)
+        {
+                return;
+        }
+
+        if (!IsAuthoritative())
         {
                 return;
         }
@@ -296,6 +389,11 @@ void UMO56SaveSubsystem::UnregisterWorldPickup(AItemPickup* Pickup)
                 return;
         }
 
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
         UnbindPickupDelegates(*Pickup);
 
         const FGuid PickupId = Pickup->GetPersistentId();
@@ -306,6 +404,11 @@ void UMO56SaveSubsystem::UnregisterWorldPickup(AItemPickup* Pickup)
 void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::InitializationValues IVS)
 {
         if (!World || !World->IsGameWorld())
+        {
+                return;
+        }
+
+        if (!IsAuthoritative() || World->GetNetMode() == NM_Client)
         {
                 return;
         }
@@ -342,6 +445,11 @@ void UMO56SaveSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionEnded, b
 
 void UMO56SaveSubsystem::HandleActorSpawned(AActor* Actor)
 {
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
         if (AItemPickup* Pickup = Cast<AItemPickup>(Actor))
         {
                 RegisterWorldPickup(Pickup);
@@ -351,6 +459,11 @@ void UMO56SaveSubsystem::HandleActorSpawned(AActor* Actor)
 void UMO56SaveSubsystem::HandlePickupSettled(AItemPickup* Pickup)
 {
         if (!Pickup || !CurrentSaveGame)
+        {
+                return;
+        }
+
+        if (!IsAuthoritative())
         {
                 return;
         }
@@ -400,6 +513,11 @@ void UMO56SaveSubsystem::HandlePickupDestroyed(AItemPickup* Pickup)
         }
 
         UnbindPickupDelegates(*Pickup);
+
+        if (!IsAuthoritative())
+        {
+                return;
+        }
 
         if (!CurrentSaveGame)
         {
@@ -453,7 +571,10 @@ void UMO56SaveSubsystem::LoadOrCreateSaveGame()
                 return;
         }
 
-        if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SaveSlotName, SaveUserIndex))
+        const FString SlotName = ActiveSaveSlotName.IsEmpty() ? SaveSlotName : ActiveSaveSlotName;
+        const int32 UserIndex = ActiveSaveUserIndex;
+
+        if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex))
         {
                 CurrentSaveGame = Cast<UMO56SaveGame>(Loaded);
                 if (CurrentSaveGame)
@@ -476,6 +597,11 @@ void UMO56SaveSubsystem::LoadOrCreateSaveGame()
 void UMO56SaveSubsystem::ApplySaveToInventories()
 {
         if (!CurrentSaveGame)
+        {
+                return;
+        }
+
+        if (!IsAuthoritative())
         {
                 return;
         }
@@ -509,6 +635,11 @@ void UMO56SaveSubsystem::ApplySaveToInventories()
 void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
 {
         if (!World || !CurrentSaveGame)
+        {
+                return;
+        }
+
+        if (!IsAuthoritative())
         {
                 return;
         }
@@ -617,6 +748,11 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 return;
         }
 
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
         for (auto It = RegisteredInventories.CreateIterator(); It; ++It)
         {
                 const FGuid InventoryId = It.Key();
@@ -656,6 +792,11 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
 void UMO56SaveSubsystem::RefreshTrackedPickups()
 {
         if (!CurrentSaveGame)
+        {
+                return;
+        }
+
+        if (!IsAuthoritative())
         {
                 return;
         }
@@ -751,6 +892,11 @@ void UMO56SaveSubsystem::ApplyPlayerTransforms()
                 return;
         }
 
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
         for (const TPair<FGuid, FTransform>& Entry : CurrentSaveGame->PlayerTransforms)
         {
                 if (TWeakObjectPtr<UInventoryComponent>* InventoryPtr = RegisteredInventories.Find(Entry.Key))
@@ -769,6 +915,11 @@ void UMO56SaveSubsystem::ApplyPlayerTransforms()
 bool UMO56SaveSubsystem::ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave)
 {
         if (!LoadedSave)
+        {
+                return false;
+        }
+
+        if (!IsAuthoritative())
         {
                 return false;
         }
@@ -813,14 +964,48 @@ void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
         }
 }
 
+bool UMO56SaveSubsystem::IsAuthoritative() const
+{
+        if (const UWorld* World = GetWorld())
+        {
+                return World->GetNetMode() != NM_Client;
+        }
+
+        return true;
+}
+
+FString UMO56SaveSubsystem::GenerateUniqueSaveSlotName() const
+{
+        const FString Timestamp = FDateTime::UtcNow().ToString(TEXT("%Y%m%d_%H%M%S"));
+        const FString BaseName = FString::Printf(TEXT("MO56_Save_%s"), *Timestamp);
+
+        FString Candidate = BaseName;
+        int32 Counter = 1;
+
+        while (UGameplayStatics::DoesSaveGameExist(Candidate, ActiveSaveUserIndex))
+        {
+                Candidate = FString::Printf(TEXT("%s_%d"), *BaseName, Counter++);
+        }
+
+        return Candidate;
+}
+
 bool UMO56SaveSubsystem::LoadGameBySlot(const FString& SlotName, int32 UserIndex)
 {
+        if (!IsAuthoritative())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("LoadGameBySlot ignored on non-authority instance."));
+                return false;
+        }
+
         if (SlotName.IsEmpty())
         {
                 return false;
         }
 
-        USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SlotName, UserIndex);
+        const int32 TargetUserIndex = UserIndex >= 0 ? UserIndex : ActiveSaveUserIndex;
+
+        USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SlotName, TargetUserIndex);
         if (!Loaded)
         {
                 UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("LoadGame: no save present for slot %s"), *SlotName);
@@ -829,6 +1014,8 @@ bool UMO56SaveSubsystem::LoadGameBySlot(const FString& SlotName, int32 UserIndex
 
         if (UMO56SaveGame* LoadedSave = Cast<UMO56SaveGame>(Loaded))
         {
+                ActiveSaveSlotName = SlotName;
+                ActiveSaveUserIndex = TargetUserIndex;
                 return ApplyLoadedSaveGame(LoadedSave);
         }
 
@@ -840,28 +1027,42 @@ TArray<FSaveGameSummary> UMO56SaveSubsystem::GetAvailableSaveSummaries() const
 {
         TArray<FSaveGameSummary> Result;
 
-        if (!UGameplayStatics::DoesSaveGameExist(SaveSlotName, SaveUserIndex))
+        const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+        if (!IFileManager::Get().DirectoryExists(*SaveDir))
         {
                 return Result;
         }
 
-        FSaveGameSummary Summary;
-        Summary.SlotName = SaveSlotName;
-        Summary.UserIndex = SaveUserIndex;
+        TArray<FString> SaveFiles;
+        IFileManager::Get().FindFiles(SaveFiles, *(SaveDir / TEXT("*.sav")), true, false);
 
-        if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SaveSlotName, SaveUserIndex))
+        for (const FString& SaveFile : SaveFiles)
         {
-                if (const UMO56SaveGame* LoadedSave = Cast<UMO56SaveGame>(Loaded))
+                const FString SlotName = FPaths::GetBaseFilename(SaveFile);
+                if (SlotName.IsEmpty())
                 {
-                        Summary.InitialSaveTimestamp = LoadedSave->InitialSaveTimestamp;
-                        Summary.LastSaveTimestamp = LoadedSave->LastSaveTimestamp;
-                        Summary.TotalPlayTimeSeconds = LoadedSave->TotalPlayTimeSeconds;
-                        Summary.LastLevelName = LoadedSave->LastLevelName;
-                        Summary.InventoryCount = LoadedSave->InventoryStates.Num();
+                        continue;
                 }
+
+                FSaveGameSummary Summary;
+                Summary.SlotName = SlotName;
+                Summary.UserIndex = ActiveSaveUserIndex;
+
+                if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SlotName, ActiveSaveUserIndex))
+                {
+                        if (const UMO56SaveGame* LoadedSave = Cast<UMO56SaveGame>(Loaded))
+                        {
+                                Summary.InitialSaveTimestamp = LoadedSave->InitialSaveTimestamp;
+                                Summary.LastSaveTimestamp = LoadedSave->LastSaveTimestamp;
+                                Summary.TotalPlayTimeSeconds = LoadedSave->TotalPlayTimeSeconds;
+                                Summary.LastLevelName = LoadedSave->LastLevelName;
+                                Summary.InventoryCount = LoadedSave->InventoryStates.Num();
+                        }
+                }
+
+                Result.Add(MoveTemp(Summary));
         }
 
-        Result.Add(MoveTemp(Summary));
         return Result;
 }
 

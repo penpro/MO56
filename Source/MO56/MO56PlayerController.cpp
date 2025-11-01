@@ -101,6 +101,39 @@ void AMO56PlayerController::RequestSaveAndExit()
         }
 }
 
+bool AMO56PlayerController::RequestLoadGame()
+{
+        if (HasAuthority())
+        {
+                return HandleLoadGameOnServer(TEXT(""), INDEX_NONE);
+        }
+
+        ServerLoadGame(TEXT(""), INDEX_NONE);
+        return true;
+}
+
+bool AMO56PlayerController::RequestLoadGameBySlot(const FString& SlotName, int32 UserIndex)
+{
+        if (HasAuthority())
+        {
+                return HandleLoadGameOnServer(SlotName, UserIndex);
+        }
+
+        ServerLoadGame(SlotName, UserIndex);
+        return true;
+}
+
+bool AMO56PlayerController::RequestCreateNewSaveSlot()
+{
+        if (HasAuthority())
+        {
+                return HandleCreateNewSaveSlot();
+        }
+
+        ServerCreateNewSaveSlot();
+        return true;
+}
+
 void AMO56PlayerController::RequestPossessPawn(APawn* TargetPawn)
 {
         if (!TargetPawn)
@@ -160,6 +193,16 @@ void AMO56PlayerController::ServerSaveGame_Implementation()
 void AMO56PlayerController::ServerSaveAndExit_Implementation()
 {
         HandleSaveGameOnServer(true);
+}
+
+void AMO56PlayerController::ServerLoadGame_Implementation(const FString& SlotName, int32 UserIndex)
+{
+        HandleLoadGameOnServer(SlotName, UserIndex);
+}
+
+void AMO56PlayerController::ServerCreateNewSaveSlot_Implementation()
+{
+        HandleCreateNewSaveSlot();
 }
 
 void AMO56PlayerController::ServerPossessPawn_Implementation(APawn* TargetPawn)
@@ -289,6 +332,60 @@ void AMO56PlayerController::HandleSaveGameOnServer(bool bAlsoExit)
         {
                 ConsoleCommand(TEXT("quit"));
         }
+}
+
+bool AMO56PlayerController::HandleLoadGameOnServer(const FString& SlotName, int32 UserIndex)
+{
+        if (!HasAuthority())
+        {
+                return false;
+        }
+
+        bool bLoaded = false;
+
+        if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
+        {
+                if (!SlotName.IsEmpty())
+                {
+                        bLoaded = SaveSubsystem->LoadGameBySlot(SlotName, UserIndex);
+                }
+                else
+                {
+                        bLoaded = SaveSubsystem->LoadGame();
+                }
+        }
+
+        if (bLoaded)
+        {
+                if (UWorld* World = GetWorld())
+                {
+                        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+                        {
+                                if (AMO56PlayerController* OtherController = Cast<AMO56PlayerController>(*It))
+                                {
+                                        OtherController->ClientEnsureGameInput();
+                                }
+                        }
+                }
+        }
+
+        return bLoaded;
+}
+
+bool AMO56PlayerController::HandleCreateNewSaveSlot()
+{
+        if (!HasAuthority())
+        {
+                return false;
+        }
+
+        if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
+        {
+                const FSaveGameSummary Summary = SaveSubsystem->CreateNewSaveSlot();
+                return !Summary.SlotName.IsEmpty();
+        }
+
+        return false;
 }
 
 void AMO56PlayerController::HandlePossessPawn(APawn* TargetPawn)

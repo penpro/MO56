@@ -1,5 +1,5 @@
 // Implementation: Create a UMG widget inheriting from this class, bind the buttons named
-// NewGameButton/LoadGameButton/SaveGameButton/SaveAndExitButton/ExitGameButton, and place a
+// NewGameButton/LoadGameButton/CreateNewSaveButton/SaveGameButton/SaveAndExitButton/ExitGameButton, and place a
 // panel named FocusContainer for nested menus. Assign the widget class to the character HUD
 // so menu actions forward to the player controller and save subsystem.
 #pragma once
@@ -38,6 +38,9 @@ protected:
         TObjectPtr<UButton> LoadGameButton;
 
         UPROPERTY(meta = (BindWidgetOptional))
+        TObjectPtr<UButton> CreateNewSaveButton;
+
+        UPROPERTY(meta = (BindWidgetOptional))
         TObjectPtr<UButton> SaveGameButton;
 
         UPROPERTY(meta = (BindWidgetOptional))
@@ -59,6 +62,9 @@ protected:
 
         UFUNCTION()
         void HandleLoadGameClicked();
+
+        UFUNCTION()
+        void HandleCreateNewSaveClicked();
 
         UFUNCTION()
         void HandleSaveGameClicked();

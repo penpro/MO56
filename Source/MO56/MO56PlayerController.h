@@ -56,6 +56,15 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Game|Flow")
         void RequestSaveAndExit();
 
+        UFUNCTION(BlueprintCallable, Category = "Game|Flow")
+        bool RequestLoadGame();
+
+        UFUNCTION(BlueprintCallable, Category = "Game|Flow")
+        bool RequestLoadGameBySlot(const FString& SlotName, int32 UserIndex);
+
+        UFUNCTION(BlueprintCallable, Category = "Game|Flow")
+        bool RequestCreateNewSaveSlot();
+
         UFUNCTION(BlueprintCallable, Category = "Control")
         void RequestPossessPawn(APawn* TargetPawn);
 
@@ -74,6 +83,12 @@ protected:
 
         UFUNCTION(Server, Reliable)
         void ServerSaveAndExit();
+
+        UFUNCTION(Server, Reliable)
+        void ServerLoadGame(const FString& SlotName, int32 UserIndex);
+
+        UFUNCTION(Server, Reliable)
+        void ServerCreateNewSaveSlot();
 
         UFUNCTION(Server, Reliable)
         void ServerPossessPawn(APawn* TargetPawn);
@@ -96,6 +111,8 @@ protected:
 private:
         void HandleNewGameOnServer(const FString& LevelName);
         void HandleSaveGameOnServer(bool bAlsoExit);
+        bool HandleLoadGameOnServer(const FString& SlotName, int32 UserIndex);
+        bool HandleCreateNewSaveSlot();
         void HandlePossessPawn(APawn* TargetPawn);
         void HandleOpenPawnInventory(APawn* TargetPawn);
         void HandlePawnContext(APawn* TargetPawn, bool bHasFocus);
