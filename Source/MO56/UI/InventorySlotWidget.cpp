@@ -258,35 +258,7 @@ void UInventorySlotWidget::SetSkillSystem(USkillSystemComponent* InSkillSystem)
         SkillSystem = InSkillSystem;
 }
 
-void UInventorySlotWidget::EnsureInventoryOwnership(UInventoryComponent* Inventory) const
-{
-        if (!Inventory)
-        {
-                return;
-        }
 
-        AActor* InventoryOwner = Inventory->GetOwner();
-        if (!InventoryOwner)
-        {
-                return;
-        }
-
-        if (AInventoryContainer* ContainerActor = Cast<AInventoryContainer>(InventoryOwner))
-        {
-                if (APlayerController* OwningPlayer = GetOwningPlayer())
-                {
-                        if (ContainerActor->GetOwner() == OwningPlayer)
-                        {
-                                return;
-                        }
-
-                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(OwningPlayer))
-                        {
-                                MOController->RequestContainerInventoryOwnership(ContainerActor);
-                        }
-                }
-        }
-}
 
 bool UInventorySlotWidget::HandleInspectItem()
 {
