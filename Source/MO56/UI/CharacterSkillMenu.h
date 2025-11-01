@@ -46,6 +46,12 @@ private:
         void ShowSkillInfo(const FText& Title, const FText& Rank, const FText& History, const FText& Tips, TSoftObjectPtr<UTexture2D> Icon);
         void HideSkillInfo();
 
+        /** Returns a widget class guaranteed to derive from USkillListEntryWidget. */
+        TSubclassOf<USkillListEntryWidget> ResolveEntryWidgetClass() const;
+
+        /** Creates a skill list entry widget using the validated class. */
+        USkillListEntryWidget* CreateEntryWidget() const;
+
         void RefreshSkillData();
         void RefreshInspectionStatus();
         void StartInspectionRefreshTimer();
