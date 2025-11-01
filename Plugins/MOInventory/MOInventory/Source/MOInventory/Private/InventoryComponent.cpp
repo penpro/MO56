@@ -905,8 +905,35 @@ bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 
     {
         BroadcastInventoryChanged();
     }
+}
+
+void UInventoryComponent::BroadcastInventoryChanged()
+{
+    OnInventoryUpdated.Broadcast();
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->HasAuthority())
+        {
+            OwnerActor->ForceNetUpdate();
+        }
+    }
+}
 
     return bResult;
+}
+
+void UInventoryComponent::BroadcastInventoryChanged()
+{
+    OnInventoryUpdated.Broadcast();
+
+    if (AActor* OwnerActor = GetOwner())
+    {
+        if (OwnerActor->HasAuthority())
+        {
+            OwnerActor->ForceNetUpdate();
+        }
+    }
 }
 
 void UInventoryComponent::BroadcastInventoryChanged()

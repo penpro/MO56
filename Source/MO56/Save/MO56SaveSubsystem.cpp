@@ -899,6 +899,15 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
         {
                 SyncPlayerSaveData(PlayerId);
         }
+
+        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
+
+        for (const FGuid& PlayerId : PlayersToSync)
+        {
+                SyncPlayerSaveData(PlayerId);
+        }
+
+        CurrentSaveGame->PlayerInventoryIds = PlayerInventoryIds;
 }
 
 void UMO56SaveSubsystem::RefreshTrackedPickups()
