@@ -5,6 +5,7 @@
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
@@ -44,8 +45,8 @@
 
 AMO56Character::AMO56Character()
 {
-	// Set size for collision capsule
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+        // Set size for collision capsule
+        GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -84,6 +85,14 @@ AMO56Character::AMO56Character()
         SkillSystem = CreateDefaultSubobject<USkillSystemComponent>(TEXT("SkillSystem"));
 
         WorldContextMenuClass = UWorldActorContextMenuWidget::StaticClass();
+
+        bReplicates = true;
+        SetReplicateMovement(true);
+
+        if (USkeletalMeshComponent* MeshComponent = GetMesh())
+        {
+                MeshComponent->SetIsReplicated(true);
+        }
 }
 
 

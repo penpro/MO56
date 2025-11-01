@@ -10,6 +10,7 @@
 class UInputMappingContext;
 class UUserWidget;
 class UMO56SaveSubsystem;
+class AInventoryContainer;
 
 /**
  *  Basic PlayerController class for a third person game
@@ -83,6 +84,9 @@ protected:
 
         UFUNCTION(Client, Reliable)
         void ClientOpenPawnInventoryResponse(APawn* TargetPawn);
+
+        UFUNCTION(Client, Reliable)
+        void ClientOpenContainerInventory(AInventoryContainer* ContainerActor);
 
 private:
         void HandleNewGameOnServer(const FString& LevelName);

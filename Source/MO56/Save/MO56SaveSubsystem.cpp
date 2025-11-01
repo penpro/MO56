@@ -110,6 +110,8 @@ bool UMO56SaveSubsystem::LoadGame()
 
 void UMO56SaveSubsystem::ResetToNewGame()
 {
+        UGameplayStatics::DeleteGameInSlot(SaveSlotName, SaveUserIndex);
+
         CurrentSaveGame = NewObject<UMO56SaveGame>(this);
         const FDateTime NowUtc = FDateTime::UtcNow();
         CurrentSaveGame->InitialSaveTimestamp = NowUtc;

@@ -5,6 +5,7 @@
 
 #include "InventoryComponent.h"
 #include "MO56Character.h"
+#include "MO56PlayerController.h"
 #include "Components/SceneComponent.h"
 #include "Algo/AllOf.h"
 #include "Internationalization/Text.h"
@@ -17,6 +18,9 @@ AInventoryContainer::AInventoryContainer()
         SetRootComponent(Root);
 
         InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+
+        bReplicates = true;
+        SetReplicateMovement(true);
 }
 
 void AInventoryContainer::BeginPlay()
@@ -88,6 +92,11 @@ void AInventoryContainer::HandleInventoryUpdated()
                         HandleContainerEmptied();
                 }
         }
+
+        if (HasAuthority())
+        {
+                ForceNetUpdate();
+        }
 }
 
 void AInventoryContainer::HandleContainerEmptied()
@@ -114,7 +123,23 @@ void AInventoryContainer::Interact_Implementation(AActor* Interactor)
         if (AMO56Character* Character = Cast<AMO56Character>(Interactor))
         {
                 ActiveCharacters.Add(Character);
-                Character->OpenContainerInventory(InventoryComponent, this);
+
+                if (HasAuthority())
+                {
+                        Character->OpenContainerInventory(InventoryComponent, this);
+
+                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(Character->GetController()))
+                        {
+                                if (!MOController->IsLocalController())
+                                {
+                                        MOController->ClientOpenContainerInventory(this);
+                                }
+                        }
+                }
+                else if (Character->IsLocallyControlled())
+                {
+                        Character->OpenContainerInventory(InventoryComponent, this);
+                }
         }
 }
 

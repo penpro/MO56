@@ -13,6 +13,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "Engine/World.h"
 #include "InventoryComponent.h"
+#include "InventoryContainer.h"
 #include "MO56Character.h"
 #include "Save/MO56SaveSubsystem.h"
 
@@ -180,6 +181,28 @@ void AMO56PlayerController::ServerSetPawnContext_Implementation(APawn* TargetPaw
 void AMO56PlayerController::ClientOpenPawnInventoryResponse_Implementation(APawn* TargetPawn)
 {
         HandleOpenPawnInventory(TargetPawn);
+}
+
+void AMO56PlayerController::ClientOpenContainerInventory_Implementation(AInventoryContainer* ContainerActor)
+{
+        AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter());
+        if (!OwningCharacter)
+        {
+                return;
+        }
+
+        UInventoryComponent* ContainerInventory = nullptr;
+        if (ContainerActor)
+        {
+                ContainerInventory = ContainerActor->GetInventoryComponent();
+
+                if (!ContainerInventory)
+                {
+                        ContainerInventory = ContainerActor->FindComponentByClass<UInventoryComponent>();
+                }
+        }
+
+        OwningCharacter->OpenContainerInventory(ContainerInventory, ContainerActor);
 }
 
 void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
