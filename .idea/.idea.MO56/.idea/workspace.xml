@@ -12,7 +12,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="" />
+    <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/WBP_SaveGameMenu.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/WBP_SaveGameMenu.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/WBP_SaveSlot.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/WBP_SaveSlot.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_MOSurvivalCharacter.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/ThirdPerson/Blueprints/BP_MOSurvivalCharacter.uasset" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
