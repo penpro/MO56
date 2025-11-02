@@ -37,7 +37,7 @@ protected:
     bool bWasSpawnedFromInventory = false;
 
     /** Persistent identifier used to reconcile save game data. */
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pickup|Save")
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, ReplicatedUsing=OnRep_PersistentId, Category="Pickup|Save")
     FGuid PersistentId;
 
     virtual void OnConstruction(const FTransform& Transform) override;
@@ -51,6 +51,9 @@ protected:
 
     UFUNCTION()
     void OnRep_Quantity();
+
+    UFUNCTION()
+    void OnRep_PersistentId();
 
 public:
     virtual void Interact_Implementation(AActor* Interactor) override;
@@ -83,7 +86,7 @@ public:
     FGuid GetPersistentId() const { return PersistentId; }
 
     UFUNCTION(BlueprintCallable, Category="Pickup|Save")
-    void SetPersistentId(const FGuid& InPersistentId) { PersistentId = InPersistentId; }
+    void SetPersistentId(const FGuid& InPersistentId);
 
     UPROPERTY(BlueprintAssignable, Category="Pickup|Events")
     FItemPickupEvent OnDropSettled;
