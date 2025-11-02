@@ -12,6 +12,13 @@ struct FPointerEvent;
 
 /**
  * Simple context menu displayed when right-clicking an inventory slot.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint subclass and design the menu layout (buttons for split/drop/destroy/inspect).
+ * 2. Bind button events to call the corresponding Handle* functions or override them in Blueprint for custom logic.
+ * 3. When showing the menu, call SetOwningSlot from UInventorySlotWidget to grant access to slot data/actions.
+ * 4. Use DismissMenu to close the widget before removing it from viewport, optionally playing an outro animation.
+ * 5. Ensure the menu blueprint is assigned to UInventorySlotWidget::ContextMenuClass so slots spawn it on demand.
  */
 UCLASS()
 class MO56_API UInventorySlotMenuWidget : public UUserWidget

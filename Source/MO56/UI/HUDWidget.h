@@ -11,6 +11,13 @@ class USkillSystemComponent;
 
 /**
  * HUD widget containing named slots for core gameplay UI elements.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint inheriting from UHUDWidget and bind panel widgets (CharacterStatusContainer, etc.) via named slots.
+ * 2. Add overlay widgets in the designer to match the containers defined here for inventory, skills, menus, and crosshair.
+ * 3. In your PlayerController Blueprint, create the HUD widget on BeginPlay and add it to the viewport.
+ * 4. Call ConfigureSkillMenu/ConfigureInspectionCountdown to register supporting widget classes before toggling them.
+ * 5. Use AddCharacterStatusWidget/AddLeftInventoryWidget from Blueprint to attach runtime-created panels into the HUD.
  */
 UCLASS()
 class MO56_API UHUDWidget : public UUserWidget

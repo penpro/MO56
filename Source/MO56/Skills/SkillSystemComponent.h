@@ -75,6 +75,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInspectionCancelled, FName, Reaso
 
 /**
  * Component responsible for tracking player knowledge and skill progression.
+ *
+ * Editor Implementation Guide:
+ * 1. Add USkillSystemComponent to your character Blueprint and ensure it replicates (component defaults panel).
+ * 2. Populate skill/knowledge definitions in your data tables and reference them via Blueprint-accessible getters.
+ * 3. Bind OnSkillStateChanged/OnInspectionStateChanged to HUD widgets so UI reacts to progression updates.
+ * 4. Expose StartInspection/GrantKnowledge/GrantSkillXP through Blueprint functions when items or world actors trigger them.
+ * 5. Call WriteToSaveData/ReadFromSaveData from the save subsystem to persist player progress between sessions.
  */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MO56_API USkillSystemComponent : public UActorComponent

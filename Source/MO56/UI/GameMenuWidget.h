@@ -16,6 +16,13 @@ class AMO56PlayerController;
 
 /**
  * Simple in-game menu used to trigger save/load operations and exit the game.
+ *
+ * Editor Implementation Guide:
+ * 1. Build a UMG Blueprint subclass and bind the optional buttons to the named variables (NewGameButton, etc.).
+ * 2. Add a FocusContainer panel to host nested menus such as the save-slot browser.
+ * 3. Assign SaveGameMenuClass to your USaveGameMenuWidget Blueprint so the menu can spawn it on demand.
+ * 4. In the character or HUD Blueprint, call SetSaveSubsystem after creating the menu to wire persistence commands.
+ * 5. Hook Blueprint events from Handle*Clicked functions if you need custom confirmation dialogs or transitions.
  */
 UCLASS()
 class MO56_API UGameMenuWidget : public UUserWidget

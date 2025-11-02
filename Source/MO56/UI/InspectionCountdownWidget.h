@@ -9,7 +9,16 @@ class UTextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInspectionCancelRequested);
 
-/** Overlay widget that renders the active inspection countdown and handles cancellation input. */
+/**
+ * Overlay widget that renders the active inspection countdown and handles cancellation input.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint subclass and bind DescriptionText/TimeRemainingText/CountdownProgress to designer widgets.
+ * 2. Style the overlay background and progress bar to match your HUD theme (e.g., translucent panel with iconography).
+ * 3. Register the Blueprint class with UHUDWidget::ConfigureInspectionCountdown so characters spawn it during inspections.
+ * 4. Use OnCancelRequested in Blueprint to trigger USkillSystemComponent::CancelCurrentInspection when players dismiss the UI.
+ * 5. Override ShowCountdown/UpdateCountdown in Blueprint if you need additional animations or sound effects.
+ */
 UCLASS()
 class MO56_API UInspectionCountdownWidget : public UUserWidget
 {

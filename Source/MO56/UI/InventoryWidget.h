@@ -15,6 +15,13 @@ class USkillSystemComponent;
 
 /**
  * Widget that displays the contents of an inventory component.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint subclass and design the inventory grid using a UniformGridPanel bound to SlotsContainer.
+ * 2. Assign SlotWidgetClass to your UInventorySlotWidget Blueprint so dynamic slot widgets spawn correctly.
+ * 3. Bind Weight/Volume text blocks to display aggregated stats via UpdateInventoryStats.
+ * 4. Set bAutoBindToOwningPawn when the widget lives in the HUD so it auto-discovers the player's inventory component.
+ * 5. Implement OnUpdateInventory in Blueprint (or rely on the C++ default) to refresh slot visuals whenever notified.
  */
 UCLASS()
 class MO56_API UInventoryWidget : public UUserWidget, public IInventoryUpdateInterface

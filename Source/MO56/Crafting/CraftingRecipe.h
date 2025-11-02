@@ -7,7 +7,16 @@
 class UTexture2D;
 class AActor;
 
-/** Data asset describing the inputs, outputs, and requirements for a craftable recipe. */
+/**
+ * Data asset describing the inputs, outputs, and requirements for a craftable recipe.
+ *
+ * Editor Implementation Guide:
+ * 1. In the Content Browser create a Blueprint Data Asset of type CraftingRecipe.
+ * 2. Fill DisplayName/Icon for UI presentation, then map Inputs/Outputs/FailByproducts to item IDs defined in your item table.
+ * 3. Use RequiredKnowledge/PrimarySkillTag to gate visibility and tune BaseDuration/BaseDifficulty to match gameplay pacing.
+ * 4. If the recipe should spawn a build site, enable bIsBuildable and assign BuildableActorClass plus BuildMaterialRequirements.
+ * 5. Reference the asset from crafting menus or BuildSiteActor::InitializeFromRecipe to drive runtime behavior.
+ */
 UCLASS(BlueprintType)
 class MO56_API UCraftingRecipe : public UDataAsset
 {

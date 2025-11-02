@@ -15,6 +15,13 @@ class AInventoryContainer;
 /**
  *  Basic PlayerController class for a third person game
  *  Manages input mappings
+ *
+ *  Editor Implementation Guide:
+ *  1. Create a Blueprint subclass and assign it in Project Settings > Maps & Modes > Player Controller Class.
+ *  2. Populate DefaultMappingContexts with Enhanced Input mapping assets; add/remove mobile-excluded contexts as needed.
+ *  3. Set MobileControlsWidgetClass to a touch-specific widget and drive visibility via RequestOpenPawnInventory/Notify focus.
+ *  4. Implement the BlueprintCallable Request* functions to trigger menu widgets, save prompts, or possession flows.
+ *  5. Use replicated PlayerSaveId and save subsystem references to coordinate load/save UI from Blueprint events.
  */
 UCLASS(abstract)
 class AMO56PlayerController : public APlayerController
