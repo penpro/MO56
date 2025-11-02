@@ -38,9 +38,11 @@ protected:
         void HandleLoadClicked();
         virtual void NativeDestruct() override;
 
-        UPROPERTY(meta = (BindWidgetOptional)) UButton*    NewGameButton = nullptr;
-        UPROPERTY(meta = (BindWidgetOptional)) UButton*    LoadGameButton = nullptr;
-        UPROPERTY(meta = (BindWidgetOptional)) UScrollBox* SaveList = nullptr;
+        TWeakObjectPtr<UButton> NewGameButtonWidget;
+
+        TWeakObjectPtr<UButton> LoadGameButtonWidget;
+
+        TWeakObjectPtr<UScrollBox> SaveListWidget;
 
         TMap<TWeakObjectPtr<UButton>, FGuid> SaveButtonIds;
         TWeakObjectPtr<UButton> PendingSaveButton;

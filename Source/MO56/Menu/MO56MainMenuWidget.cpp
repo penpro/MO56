@@ -18,7 +18,8 @@ void UMO56MainMenuWidget::NativeConstruct()
 {
         Super::NativeConstruct();
 
-        if (NewGameButton)
+        NewGameButtonWidget = Cast<UButton>(GetWidgetFromName(TEXT("NewGameButton")));
+        if (UButton* const NewGameButton = NewGameButtonWidget.Get())
         {
                 NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
         }
@@ -27,7 +28,8 @@ void UMO56MainMenuWidget::NativeConstruct()
                 UE_LOG(LogTemp, Warning, TEXT("%s missing NewGameButton binding"), *GetName());
         }
 
-        if (LoadGameButton)
+        LoadGameButtonWidget = Cast<UButton>(GetWidgetFromName(TEXT("LoadGameButton")));
+        if (UButton* const LoadGameButton = LoadGameButtonWidget.Get())
         {
                 LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
         }
@@ -36,11 +38,14 @@ void UMO56MainMenuWidget::NativeConstruct()
                 UE_LOG(LogTemp, Warning, TEXT("%s missing LoadGameButton binding"), *GetName());
         }
 
+        SaveListWidget = Cast<UScrollBox>(GetWidgetFromName(TEXT("SaveList")));
+
         RefreshSaveEntries();
 }
 
 void UMO56MainMenuWidget::RefreshSaveEntries()
 {
+        UScrollBox* const SaveList = SaveListWidget.Get();
         if (!SaveList)
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
@@ -187,9 +192,9 @@ void UMO56MainMenuWidget::HandleLoadClicked()
 
 void UMO56MainMenuWidget::NativeDestruct()
 {
-        if (NewGameButton)
+        if (UButton* const NewGameButton = NewGameButtonWidget.Get())
                 NewGameButton->OnClicked.RemoveAll(this);
-        if (LoadGameButton)
+        if (UButton* const LoadGameButton = LoadGameButtonWidget.Get())
                 LoadGameButton->OnClicked.RemoveAll(this);
 
         Super::NativeDestruct();
