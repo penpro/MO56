@@ -233,19 +233,6 @@ void AMO56Character::BeginPlay()
                 {
                         if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                         {
-                                FGuid PlayerId;
-                                if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(GetController()))
-                                {
-                                        PlayerId = MOController->GetPlayerSaveId();
-                                }
-
-                                SaveSubsystem->RegisterInventoryComponent(Inventory, true, PlayerId);
-
-                                if (SkillSystem)
-                                {
-                                        SaveSubsystem->RegisterSkillComponent(SkillSystem, PlayerId);
-                                }
-
                                 if (GameMenuWidgetInstance)
                                 {
                                         GameMenuWidgetInstance->SetSaveSubsystem(SaveSubsystem);
@@ -353,6 +340,16 @@ void AMO56Character::PossessedBy(AController* NewController)
                                 if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(NewController))
                                 {
                                         SaveSubsystem->RegisterPlayerCharacter(this, MOController);
+
+                                        if (Inventory)
+                                        {
+                                                SaveSubsystem->RegisterInventoryComponent(Inventory, true, MOController->GetPlayerSaveId());
+                                        }
+
+                                        if (SkillSystem)
+                                        {
+                                                SaveSubsystem->RegisterSkillComponent(SkillSystem, MOController->GetPlayerSaveId());
+                                        }
                                 }
                         }
                 }
