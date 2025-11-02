@@ -61,6 +61,15 @@ struct FSaveGameSummary
  * 5. Extend RegisterWorldPickup/TrackedPickups when introducing new persistent actors (structures, quest items, etc.).
  */
 UCLASS()
+UENUM(BlueprintType)
+enum class EMO56InventoryOwner : uint8
+{
+        Character,
+        Container,
+        World,
+        Unknown
+};
+
 class MO56_API UMO56SaveSubsystem : public UGameInstanceSubsystem
 {
         GENERATED_BODY()
@@ -96,13 +105,13 @@ public:
         void SetActiveSaveSlot(const FString& SlotName, int32 UserIndex);
 
         /** Registers an inventory component so its state is serialized. */
-        void RegisterInventoryComponent(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& OwningPlayerId = FGuid());
+        void RegisterInventoryComponent(UInventoryComponent* InventoryComponent, EMO56InventoryOwner OwnerType, const FGuid& OwningId = FGuid());
 
         /** Stops tracking the specified inventory component. */
         void UnregisterInventoryComponent(UInventoryComponent* InventoryComponent);
 
         /** Registers a skill component for save serialization. */
-        void RegisterSkillComponent(USkillSystemComponent* SkillComponent, const FGuid& OwningPlayerId = FGuid());
+        void RegisterSkillComponent(USkillSystemComponent* SkillComponent, const FGuid& OwningCharacterId = FGuid());
 
         /** Stops tracking the specified skill component. */
         void UnregisterSkillComponent(USkillSystemComponent* SkillComponent);
@@ -116,7 +125,13 @@ public:
         /** Notifies the subsystem that a controller is ready and should be associated with save data. */
         void NotifyPlayerControllerReady(AMO56PlayerController* Controller);
 
-        /** Associates a possessed character with its owning player for persistence. */
+        /** Registers a character pawn for persistence. */
+        void RegisterCharacter(AMO56Character* Character);
+
+        /** Removes a character pawn from persistence tracking. */
+        void UnregisterCharacter(AMO56Character* Character);
+
+        /** Associates a possessed character with its owning player for profile tracking. */
         void RegisterPlayerCharacter(AMO56Character* Character, AMO56PlayerController* Controller);
 
         /** Called when a skill component changes to refresh the active save. */
@@ -144,31 +159,31 @@ private:
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
 
         UPROPERTY()
-        TMap<FGuid, FGuid> PlayerInventoryIds;
-
-        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<AItemPickup>> TrackedPickups;
 
         UPROPERTY()
         TMap<FGuid, FName> PickupToLevelMap;
 
         UPROPERTY()
-        TMap<UInventoryComponent*, FGuid> InventoryToPlayerId;
+        TMap<UInventoryComponent*, EMO56InventoryOwner> InventoryOwnerTypes;
 
         UPROPERTY()
-        TMap<USkillSystemComponent*, FGuid> SkillComponentToPlayerId;
+        TMap<UInventoryComponent*, FGuid> InventoryOwnerIds;
 
         UPROPERTY()
-        TMap<FGuid, TWeakObjectPtr<USkillSystemComponent>> PlayerToSkillComponent;
+        TMap<USkillSystemComponent*, FGuid> SkillComponentToCharacterId;
 
         UPROPERTY()
-        TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> PlayerToInventoryComponent;
+        TMap<FGuid, TWeakObjectPtr<USkillSystemComponent>> CharacterToSkillComponent;
+
+        UPROPERTY()
+        TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> CharacterToInventoryComponent;
 
         UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<AMO56PlayerController>> PlayerControllers;
 
         UPROPERTY()
-        TMap<FGuid, TWeakObjectPtr<AMO56Character>> PlayerCharacters;
+        TMap<FGuid, TWeakObjectPtr<AMO56Character>> RegisteredCharacters;
 
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
         FDelegateHandle PostWorldInitHandle;
@@ -213,12 +228,11 @@ private:
         UFUNCTION()
         void HandleInventoryComponentUpdated();
 
-        void HandleSkillComponentRegistered(USkillSystemComponent* SkillComponent, const FGuid& PlayerId);
-        void HandleInventoryRegistered(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& PlayerId);
+        void HandleSkillComponentRegistered(USkillSystemComponent* SkillComponent, const FGuid& CharacterId);
+        void HandleInventoryRegistered(UInventoryComponent* InventoryComponent, EMO56InventoryOwner OwnerType, const FGuid& OwnerId);
         void SyncPlayerSaveData(const FGuid& PlayerId);
-        void ApplyPlayerStateFromSave(const FGuid& PlayerId);
+        void ApplyCharacterStateFromSave(const FGuid& CharacterId);
+        void RefreshCharacterSaveData(const FGuid& CharacterId);
         void HandleAutosaveTimerElapsed();
-        void UpdatePlayerInventoryMapping(const FGuid& PlayerId, const FGuid& InventoryId);
-        bool IsPlayerInventoryId(const FGuid& InventoryId) const;
 };
 

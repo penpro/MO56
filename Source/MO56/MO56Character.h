@@ -93,6 +93,10 @@ public:
         /** Constructor */
         AMO56Character();
 
+        /** Persistent identifier for this character pawn. */
+        UPROPERTY(EditAnywhere, BlueprintReadOnly, Replicated, Category = "Save")
+        FGuid CharacterId;
+
 protected:
 
         /** Called when the game starts or when spawned */
@@ -168,6 +172,9 @@ public:
 
         UFUNCTION(BlueprintPure, Category = "Crafting")
         UCraftingSystemComponent* GetCraftingSystemComponent() const { return CraftingSystem; }
+
+        UFUNCTION(BlueprintPure, Category = "Save")
+        FGuid GetCharacterId() const { return CharacterId; }
 
 public:
 

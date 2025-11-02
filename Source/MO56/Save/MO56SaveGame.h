@@ -65,6 +65,31 @@ struct FLevelWorldState
 };
 
 /**
+ * Save data for a single persistent character.
+ */
+USTRUCT(BlueprintType)
+struct FCharacterSaveData
+{
+        GENERATED_BODY()
+
+        /** Persistent identifier generated for the character pawn. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+        FGuid CharacterId;
+
+        /** Persistent identifier of the character's inventory component. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+        FGuid InventoryId;
+
+        /** Last known world transform for the pawn at save time. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+        FTransform Transform = FTransform::Identity;
+
+        /** Serialized skill system state for the character. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+        FSkillSystemSaveData SkillState;
+};
+
+/**
  * Save data for a single connected player.
  */
 USTRUCT(BlueprintType)
@@ -76,10 +101,6 @@ struct FPlayerSaveData
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FGuid PlayerId;
 
-        /** Persistent identifier of the player's inventory component. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
-        FGuid InventoryId;
-
         /** Numeric controller id recorded at save time for matching reconnects. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         int32 ControllerId = INDEX_NONE;
@@ -88,11 +109,11 @@ struct FPlayerSaveData
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FString PlayerName;
 
-        /** Last known world transform for the possessed pawn. */
+        /** Legacy transform retained for migration purposes. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FTransform Transform = FTransform::Identity;
 
-        /** Serialized skill system state. */
+        /** Legacy skill state retained for migration purposes. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FSkillSystemSaveData SkillState;
 };
@@ -137,16 +158,16 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FName, FLevelWorldState> LevelStates;
 
-        /** Mapping from persistent player identifier to their inventory id. */
+        /** Persistent character state keyed by character identifier. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        TMap<FGuid, FGuid> PlayerInventoryIds;
+        TMap<FGuid, FCharacterSaveData> CharacterStates;
 
-        /** World transforms recorded for each player inventory. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        TMap<FGuid, FTransform> PlayerTransforms;
-
-        /** Per-player save state including controller information and skills. */
+        /** Per-player save state used for profile/controller data. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FGuid, FPlayerSaveData> PlayerStates;
+
+        /** Legacy mapping retained for migration of older saves. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        TMap<FGuid, FGuid> PlayerInventoryIds;
 };
 
