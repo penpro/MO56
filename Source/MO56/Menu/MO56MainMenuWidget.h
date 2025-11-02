@@ -11,7 +11,7 @@ class UTextBlock;
 class UVerticalBox;
 class UMO56SaveSubsystem;
 
-UCLASS()
+UCLASS(BlueprintType, Blueprintable)
 class MO56_API UMO56MainMenuWidget : public UUserWidget
 {
         GENERATED_BODY()
@@ -38,11 +38,11 @@ protected:
         void HandleLoadClicked();
         virtual void NativeDestruct() override;
 
-        TWeakObjectPtr<UButton> NewGameButtonWidget;
+        UPROPERTY(meta=(BindWidget)) UButton* NewGameButton = nullptr;
 
-        TWeakObjectPtr<UButton> LoadGameButtonWidget;
+        UPROPERTY(meta=(BindWidget)) UButton* LoadGameButton = nullptr;
 
-        TWeakObjectPtr<UScrollBox> SaveListWidget;
+        UPROPERTY(meta=(BindWidget)) UScrollBox* SaveList = nullptr;
 
         TMap<TWeakObjectPtr<UButton>, FGuid> SaveButtonIds;
         TWeakObjectPtr<UButton> PendingSaveButton;

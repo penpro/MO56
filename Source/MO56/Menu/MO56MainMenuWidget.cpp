@@ -11,41 +11,43 @@
 UMO56MainMenuWidget::UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
-        SetIsFocusable(true); // allow focusing the root
+        bIsFocusable = true; // allow focusing the root
 }
 
 void UMO56MainMenuWidget::NativeConstruct()
 {
         Super::NativeConstruct();
 
-        NewGameButtonWidget = Cast<UButton>(GetWidgetFromName(TEXT("NewGameButton")));
-        if (UButton* const NewGameButton = NewGameButtonWidget.Get())
+        if (NewGameButton)
         {
-                NewGameButtonWidget->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
+                NewGameButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleNewGameClicked);
+                NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
         }
         else
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing NewGameButton binding"), *GetName());
         }
 
-        LoadGameButtonWidget = Cast<UButton>(GetWidgetFromName(TEXT("LoadGameButton")));
-        if (UButton* const LoadGameButton = LoadGameButtonWidget.Get())
+        if (LoadGameButton)
         {
-                LoadGameButtonWidget->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
+                LoadGameButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleLoadClicked);
+                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
         }
         else
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing LoadGameButton binding"), *GetName());
         }
 
-        SaveListWidget = Cast<UScrollBox>(GetWidgetFromName(TEXT("SaveList")));
+        if (!SaveList)
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
+        }
 
         RefreshSaveEntries();
 }
 
 void UMO56MainMenuWidget::RefreshSaveEntries()
 {
-        UScrollBox* const SaveList = SaveListWidget.Get();
         if (!SaveList)
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
@@ -53,7 +55,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                 return;
         }
 
-        SaveListWidget->ClearChildren();
+        SaveList->ClearChildren();
         SaveButtonIds.Empty();
         PendingSaveButton.Reset();
 
@@ -81,7 +83,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                                 EntryButton->AddChild(EntryLabel);
                         }
 
-                        SaveListWidget->AddChild(EntryButton);
+                        SaveList->AddChild(EntryButton);
 
                         const FGuid SaveId = Entry.SaveId;
                         EntryButton->OnPressed.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonPressed);
@@ -192,10 +194,14 @@ void UMO56MainMenuWidget::HandleLoadClicked()
 
 void UMO56MainMenuWidget::NativeDestruct()
 {
-        if (UButton* const NewGameButton = NewGameButtonWidget.Get())
+        if (NewGameButton)
+        {
                 NewGameButton->OnClicked.RemoveAll(this);
-        if (UButton* const LoadGameButton = LoadGameButtonWidget.Get())
+        }
+        if (LoadGameButton)
+        {
                 LoadGameButton->OnClicked.RemoveAll(this);
+        }
 
         Super::NativeDestruct();
 }
