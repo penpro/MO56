@@ -137,9 +137,9 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         TMap<FName, FLevelWorldState> LevelStates;
 
-        /** Inventories belonging to player pawns at the time of save. */
+        /** Mapping from persistent player identifier to their inventory id. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        TSet<FGuid> PlayerInventoryIds;
+        TMap<FGuid, FGuid> PlayerInventoryIds;
 
         /** World transforms recorded for each player inventory. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
