@@ -45,6 +45,9 @@ UPROPERTY(meta=(BindWidget)) UScrollBox* SaveList = nullptr;
 UPROPERTY(EditDefaultsOnly, Category="Menu")
 TSubclassOf<UMO56SaveListItemWidget> SaveItemWidgetClass;
 
+UPROPERTY(EditAnywhere, Category="Menu")
+FName StartingMapName = TEXT("TestLevel");
+
 mutable TWeakObjectPtr<UMO56SaveSubsystem> CachedSubsystem;
 };
 

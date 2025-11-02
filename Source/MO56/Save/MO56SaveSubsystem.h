@@ -17,6 +17,7 @@ class UInventoryComponent;
 class USkillSystemComponent;
 class AMO56PlayerController;
 class AMO56Character;
+class UWorld;
 
 USTRUCT(BlueprintType)
 struct FSaveGameSummary
@@ -233,10 +234,19 @@ private:
         FTimerHandle AutosaveTimerHandle;
         float AutosaveDelaySeconds = 0.2f;
 
+        /** Map names that allow gameplay autosaves. */
+        UPROPERTY(EditAnywhere, Category = "Save|Maps")
+        TSet<FName> GameplayMapNames;
+
+        /** Prefixes that indicate non-gameplay or menu maps. */
+        UPROPERTY(EditAnywhere, Category = "Save|Maps")
+        TArray<FString> NonGameplayMapPrefixes;
+
 private:
         void HandlePostWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
         void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
         void HandleActorSpawned(AActor* Actor);
+        void HandlePostLoadMapWithWorld(UWorld* World);
 
 
         UFUNCTION()
@@ -284,5 +294,8 @@ private:
         UMO56SaveGame* ReadSave(const FGuid& SaveId, bool bUpdateMetadata = true);
         void UpdateOrRebuildSaveIndex(bool bForceRebuild = false);
         void CacheSaveMetadata(UMO56SaveGame& SaveGame);
+        bool IsMenuOrNonGameplayMap(const UWorld* World) const;
+        bool CanAutosaveInWorld(const UWorld& World) const;
+        bool IsGameplayMapName(const FName& MapName) const;
 };
 
