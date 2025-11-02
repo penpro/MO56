@@ -195,7 +195,7 @@ bool ABuildSiteActor::PullMaterialFromInventory(UInventoryComponent& Inventory, 
                 return false;
         }
 
-        UAssetManager* AssetManager = UAssetManager::GetIfValid();
+        UAssetManager* AssetManager = UAssetManager::GetIfInitialized();
         if (!AssetManager)
         {
                 return false;
