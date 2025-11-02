@@ -7,8 +7,7 @@
 
 class UButton;
 class UScrollBox;
-class UTextBlock;
-class UVerticalBox;
+class UMO56SaveListItemWidget;
 class UMO56SaveSubsystem;
 
 UCLASS(BlueprintType, Blueprintable)
@@ -17,36 +16,35 @@ class MO56_API UMO56MainMenuWidget : public UUserWidget
         GENERATED_BODY()
 
 public:
-        UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer);
-        virtual void NativeConstruct() override;
+UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer);
+virtual void NativeConstruct() override;
 
 protected:
-        void RefreshSaveEntries();
-        UFUNCTION()
-        void HandleSaveEntryButtonPressed();
-        UFUNCTION()
-        void HandleSaveEntryButtonClicked();
-        void HandleSaveEntryClicked(const FGuid& SaveId) const;
-        UMO56SaveSubsystem* ResolveSubsystem() const;
-        static FText FormatEntryText(const FSaveIndexEntry& Entry);
-        static FText FormatDateTime(const FDateTime& DateTime);
+void RefreshSaveEntries();
+void HandleSaveEntryClicked(const FGuid& SaveId) const;
+UMO56SaveSubsystem* ResolveSubsystem() const;
+static FText FormatEntryText(const FSaveIndexEntry& Entry);
+static FText FormatDateTime(const FDateTime& DateTime);
 
-        UFUNCTION()
-        void HandleNewGameClicked();
+UFUNCTION()
+void HandleNewGameClicked();
 
-        UFUNCTION()
-        void HandleLoadClicked();
-        virtual void NativeDestruct() override;
+UFUNCTION()
+void HandleLoadClicked();
 
-        UPROPERTY(meta=(BindWidget)) UButton* NewGameButton = nullptr;
+UFUNCTION()
+void HandleSaveChosen(FGuid SaveId);
+virtual void NativeDestruct() override;
 
-        UPROPERTY(meta=(BindWidget)) UButton* LoadGameButton = nullptr;
+UPROPERTY(meta=(BindWidget)) UButton* NewGameButton = nullptr;
 
-        UPROPERTY(meta=(BindWidget)) UScrollBox* SaveList = nullptr;
+UPROPERTY(meta=(BindWidget)) UButton* LoadGameButton = nullptr;
 
-        TMap<TWeakObjectPtr<UButton>, FGuid> SaveButtonIds;
-        TWeakObjectPtr<UButton> PendingSaveButton;
+UPROPERTY(meta=(BindWidget)) UScrollBox* SaveList = nullptr;
 
-        mutable TWeakObjectPtr<UMO56SaveSubsystem> CachedSubsystem;
+UPROPERTY(EditDefaultsOnly, Category="Menu")
+TSubclassOf<UMO56SaveListItemWidget> SaveItemWidgetClass;
+
+mutable TWeakObjectPtr<UMO56SaveSubsystem> CachedSubsystem;
 };
 
