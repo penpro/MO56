@@ -5,6 +5,7 @@
 #include "Engine/GameInstance.h"
 #include "Internationalization/Text.h"
 #include "Menu/MO56SaveListItemWidget.h"
+#include "Save/MO56MenuSettingsSave.h"
 #include "Save/MO56SaveSubsystem.h"
 
 UMO56MainMenuWidget::UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer)
@@ -68,6 +69,11 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                 for (const FSaveIndexEntry& Entry : Entries)
                 {
                         if (!Entry.SaveId.IsValid())
+                        {
+                                continue;
+                        }
+
+                        if (Entry.SlotName.Equals(UMO56MenuSettingsSave::StaticSlotName))
                         {
                                 continue;
                         }
@@ -140,9 +146,15 @@ FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime)
 
 void UMO56MainMenuWidget::HandleNewGameClicked()
 {
+        if (StartingMapName.IsNone())
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s has no StartingMapName configured."), *GetName());
+                return;
+        }
+
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
-                SaveSubsystem->StartNewGame(TEXT("TestLevel"));
+                SaveSubsystem->StartNewGame(StartingMapName.ToString());
         }
 }
 
