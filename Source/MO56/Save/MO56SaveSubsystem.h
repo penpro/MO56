@@ -237,7 +237,7 @@ private:
         void HandlePostWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
         void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
         void HandleActorSpawned(AActor* Actor);
-        void HandlePostLoadMapWithWorld(UWorld* World);
+
 
         UFUNCTION()
         void HandlePickupSettled(AItemPickup* Pickup);
