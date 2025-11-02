@@ -16,10 +16,10 @@ public:
 
         virtual void BeginPlay() override;
 
-protected:
-        UPROPERTY(EditAnywhere, Category = "Menu")
+        UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Menu")
         TSubclassOf<UMO56MainMenuWidget> MainMenuWidgetClass;
 
+protected:
         UPROPERTY()
         TObjectPtr<UMO56MainMenuWidget> MainMenuWidgetInstance;
 };
