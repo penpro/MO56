@@ -26,28 +26,23 @@ protected:
         void HandleSaveEntryButtonPressed();
         UFUNCTION()
         void HandleSaveEntryButtonClicked();
-        void HandleSaveEntryClicked(const FGuid& SaveId);
+        void HandleSaveEntryClicked(const FGuid& SaveId) const;
         UMO56SaveSubsystem* ResolveSubsystem() const;
-        FText FormatEntryText(const FSaveIndexEntry& Entry) const;
-        FText FormatDateTime(const FDateTime& DateTime) const;
+        static FText FormatEntryText(const FSaveIndexEntry& Entry);
+        static FText FormatDateTime(const FDateTime& DateTime);
+        virtual void OnWidgetRebuilt() override; // called after RebuildWidget
 
         UFUNCTION()
-        void HandleNewGameClicked();
+        void HandleNewGameClicked() const;
 
         UFUNCTION()
         void HandleLoadClicked();
+        virtual void NativeDestruct() override;
 
-        UPROPERTY()
-        TObjectPtr<UVerticalBox> RootBox = nullptr;
-
-        UPROPERTY()
-        TObjectPtr<UButton> NewGameButton = nullptr;
-
-        UPROPERTY()
-        TObjectPtr<UButton> LoadGameButton = nullptr;
-
-        UPROPERTY()
-        TObjectPtr<UScrollBox> SaveList = nullptr;
+        UPROPERTY() UVerticalBox* RootBox = nullptr;
+        UPROPERTY() UButton*      NewGameButton = nullptr;
+        UPROPERTY() UButton*      LoadGameButton = nullptr;
+        UPROPERTY() UScrollBox*   SaveList = nullptr;
 
         TMap<TWeakObjectPtr<UButton>, FGuid> SaveButtonIds;
         TWeakObjectPtr<UButton> PendingSaveButton;

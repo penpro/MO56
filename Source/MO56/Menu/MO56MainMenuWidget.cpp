@@ -14,6 +14,10 @@ void UMO56MainMenuWidget::NativeConstruct()
 {
         Super::NativeConstruct();
 
+        {
+                bIsFocusable = true; // allow focusing the root
+        }
+
         if (!WidgetTree->RootWidget)
         {
                 BuildMenuLayout();
@@ -21,7 +25,8 @@ void UMO56MainMenuWidget::NativeConstruct()
 
         if (NewGameButton)
         {
-                NewGameButton->OnClicked.AddDynamic(this, &UMO56MainMenuWidget::HandleNewGameClicked);
+                NewGameButton->OnClicked.AddDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
+                                                            &UMO56MainMenuWidget::HandleNewGameClicked));
         }
 
         if (LoadGameButton)
@@ -186,7 +191,7 @@ void UMO56MainMenuWidget::HandleSaveEntryButtonClicked()
         }
 }
 
-void UMO56MainMenuWidget::HandleSaveEntryClicked(const FGuid& SaveId)
+void UMO56MainMenuWidget::HandleSaveEntryClicked(const FGuid& SaveId) const
 {
         if (!SaveId.IsValid())
         {
@@ -215,7 +220,7 @@ UMO56SaveSubsystem* UMO56MainMenuWidget::ResolveSubsystem() const
         return nullptr;
 }
 
-FText UMO56MainMenuWidget::FormatEntryText(const FSaveIndexEntry& Entry) const
+FText UMO56MainMenuWidget::FormatEntryText(const FSaveIndexEntry& Entry)
 {
         const FText LevelText = Entry.LevelName.IsEmpty() ? NSLOCTEXT("MO56MainMenu", "UnknownLevel", "Unknown Level") : FText::FromString(Entry.LevelName);
         const FText UpdatedText = FormatDateTime(Entry.UpdatedUtc);
@@ -225,7 +230,7 @@ FText UMO56MainMenuWidget::FormatEntryText(const FSaveIndexEntry& Entry) const
         return FText::Format(NSLOCTEXT("MO56MainMenu", "SaveEntryFormat", "{0}\nLevel: {1}\nUpdated: {2}\nPlaytime: {3}"), IdText, LevelText, UpdatedText, PlayTimeText);
 }
 
-FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime) const
+FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime)
 {
         if (DateTime.GetTicks() == 0)
         {
@@ -235,7 +240,35 @@ FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime) const
         return FText::AsDateTime(DateTime);
 }
 
-void UMO56MainMenuWidget::HandleNewGameClicked()
+void UMO56MainMenuWidget::OnWidgetRebuilt()
+{
+        Super::OnWidgetRebuilt();
+
+        // If you build the menu tree here, do it first:
+        if (WidgetTree && !WidgetTree->RootWidget)
+        {
+                BuildMenuLayout();
+        }
+
+        // Avoid duplicate binds
+        if (NewGameButton)
+        {
+                NewGameButton->OnClicked.RemoveDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
+                                                               &ThisClass::HandleNewGameClicked));
+                NewGameButton->OnClicked.AddDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
+                                                            &ThisClass::HandleNewGameClicked));
+        }
+
+        if (LoadGameButton)
+        {
+                LoadGameButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleLoadClicked);
+                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
+        }
+
+        RefreshSaveEntries();
+}
+
+void UMO56MainMenuWidget::HandleNewGameClicked() const
 {
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
@@ -248,3 +281,12 @@ void UMO56MainMenuWidget::HandleLoadClicked()
         RefreshSaveEntries();
 }
 
+void UMO56MainMenuWidget::NativeDestruct()
+{
+        if (NewGameButton)
+                NewGameButton->OnClicked.RemoveAll(this);
+        if (LoadGameButton)
+                LoadGameButton->OnClicked.RemoveAll(this);
+
+        Super::NativeDestruct();
+}

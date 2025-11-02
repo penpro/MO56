@@ -15,19 +15,25 @@ void AMO56MenuPlayerController::BeginPlay()
 {
         Super::BeginPlay();
 
-        FInputModeUIOnly InputMode;
-        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-        SetInputMode(InputMode);
-        SetShowMouseCursor(true);
-
         if (!MainMenuWidgetInstance && MainMenuWidgetClass)
         {
                 MainMenuWidgetInstance = CreateWidget<UMO56MainMenuWidget>(this, MainMenuWidgetClass);
-        }
+                if (MainMenuWidgetInstance)
+                {
+                        // If you added EnsureBuilt(), call it before AddToViewport for pure C++ layout
+                        // MainMenuWidgetInstance->EnsureBuilt();
 
-        if (MainMenuWidgetInstance)
-        {
-                MainMenuWidgetInstance->AddToViewport();
+                        MainMenuWidgetInstance->AddToViewport();
+
+                        FInputModeUIOnly InputMode;
+                        InputMode.SetWidgetToFocus(MainMenuWidgetInstance->TakeWidget());
+                        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+                        SetInputMode(InputMode);
+
+                        bShowMouseCursor = true;
+
+                        
+                }
         }
 }
 
