@@ -17,6 +17,7 @@ class MO56_API UMO56MainMenuWidget : public UUserWidget
         GENERATED_BODY()
 
 public:
+        UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer);
         virtual void NativeConstruct() override;
 
 protected:
@@ -33,7 +34,7 @@ protected:
         virtual void OnWidgetRebuilt() override; // called after RebuildWidget
 
         UFUNCTION()
-        void HandleNewGameClicked() const;
+        void HandleNewGameClicked();
 
         UFUNCTION()
         void HandleLoadClicked();

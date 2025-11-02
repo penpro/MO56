@@ -10,13 +10,15 @@
 #include "Internationalization/Text.h"
 #include "Save/MO56SaveSubsystem.h"
 
+UMO56MainMenuWidget::UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer)
+        : Super(ObjectInitializer)
+{
+        SetIsFocusable(true); // allow focusing the root
+}
+
 void UMO56MainMenuWidget::NativeConstruct()
 {
         Super::NativeConstruct();
-
-        {
-                bIsFocusable = true; // allow focusing the root
-        }
 
         if (!WidgetTree->RootWidget)
         {
@@ -25,13 +27,12 @@ void UMO56MainMenuWidget::NativeConstruct()
 
         if (NewGameButton)
         {
-                NewGameButton->OnClicked.AddDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
-                                                            &UMO56MainMenuWidget::HandleNewGameClicked));
+                NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
         }
 
         if (LoadGameButton)
         {
-                LoadGameButton->OnClicked.AddDynamic(this, &UMO56MainMenuWidget::HandleLoadClicked);
+                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
         }
 
         RefreshSaveEntries();
@@ -253,10 +254,8 @@ void UMO56MainMenuWidget::OnWidgetRebuilt()
         // Avoid duplicate binds
         if (NewGameButton)
         {
-                NewGameButton->OnClicked.RemoveDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
-                                                               &ThisClass::HandleNewGameClicked));
-                NewGameButton->OnClicked.AddDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
-                                                            &ThisClass::HandleNewGameClicked));
+                NewGameButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleNewGameClicked);
+                NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
         }
 
         if (LoadGameButton)
@@ -268,7 +267,7 @@ void UMO56MainMenuWidget::OnWidgetRebuilt()
         RefreshSaveEntries();
 }
 
-void UMO56MainMenuWidget::HandleNewGameClicked() const
+void UMO56MainMenuWidget::HandleNewGameClicked()
 {
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
