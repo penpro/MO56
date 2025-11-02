@@ -17,6 +17,13 @@ class UTexture2D;
 
 /**
  * Widget presenting knowledge and skill progression summaries.
+ *
+ * Editor Implementation Guide:
+ * 1. Build a UUserWidget Blueprint derived from UCharacterSkillMenu and lay out two scroll panels for knowledge and skills.
+ * 2. Bind KnowledgeList, SkillList, and SkillInfo widgets using the BindWidget meta tag to reference your named slots.
+ * 3. In your HUD Blueprint, call InitWithSkills using the owning character's SkillSystem component after player possession.
+ * 4. Customize SkillEntryWidgetClass with a Blueprint derived from USkillListEntryWidget to render each list row.
+ * 5. Hook menu open/close input (e.g., ToggleSkillMenu) to SetSkillMenuVisibility for in-game access.
  */
 UCLASS()
 class MO56_API UCharacterSkillMenu : public UUserWidget

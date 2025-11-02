@@ -74,6 +74,16 @@ struct FCharacterStatusBarsSnapshot
         float BloodGlucose;
 };
 
+/**
+ * Component that simulates player vitals for HUD widgets and gameplay systems.
+ *
+ * Editor Implementation Guide:
+ * 1. Add the component to your character Blueprint so its tick runs on both server and client instances.
+ * 2. Use the defaults panel to tune initial vitals (Status|Energy/O2/Hydration/etc.) for the desired survival fantasy.
+ * 3. Bind OnVitalsUpdated or read the BlueprintReadOnly fields in your CharacterStatusWidget to render status bars.
+ * 4. Drive the BlueprintReadWrite inputs (Speed, AmbientTemp, LoadKg) from animation blueprints or environment managers.
+ * 5. Call ConsumeFood/DrinkWater/ApplyInjury from gameplay events and persist values through your save subsystem.
+ */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class MO56_API UCharacterStatusComponent : public UActorComponent
 {

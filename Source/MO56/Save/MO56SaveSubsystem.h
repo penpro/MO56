@@ -51,6 +51,13 @@ struct FSaveGameSummary
 
 /**
  * Centralized save-game subsystem that persists inventory and world pickup data.
+ *
+ * Editor Implementation Guide:
+ * 1. Add UMO56SaveSubsystem to your GameInstance (Project Settings > Maps & Modes > Game Instance) so it initializes on launch.
+ * 2. Expose Blueprint functions that call SaveGame/LoadGame/SetActiveSaveSlot for menus created in UMG.
+ * 3. Ensure playable pawns call RegisterInventoryComponent/RegisterSkillComponent in BeginPlay for persistence.
+ * 4. Hook NotifyPlayerControllerReady/RegisterPlayerCharacter from PlayerController/Character Blueprints after possession.
+ * 5. Extend RegisterWorldPickup/TrackedPickups when introducing new persistent actors (structures, quest items, etc.).
  */
 UCLASS()
 class MO56_API UMO56SaveSubsystem : public UGameInstanceSubsystem

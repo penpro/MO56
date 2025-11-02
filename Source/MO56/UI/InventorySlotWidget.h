@@ -17,6 +17,13 @@ class USkillSystemComponent;
 
 /**
  * Simple widget representing a single inventory slot.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a UUserWidget Blueprint inheriting from UInventorySlotWidget and design the slot layout (icon, quantity badge).
+ * 2. Bind ItemIcon, QuantityText, and QuantityBadge via the BindWidget meta tags to your custom child widgets.
+ * 3. In the owning inventory panel Blueprint, call InitializeSlot to connect the widget to a specific inventory/slot index.
+ * 4. Expose context actions (split, drop, destroy, inspect) through radial menus or buttons wired to Handle* helpers.
+ * 5. Register the widget for inventory updates via IInventoryUpdateInterface so SetItemStack is triggered on refresh.
  */
 UCLASS()
 class MO56_API UInventorySlotWidget : public UUserWidget

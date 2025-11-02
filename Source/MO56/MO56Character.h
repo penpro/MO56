@@ -36,6 +36,13 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 /**
  *  A simple player-controllable third person character
  *  Implements a controllable orbiting camera
+ *
+ *  Editor Implementation Guide:
+ *  1. Create a Blueprint subclass (e.g. BP_PlayerCharacter) and assign it as the default pawn in your GameMode.
+ *  2. Configure CameraBoom/FollowCamera offsets, FOV, and collision probing to match the desired third-person view.
+ *  3. Populate the Input|Actions properties with Enhanced Input assets, then add the mapping context in BeginPlay.
+ *  4. Set HUDWidgetClass, InventoryWidgetClass, CharacterStatusWidgetClass, and Skill menu classes to hook UI prefabs.
+ *  5. Wire Blueprint events (OnInventoryUpdated, OnToggleInventory, etc.) to show/hide widgets and coordinate containers.
  */
 UCLASS(abstract)
 class AMO56Character : public ACharacter

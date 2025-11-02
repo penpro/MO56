@@ -99,6 +99,13 @@ struct FPlayerSaveData
 
 /**
  * Save game asset for the MO56 project.
+ *
+ * Editor Implementation Guide:
+ * 1. You do not instantiate UMO56SaveGame directly in the editor; instead expose slots via UMO56SaveSubsystem Blueprint nodes.
+ * 2. When extending save data, add UPROPERTY fields here and update subsystem serialization helpers accordingly.
+ * 3. Use BlueprintCallable accessors in the save subsystem to read/write InventoryStates and PlayerStates for UI menus.
+ * 4. To inspect save contents during development, create a SaveGame Blueprint of this class and load it in PIE for debugging.
+ * 5. Maintain versioning by adding new fields with sensible defaults so legacy saves remain compatible.
  */
 UCLASS()
 class MO56_API UMO56SaveGame : public USaveGame

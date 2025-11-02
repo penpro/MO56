@@ -16,6 +16,13 @@ class APawn;
 
 /**
  * Context menu used when right-clicking inspectable world actors.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a UUserWidget Blueprint subclass and add a vertical box or radial layout to host dynamic action buttons.
+ * 2. Bind Slate widget references (if using UMG wrappers) to expose RebuildWidget-generated content in Blueprint for styling.
+ * 3. When the character opens the menu, call InitializeMenu from Blueprint to populate entries based on inspection data.
+ * 4. Subscribe to OnMenuDismissed to close any associated overlays or to resume player input.
+ * 5. Implement DismissMenu in Blueprint to animate out the menu before removing it from the viewport.
  */
 UCLASS()
 class MO56_API UWorldActorContextMenuWidget : public UUserWidget

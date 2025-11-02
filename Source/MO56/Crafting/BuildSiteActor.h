@@ -37,6 +37,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBuildSiteCompleted, UCraftingReci
 
 /**
  * Replicated build site actor spawned when a player places a buildable recipe in the world.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint subclass (e.g. BP_BuildSiteActor) so designers can author per-recipe visuals.
+ * 2. Set the BlueprintMesh component to the hologram mesh that should appear while construction is in progress.
+ * 3. Tune the InteractionSphere radius/collision to match the distance players can contribute materials from.
+ * 4. For each buildable recipe asset, set BuildableActorClass and BuildMaterialRequirements so InitializeFromRecipe has data.
+ * 5. Expose OnBuildProgress / OnBuildCompleted in the Blueprint graph to trigger VFX, SFX, or UI notifications.
  */
 UCLASS()
 class MO56_API ABuildSiteActor : public AActor

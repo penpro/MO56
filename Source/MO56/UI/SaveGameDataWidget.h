@@ -11,6 +11,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSaveEntryLoadRequested, const FSa
 
 /**
  * Widget responsible for presenting a single save slot summary.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint derived from USaveGameDataWidget and design labels for slot name, timestamps, and playtime.
+ * 2. Bind the optional text blocks and LoadButton via the BindWidget meta tag to connect C++ pointers.
+ * 3. In your save menu Blueprint, spawn one widget per summary returned from UMO56SaveSubsystem::GetAvailableSaveSummaries.
+ * 4. Bind OnLoadRequested in Blueprint to call into the subsystem's LoadGameBySlot or to prompt the player for confirmation.
+ * 5. Localize date/time formatting inside FormatDateTime or override in Blueprint for custom locale handling.
  */
 UCLASS()
 class MO56_API USaveGameDataWidget : public UUserWidget

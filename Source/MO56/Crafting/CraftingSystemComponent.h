@@ -54,7 +54,16 @@ struct FCraftingActionState
         }
 };
 
-/** Component that coordinates crafting attempts and communicates with inventory/skills. */
+/**
+ * Component that coordinates crafting attempts and communicates with inventory/skills.
+ *
+ * Editor Implementation Guide:
+ * 1. Add UCraftingSystemComponent to the character Blueprint (Defaults > Components) alongside Inventory/Skill components.
+ * 2. Populate InitialRecipes/InitialBuildRecipes arrays with CraftingRecipe assets the player should know at spawn.
+ * 3. Bind OnCraftStarted/Progress/Finished/Cancelled delegates in Blueprint to drive UI timers, audio, and reward flows.
+ * 4. Expose TryCraftRecipe/CancelCraft through input handlers or widgets so players can trigger crafting from menus.
+ * 5. When saving, call WriteToSaveData/ReadFromSaveData via the save subsystem to persist unlocked recipes and progress.
+ */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MO56_API UCraftingSystemComponent : public UActorComponent
 {

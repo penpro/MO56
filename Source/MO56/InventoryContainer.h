@@ -14,6 +14,13 @@ class AMO56Character;
 
 /**
  * Actor that exposes an inventory component and opens it when interacted with.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint subclass and add a visible mesh/root to represent the container in the level.
+ * 2. Set InventoryComponent->Slots/Capacity defaults so the container holds the desired number of items.
+ * 3. Customize InteractPrompt and bDestroyWhenEmpty in the Details panel to match the gameplay loop.
+ * 4. Hook the NotifyInventoryClosed event to close lid animations or re-enable physics when players leave.
+ * 5. Place the Blueprint in levels and ensure Interact_Implementation is reachable via your interact trace channel.
  */
 UCLASS()
 class MO56_API AInventoryContainer : public AActor, public IInteractable

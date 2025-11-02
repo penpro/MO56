@@ -20,6 +20,13 @@ DECLARE_MULTICAST_DELEGATE_FiveParams(FSkillEntryInfoRequestedNative, const FTex
 /**
  * Reusable entry widget for displaying skills or knowledge entries.
  * Bind SkillIcon/SkillName/SkillRank/SkillInfoButton in the designer to surface the data in UI blueprints.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint deriving from USkillListEntryWidget and bind the optional widgets to your designer controls.
+ * 2. Style the entry background states (hovered/selected) using the widget tree or Slate brushes.
+ * 3. Connect the info button's OnClicked event to a Blueprint handler that calls OnInfoRequested.Broadcast.
+ * 4. Place the Blueprint class into UCharacterSkillMenu::SkillEntryWidgetClass so entries spawn automatically.
+ * 5. Customize SetupFromSkill/SetupFromKnowledge overrides in Blueprint (if needed) to inject additional formatting.
  */
 UCLASS()
 class MO56_API USkillListEntryWidget : public UUserWidget

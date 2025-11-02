@@ -42,6 +42,13 @@ struct FInspectionDiscovery
 
 /**
  * Component that exposes inspection discoveries for world actors.
+ *
+ * Editor Implementation Guide:
+ * 1. Attach UInspectableComponent to Blueprint actors that players can study (plants, artifacts, workstations).
+ * 2. Populate the Discoveries array with entries pointing to knowledge/skill tags defined in your skill data tables.
+ * 3. Use Description to drive tooltip text in the context menu or inspection countdown overlay.
+ * 4. Call BuildInspectionParams from Blueprint when opening UWorldActorContextMenuWidget to seed interaction buttons.
+ * 5. For unique one-off discoveries, enable bOncePerActor so repeated inspections do not grant duplicate rewards.
  */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class MO56_API UInspectableComponent : public UActorComponent

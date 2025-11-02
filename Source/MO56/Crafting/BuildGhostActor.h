@@ -10,6 +10,13 @@ class UMaterialInterface;
 
 /**
  * Client-only placement hologram that previews buildable placement.
+ *
+ * Editor Implementation Guide:
+ * 1. Create a Blueprint derivative to author ghost materials unique to each build recipe.
+ * 2. Assign a translucent material instance with a scalar named by PlacementValidParameter (default bPlacementValid).
+ * 3. Expose SetGhostMesh/Material from build mode logic to swap meshes per recipe selection.
+ * 4. Call TestPlacementAtTransform from Blueprint before confirming placement to drive accept/deny messaging.
+ * 5. Optionally bind UpdateGhostMaterialState in Blueprint to drive glow, audio, or Niagara indicators when invalid.
  */
 UCLASS()
 class MO56_API ABuildGhostActor : public AActor
