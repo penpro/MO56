@@ -21,7 +21,7 @@ void UMO56MainMenuWidget::NativeConstruct()
         NewGameButtonWidget = Cast<UButton>(GetWidgetFromName(TEXT("NewGameButton")));
         if (UButton* const NewGameButton = NewGameButtonWidget.Get())
         {
-                NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
+                NewGameButtonWidget->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
         }
         else
         {
@@ -31,7 +31,7 @@ void UMO56MainMenuWidget::NativeConstruct()
         LoadGameButtonWidget = Cast<UButton>(GetWidgetFromName(TEXT("LoadGameButton")));
         if (UButton* const LoadGameButton = LoadGameButtonWidget.Get())
         {
-                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
+                LoadGameButtonWidget->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
         }
         else
         {
@@ -53,7 +53,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                 return;
         }
 
-        SaveList->ClearChildren();
+        SaveListWidget->ClearChildren();
         SaveButtonIds.Empty();
         PendingSaveButton.Reset();
 
@@ -81,7 +81,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                                 EntryButton->AddChild(EntryLabel);
                         }
 
-                        SaveList->AddChild(EntryButton);
+                        SaveListWidget->AddChild(EntryButton);
 
                         const FGuid SaveId = Entry.SaveId;
                         EntryButton->OnPressed.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonPressed);
