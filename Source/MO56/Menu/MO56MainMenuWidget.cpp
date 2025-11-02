@@ -18,18 +18,18 @@ void UMO56MainMenuWidget::NativeConstruct()
 {
         Super::NativeConstruct();
 
-        if (NewGameButton)
+        if (NewGameButtonWidget)
         {
-                NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
+                NewGameButtonWidget->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
         }
         else
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing NewGameButton binding"), *GetName());
         }
 
-        if (LoadGameButton)
+        if (LoadGameButtonWidget)
         {
-                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
+                LoadGameButtonWidget->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
         }
         else
         {
@@ -41,14 +41,14 @@ void UMO56MainMenuWidget::NativeConstruct()
 
 void UMO56MainMenuWidget::RefreshSaveEntries()
 {
-        if (!SaveList)
+        if (!SaveListWidget)
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
                 SaveButtonIds.Empty();
                 return;
         }
 
-        SaveList->ClearChildren();
+        SaveListWidget->ClearChildren();
         SaveButtonIds.Empty();
         PendingSaveButton.Reset();
 
@@ -76,7 +76,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                                 EntryButton->AddChild(EntryLabel);
                         }
 
-                        SaveList->AddChild(EntryButton);
+                        SaveListWidget->AddChild(EntryButton);
 
                         const FGuid SaveId = Entry.SaveId;
                         EntryButton->OnPressed.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonPressed);
@@ -187,10 +187,10 @@ void UMO56MainMenuWidget::HandleLoadClicked()
 
 void UMO56MainMenuWidget::NativeDestruct()
 {
-        if (NewGameButton)
-                NewGameButton->OnClicked.RemoveAll(this);
-        if (LoadGameButton)
-                LoadGameButton->OnClicked.RemoveAll(this);
+        if (NewGameButtonWidget)
+                NewGameButtonWidget->OnClicked.RemoveAll(this);
+        if (LoadGameButtonWidget)
+                LoadGameButtonWidget->OnClicked.RemoveAll(this);
 
         Super::NativeDestruct();
 }
