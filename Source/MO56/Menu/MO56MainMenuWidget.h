@@ -22,6 +22,10 @@ public:
 protected:
         void BuildMenuLayout();
         void RefreshSaveEntries();
+        UFUNCTION()
+        void HandleSaveEntryButtonPressed();
+        UFUNCTION()
+        void HandleSaveEntryButtonClicked();
         void HandleSaveEntryClicked(const FGuid& SaveId);
         UMO56SaveSubsystem* ResolveSubsystem() const;
         FText FormatEntryText(const FSaveIndexEntry& Entry) const;
@@ -45,6 +49,9 @@ protected:
         UPROPERTY()
         TObjectPtr<UScrollBox> SaveList = nullptr;
 
-        TWeakObjectPtr<UMO56SaveSubsystem> CachedSubsystem;
+        TMap<TWeakObjectPtr<UButton>, FGuid> SaveButtonIds;
+        TWeakObjectPtr<UButton> PendingSaveButton;
+
+        mutable TWeakObjectPtr<UMO56SaveSubsystem> CachedSubsystem;
 };
 
