@@ -28,16 +28,19 @@ void UCraftingSystemComponent::BeginPlay()
 {
         Super::BeginPlay();
 
-        if (HasAuthority())
+        if (AActor* Owner = GetOwner())
         {
-                for (UCraftingRecipe* Recipe : InitialRecipes)
+                if (Owner->HasAuthority())
                 {
-                        UnlockRecipe(Recipe);
-                }
+                        for (UCraftingRecipe* Recipe : InitialRecipes)
+                        {
+                                UnlockRecipe(Recipe);
+                        }
 
-                for (UCraftingRecipe* Recipe : InitialBuildRecipes)
-                {
-                        UnlockBuildRecipe(Recipe);
+                        for (UCraftingRecipe* Recipe : InitialBuildRecipes)
+                        {
+                                UnlockBuildRecipe(Recipe);
+                        }
                 }
         }
 }
@@ -431,7 +434,7 @@ UItemData* UCraftingSystemComponent::ResolveItemData(const FName& ItemId) const
                 return nullptr;
         }
 
-        if (UAssetManager* AssetManager = UAssetManager::GetIfValid())
+        if (UAssetManager* AssetManager = UAssetManager::GetIfInitialized())
         {
                 const FPrimaryAssetId AssetId(TEXT("Item"), ItemId);
                 const FSoftObjectPath AssetPath = AssetManager->GetPrimaryAssetPath(AssetId);

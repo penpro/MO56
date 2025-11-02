@@ -2,12 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Engine/EngineTypes.h"
 #include "BuildGhostActor.generated.h"
 
 class UStaticMeshComponent;
 class UMaterialInterface;
-struct FCollisionQueryParams;
-struct FCollisionShape;
 
 /**
  * Client-only placement hologram that previews buildable placement.
@@ -37,7 +36,12 @@ public:
 
         /** Performs a collision test against the provided transform. */
         UFUNCTION(BlueprintCallable, Category = "Build")
-        bool TestPlacementAtTransform(const FTransform& TargetTransform, const FCollisionQueryParams& Params, const FCollisionShape& Shape);
+        bool TestPlacementAtTransform(
+                const FTransform& TargetTransform,
+                ECollisionChannel TraceChannel,
+                FVector BoxHalfExtent,
+                float SphereRadius,
+                bool bUseBox);
 
 protected:
         virtual void OnConstruction(const FTransform& Transform) override;
