@@ -18,7 +18,7 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/Paths.h"
 #include "Templates/UnrealTemplate.h"
-#include "UObject/CoreUObjectDelegates.h"
+#include "UObject/CoreObjectDelegates.h"
 #include "MO56Character.h"
 #include "Skills/SkillSystemComponent.h"
 #include "HAL/FileManager.h"
