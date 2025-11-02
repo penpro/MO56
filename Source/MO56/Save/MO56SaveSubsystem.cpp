@@ -905,7 +905,7 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                                 CurrentSaveGame->PlayerTransforms.Remove(InventoryId);
                         }
 
-                        if (FGuid* PlayerIdPtr = PlayerInventoryIds.FindKey(InventoryId))
+                        if (const FGuid* PlayerIdPtr = PlayerInventoryIds.FindKey(InventoryId))
                         {
                                 PlayerInventoryIds.Remove(*PlayerIdPtr);
                         }
