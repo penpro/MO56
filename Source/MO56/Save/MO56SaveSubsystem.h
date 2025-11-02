@@ -65,7 +65,7 @@ struct FSaveGameSummary
  * 4. Hook NotifyPlayerControllerReady/RegisterPlayerCharacter from PlayerController/Character Blueprints after possession.
  * 5. Extend RegisterWorldPickup/TrackedPickups when introducing new persistent actors (structures, quest items, etc.).
  */
-UCLASS()
+
 UENUM(BlueprintType)
 enum class EMO56InventoryOwner : uint8
 {
@@ -75,6 +75,21 @@ enum class EMO56InventoryOwner : uint8
         Unknown
 };
 
+USTRUCT(BlueprintType)
+struct FSaveGameSummary
+{
+        GENERATED_BODY()
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FString SlotName;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") int32 UserIndex = 0;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FDateTime InitialSaveTimestamp;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FDateTime LastSaveTimestamp;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") float TotalPlayTimeSeconds = 0.f;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FName LastLevelName = NAME_None;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") int32 InventoryCount = 0;
+};
+
+UCLASS()
 class MO56_API UMO56SaveSubsystem : public UGameInstanceSubsystem
 {
         GENERATED_BODY()

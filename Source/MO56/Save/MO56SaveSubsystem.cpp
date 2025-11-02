@@ -4,6 +4,7 @@
 #include "Save/MO56SaveSubsystem.h"
 
 #include "Algo/RemoveIf.h"
+#include "MO56PlayerController.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -1832,8 +1833,10 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                         }
                 }
 
-                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplyToCharacter: CharId=%s InvId=%s SkillsApplied=%d"), *CharacterId.ToString(), CharacterData->InventoryId.IsValid() ? *CharacterData->InventoryId.ToString() : TEXT("None"), CharacterData->SkillState.KnownSkills.Num());
-        }
+                UE_LOG(LogMO56SaveSubsystem, Log,
+                    TEXT("ApplyToCharacter: CharId=%s InvId=%s"),
+                    *CharacterId.ToString(),
+                    CharacterData->InventoryId.IsValid() ? *CharacterData->InventoryId.ToString() : TEXT("None"));        }
 }
 
 void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
