@@ -13,12 +13,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/CookerOpenOrder.log" beforeDir="false" afterPath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/CookerOpenOrder.log" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/EditorOpenOrder.log" beforeDir="false" afterPath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/EditorOpenOrder.log" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/L_MainMenu.umap" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/LoadingScreen.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/LoadingScreen.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MenuPlayerController.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MenuPlayerController.uasset" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/WBP_MainMenu.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/WBP_MainMenu.uasset" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
