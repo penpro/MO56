@@ -471,7 +471,7 @@ void UMO56SaveSubsystem::RegisterWorldPickup(AItemPickup* Pickup)
 
         if (!Pickup->GetPersistentId().IsValid())
         {
-                Pickup->SetPersistentId(Pickup->GetActorGuid());
+                Pickup->SetPersistentId(FGuid::NewGuid());
         }
 
         BindPickupDelegates(*Pickup);

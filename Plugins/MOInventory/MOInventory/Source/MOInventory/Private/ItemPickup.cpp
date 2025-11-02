@@ -29,9 +29,12 @@ void AItemPickup::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (!PersistentId.IsValid())
+    if (HasAuthority())
     {
-        PersistentId = GetActorGuid();
+        if (!PersistentId.IsValid())
+        {
+            PersistentId = FGuid::NewGuid();
+        }
     }
 
     if (Dropped)
@@ -60,6 +63,10 @@ void AItemPickup::OnRep_Quantity()
     Quantity = FMath::Max(0, Quantity);
 }
 
+void AItemPickup::OnRep_PersistentId()
+{
+}
+
 void AItemPickup::SetItem(UItemData* NewItem)
 {
     Item = NewItem;
@@ -82,6 +89,16 @@ void AItemPickup::SetDropped(bool bNewDropped)
     else if (Dropped)
     {
         FinishDropPhysics();
+    }
+}
+
+void AItemPickup::SetPersistentId(const FGuid& InPersistentId)
+{
+    PersistentId = InPersistentId;
+
+    if (!HasAuthority())
+    {
+        OnRep_PersistentId();
     }
 }
 
@@ -167,6 +184,7 @@ void AItemPickup::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 {
     Super::GetLifetimeReplicatedProps(OutLifetimeProps);
     DOREPLIFETIME(AItemPickup, Quantity);
+    DOREPLIFETIME(AItemPickup, PersistentId);
     // If you want the Item asset to replicate too (only needed if it can change at runtime):
     // DOREPLIFETIME_CONDITION(AItemPickup, Item, COND_InitialOnly);
 }
