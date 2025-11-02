@@ -11,6 +11,7 @@
 #include "Save/MO56SaveSubsystem.h"
 #include "UI/SaveGameMenuWidget.h"
 #include "MO56PlayerController.h"
+#include "MO56.h"
 
 void UGameMenuWidget::NativeOnInitialized()
 {
@@ -150,9 +151,24 @@ void UGameMenuWidget::HandleSaveGameClicked()
         {
                 PC->RequestSaveGame();
         }
-        else if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+        else
         {
-                SaveSubsystem->SaveGame();
+                EnsureSaveSubsystem();
+
+                if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
+                {
+                        if (UWorld* World = GetWorld())
+                        {
+                                if (World->GetNetMode() != NM_Client)
+                                {
+                                        SaveSubsystem->SaveGame();
+                                }
+                                else
+                                {
+                                        UE_LOG(LogMO56, Warning, TEXT("HandleSaveGameClicked: Client without controller cannot directly invoke SaveGame."));
+                                }
+                        }
+                }
         }
 }
 

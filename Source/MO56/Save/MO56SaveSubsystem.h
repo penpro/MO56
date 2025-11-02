@@ -7,6 +7,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Save/MO56SaveGame.h"
+#include "TimerManager.h"
 #include "MO56SaveSubsystem.generated.h"
 
 class AItemPickup;
@@ -139,16 +140,34 @@ private:
         FString ActiveSaveSlotName;
         int32 ActiveSaveUserIndex = SaveUserIndex;
 
+        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
-        TSet<FGuid> PlayerInventoryIds;
+
+        UPROPERTY()
+        TMap<FGuid, FGuid> PlayerInventoryIds;
+
+        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<AItemPickup>> TrackedPickups;
+
+        UPROPERTY()
         TMap<FGuid, FName> PickupToLevelMap;
 
+        UPROPERTY()
         TMap<UInventoryComponent*, FGuid> InventoryToPlayerId;
+
+        UPROPERTY()
         TMap<USkillSystemComponent*, FGuid> SkillComponentToPlayerId;
+
+        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<USkillSystemComponent>> PlayerToSkillComponent;
+
+        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> PlayerToInventoryComponent;
+
+        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<AMO56PlayerController>> PlayerControllers;
+
+        UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<AMO56Character>> PlayerCharacters;
 
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
@@ -156,6 +175,9 @@ private:
         FDelegateHandle WorldCleanupHandle;
 
         bool bIsApplyingSave = false;
+        bool bAutosavePending = false;
+        FTimerHandle AutosaveTimerHandle;
+        float AutosaveDelaySeconds = 0.2f;
 
 private:
         void HandlePostWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
@@ -195,5 +217,8 @@ private:
         void HandleInventoryRegistered(UInventoryComponent* InventoryComponent, bool bIsPlayerInventory, const FGuid& PlayerId);
         void SyncPlayerSaveData(const FGuid& PlayerId);
         void ApplyPlayerStateFromSave(const FGuid& PlayerId);
+        void HandleAutosaveTimerElapsed();
+        void UpdatePlayerInventoryMapping(const FGuid& PlayerId, const FGuid& InventoryId);
+        bool IsPlayerInventoryId(const FGuid& InventoryId) const;
 };
 
