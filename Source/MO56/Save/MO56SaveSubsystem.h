@@ -16,40 +16,6 @@ class USkillSystemComponent;
 class AMO56PlayerController;
 class AMO56Character;
 
-USTRUCT(BlueprintType)
-struct FSaveGameSummary
-{
-        GENERATED_BODY()
-
-        /** Slot identifier on disk. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FString SlotName;
-
-        /** User index associated with the save slot. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        int32 UserIndex = 0;
-
-        /** Initial creation timestamp for the save. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FDateTime InitialSaveTimestamp;
-
-        /** Timestamp of the last save operation. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FDateTime LastSaveTimestamp;
-
-        /** Total tracked play time in seconds. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        float TotalPlayTimeSeconds = 0.f;
-
-        /** Level recorded when the save was last written. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        FName LastLevelName = NAME_None;
-
-        /** Count of serialized inventories in the save. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        int32 InventoryCount = 0;
-};
-
 /**
  * Centralized save-game subsystem that persists inventory and world pickup data.
  *
@@ -60,7 +26,7 @@ struct FSaveGameSummary
  * 4. Hook NotifyPlayerControllerReady/RegisterPlayerCharacter from PlayerController/Character Blueprints after possession.
  * 5. Extend RegisterWorldPickup/TrackedPickups when introducing new persistent actors (structures, quest items, etc.).
  */
-UCLASS()
+
 UENUM(BlueprintType)
 enum class EMO56InventoryOwner : uint8
 {
@@ -70,6 +36,21 @@ enum class EMO56InventoryOwner : uint8
         Unknown
 };
 
+USTRUCT(BlueprintType)
+struct FSaveGameSummary
+{
+        GENERATED_BODY()
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FString SlotName;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") int32 UserIndex = 0;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FDateTime InitialSaveTimestamp;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FDateTime LastSaveTimestamp;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") float TotalPlayTimeSeconds = 0.f;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") FName LastLevelName = NAME_None;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Save") int32 InventoryCount = 0;
+};
+
+UCLASS()
 class MO56_API UMO56SaveSubsystem : public UGameInstanceSubsystem
 {
         GENERATED_BODY()
