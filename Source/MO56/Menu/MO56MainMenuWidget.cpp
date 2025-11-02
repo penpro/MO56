@@ -9,6 +9,7 @@
 #include "Engine/GameInstance.h"
 #include "Internationalization/Text.h"
 #include "Save/MO56SaveSubsystem.h"
+#include "Layout/SlateChildSize.h"
 
 void UMO56MainMenuWidget::NativeConstruct()
 {
@@ -99,7 +100,7 @@ void UMO56MainMenuWidget::BuildMenuLayout()
                 if (ListSlot)
                 {
                         ListSlot->SetPadding(FMargin(0.f, 12.f));
-                        ListSlot->SetFillHeight(1.f);
+                        ListSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
                 }
         }
 }
@@ -112,6 +113,8 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
         }
 
         SaveList->ClearChildren();
+        SaveButtonIds.Empty();
+        PendingSaveButton.Reset();
 
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
@@ -139,16 +142,48 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
 
                         SaveList->AddChild(EntryButton);
 
-                        TWeakObjectPtr<UMO56MainMenuWidget> WeakThis(this);
                         const FGuid SaveId = Entry.SaveId;
-                        EntryButton->OnClicked.AddLambda([WeakThis, SaveId]()
-                        {
-                                if (UMO56MainMenuWidget* StrongWidget = WeakThis.Get())
-                                {
-                                        StrongWidget->HandleSaveEntryClicked(SaveId);
-                                }
-                        });
+                        EntryButton->OnPressed.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonPressed);
+                        EntryButton->OnClicked.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonClicked);
+
+                        SaveButtonIds.Add(EntryButton, SaveId);
                 }
+        }
+}
+
+void UMO56MainMenuWidget::HandleSaveEntryButtonPressed()
+{
+        for (auto It = SaveButtonIds.CreateIterator(); It; ++It)
+        {
+                if (!It.Key().IsValid())
+                {
+                        It.RemoveCurrent();
+                        continue;
+                }
+
+                if (It.Key()->IsPressed())
+                {
+                        PendingSaveButton = It.Key();
+                        return;
+                }
+        }
+
+        PendingSaveButton.Reset();
+}
+
+void UMO56MainMenuWidget::HandleSaveEntryButtonClicked()
+{
+        const TWeakObjectPtr<UButton> ClickedButton = PendingSaveButton;
+        PendingSaveButton.Reset();
+
+        if (!ClickedButton.IsValid())
+        {
+                return;
+        }
+
+        if (const FGuid* SaveId = SaveButtonIds.Find(ClickedButton))
+        {
+                HandleSaveEntryClicked(*SaveId);
         }
 }
 
