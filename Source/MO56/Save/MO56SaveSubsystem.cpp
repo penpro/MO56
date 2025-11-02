@@ -8,6 +8,7 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Engine/Engine.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
@@ -18,7 +19,6 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/Paths.h"
 #include "Templates/UnrealTemplate.h"
-#include "UObject/CoreObjectDelegates.h"
 #include "MO56Character.h"
 #include "Skills/SkillSystemComponent.h"
 #include "HAL/FileManager.h"
@@ -42,8 +42,7 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
         PostWorldInitHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UMO56SaveSubsystem::HandlePostWorldInit);
         WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(this, &UMO56SaveSubsystem::HandleWorldCleanup);
-
-        PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UMO56SaveSubsystem::HandlePostLoadMapWithWorld);
+        
 }
 
 void UMO56SaveSubsystem::Deinitialize()
@@ -61,12 +60,7 @@ void UMO56SaveSubsystem::Deinitialize()
                 FWorldDelegates::OnWorldCleanup.Remove(WorldCleanupHandle);
                 WorldCleanupHandle.Reset();
         }
-
-        if (PostLoadMapHandle.IsValid())
-        {
-                FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapHandle);
-                PostLoadMapHandle.Reset();
-        }
+        
 
         for (auto& Pair : WorldSpawnHandles)
         {
@@ -426,7 +420,7 @@ FSaveGameSummary UMO56SaveSubsystem::CreateNewSaveSlot()
         Summary.InventoryCount = CurrentSaveGame->InventoryStates.Num();
         Summary.SaveId = CurrentSaveGame->SaveId;
 
-        ActiveSaveSlotName = NewSlotName;
+        ActiveSaveSlotName = CurrentSaveGame ? CurrentSaveGame->SlotName : ActiveSaveSlotName;
 
         return Summary;
 }
@@ -803,10 +797,26 @@ void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::Initia
 
         ApplySaveToWorld(World);
 
+        // If we just loaded a save, apply it now. Otherwise apply whatever default save you have.
+            if (bPendingApplyOnNextLevel && PendingLoadedSave)
+                   {
+                                ApplyPendingSave(*World);
+                            }
+            else
+                    {
+                                ApplySaveToWorld(World);
+                            }
+
         if (World->GetNetMode() != NM_Client)
         {
                 SaveGame();
         }
+
+        // Avoid an immediate autosave right after load
+            if (World->GetNetMode() != NM_Client && !bPendingApplyOnNextLevel)
+                    {
+                                SaveGame();
+                            }
 }
 
 void UMO56SaveSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources)
@@ -1560,18 +1570,7 @@ void UMO56SaveSubsystem::HandleAutosaveTimerElapsed()
         SaveGame();
 }
 
-void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
-{
-        if (!World)
-        {
-                return;
-        }
 
-        if (bPendingApplyOnNextLevel)
-        {
-                ApplyPendingSave(*World);
-        }
-}
 
 void UMO56SaveSubsystem::ApplyPendingSave(UWorld& World)
 {

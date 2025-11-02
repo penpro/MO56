@@ -9,7 +9,6 @@
 #include "Engine/GameInstance.h"
 #include "Internationalization/Text.h"
 #include "Save/MO56SaveSubsystem.h"
-#include "Layout/SlateChildSize.h"
 
 void UMO56MainMenuWidget::NativeConstruct()
 {
