@@ -1,11 +1,10 @@
 #include "Menu/MO56MainMenuWidget.h"
 
-#include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
-#include "Components/TextBlock.h"
 #include "Engine/GameInstance.h"
 #include "Internationalization/Text.h"
+#include "Menu/MO56SaveListItemWidget.h"
 #include "Save/MO56SaveSubsystem.h"
 
 UMO56MainMenuWidget::UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer)
@@ -51,13 +50,16 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
         if (!SaveList)
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
-                SaveButtonIds.Empty();
                 return;
         }
 
         SaveList->ClearChildren();
-        SaveButtonIds.Empty();
-        PendingSaveButton.Reset();
+
+        if (!SaveItemWidgetClass)
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s missing SaveItemWidgetClass"), *GetName());
+                return;
+        }
 
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
@@ -70,63 +72,20 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
                                 continue;
                         }
 
-                        UButton* EntryButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
-                        if (!EntryButton)
+                        UMO56SaveListItemWidget* Row = CreateWidget<UMO56SaveListItemWidget>(GetOwningPlayer(), SaveItemWidgetClass);
+                        if (!Row)
                         {
                                 continue;
                         }
 
-                        UTextBlock* EntryLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-                        if (EntryLabel)
-                        {
-                                EntryLabel->SetText(FormatEntryText(Entry));
-                                EntryButton->AddChild(EntryLabel);
-                        }
+                        const FString TitleString = Entry.SlotName.IsEmpty() ? Entry.SaveId.ToString() : Entry.SlotName;
+                        const FString MetaString = FormatEntryText(Entry).ToString();
 
-                        SaveList->AddChild(EntryButton);
+                        Row->InitFromData(TitleString, MetaString, Entry.SaveId);
+                        Row->OnSaveChosen.AddDynamic(this, &ThisClass::HandleSaveChosen);
 
-                        const FGuid SaveId = Entry.SaveId;
-                        EntryButton->OnPressed.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonPressed);
-                        EntryButton->OnClicked.AddDynamic(this, &UMO56MainMenuWidget::HandleSaveEntryButtonClicked);
-
-                        SaveButtonIds.Add(EntryButton, SaveId);
+                        SaveList->AddChild(Row);
                 }
-        }
-}
-
-void UMO56MainMenuWidget::HandleSaveEntryButtonPressed()
-{
-        for (auto It = SaveButtonIds.CreateIterator(); It; ++It)
-        {
-                if (!It.Key().IsValid())
-                {
-                        It.RemoveCurrent();
-                        continue;
-                }
-
-                if (It.Key()->IsPressed())
-                {
-                        PendingSaveButton = It.Key();
-                        return;
-                }
-        }
-
-        PendingSaveButton.Reset();
-}
-
-void UMO56MainMenuWidget::HandleSaveEntryButtonClicked()
-{
-        const TWeakObjectPtr<UButton> ClickedButton = PendingSaveButton;
-        PendingSaveButton.Reset();
-
-        if (!ClickedButton.IsValid())
-        {
-                return;
-        }
-
-        if (const FGuid* SaveId = SaveButtonIds.Find(ClickedButton))
-        {
-                HandleSaveEntryClicked(*SaveId);
         }
 }
 
@@ -190,6 +149,11 @@ void UMO56MainMenuWidget::HandleNewGameClicked()
 void UMO56MainMenuWidget::HandleLoadClicked()
 {
         RefreshSaveEntries();
+}
+
+void UMO56MainMenuWidget::HandleSaveChosen(FGuid SaveId)
+{
+        HandleSaveEntryClicked(SaveId);
 }
 
 void UMO56MainMenuWidget::NativeDestruct()
