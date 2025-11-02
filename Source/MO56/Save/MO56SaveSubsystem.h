@@ -8,6 +8,7 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Save/MO56SaveGame.h"
 #include "Save/MO56SaveTypes.h"
+#include "Delegates/DelegateHandle.h"
 #include "TimerManager.h"
 #include "MO56SaveSubsystem.generated.h"
 
