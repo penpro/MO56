@@ -17,10 +17,10 @@ class MO56_API UMO56MainMenuWidget : public UUserWidget
         GENERATED_BODY()
 
 public:
+        UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer);
         virtual void NativeConstruct() override;
 
 protected:
-        void BuildMenuLayout();
         void RefreshSaveEntries();
         UFUNCTION()
         void HandleSaveEntryButtonPressed();
@@ -30,19 +30,17 @@ protected:
         UMO56SaveSubsystem* ResolveSubsystem() const;
         static FText FormatEntryText(const FSaveIndexEntry& Entry);
         static FText FormatDateTime(const FDateTime& DateTime);
-        virtual void OnWidgetRebuilt() override; // called after RebuildWidget
 
         UFUNCTION()
-        void HandleNewGameClicked() const;
+        void HandleNewGameClicked();
 
         UFUNCTION()
         void HandleLoadClicked();
         virtual void NativeDestruct() override;
 
-        UPROPERTY() UVerticalBox* RootBox = nullptr;
-        UPROPERTY() UButton*      NewGameButton = nullptr;
-        UPROPERTY() UButton*      LoadGameButton = nullptr;
-        UPROPERTY() UScrollBox*   SaveList = nullptr;
+        UPROPERTY(meta = (BindWidgetOptional)) UButton*    NewGameButton = nullptr;
+        UPROPERTY(meta = (BindWidgetOptional)) UButton*    LoadGameButton = nullptr;
+        UPROPERTY(meta = (BindWidgetOptional)) UScrollBox* SaveList = nullptr;
 
         TMap<TWeakObjectPtr<UButton>, FGuid> SaveButtonIds;
         TWeakObjectPtr<UButton> PendingSaveButton;

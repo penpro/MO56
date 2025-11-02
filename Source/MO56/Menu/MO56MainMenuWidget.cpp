@@ -4,115 +4,47 @@
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
-#include "Components/VerticalBox.h"
-#include "Components/VerticalBoxSlot.h"
 #include "Engine/GameInstance.h"
 #include "Internationalization/Text.h"
 #include "Save/MO56SaveSubsystem.h"
+
+UMO56MainMenuWidget::UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer)
+        : Super(ObjectInitializer)
+{
+        SetIsFocusable(true); // allow focusing the root
+}
 
 void UMO56MainMenuWidget::NativeConstruct()
 {
         Super::NativeConstruct();
 
-        {
-                bIsFocusable = true; // allow focusing the root
-        }
-
-        if (!WidgetTree->RootWidget)
-        {
-                BuildMenuLayout();
-        }
-
         if (NewGameButton)
         {
-                NewGameButton->OnClicked.AddDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
-                                                            &UMO56MainMenuWidget::HandleNewGameClicked));
+                NewGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleNewGameClicked);
+        }
+        else
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s missing NewGameButton binding"), *GetName());
         }
 
         if (LoadGameButton)
         {
-                LoadGameButton->OnClicked.AddDynamic(this, &UMO56MainMenuWidget::HandleLoadClicked);
+                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
+        }
+        else
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s missing LoadGameButton binding"), *GetName());
         }
 
         RefreshSaveEntries();
-}
-
-void UMO56MainMenuWidget::BuildMenuLayout()
-{
-        if (!WidgetTree)
-        {
-                return;
-        }
-
-        RootBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MenuRoot"));
-        WidgetTree->RootWidget = RootBox;
-
-        if (!RootBox)
-        {
-                return;
-        }
-
-        UTextBlock* TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MenuTitle"));
-        if (TitleText)
-        {
-                TitleText->SetText(NSLOCTEXT("MO56MainMenu", "MainMenuTitle", "Main Menu"));
-                UVerticalBoxSlot* TitleSlot = RootBox->AddChildToVerticalBox(TitleText);
-                if (TitleSlot)
-                {
-                        TitleSlot->SetPadding(FMargin(0.f, 8.f));
-                }
-        }
-
-        NewGameButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("NewGameButton"));
-        if (NewGameButton)
-        {
-                UTextBlock* NewGameLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("NewGameLabel"));
-                if (NewGameLabel)
-                {
-                        NewGameLabel->SetText(NSLOCTEXT("MO56MainMenu", "NewGame", "New Game"));
-                        NewGameButton->AddChild(NewGameLabel);
-                }
-
-                UVerticalBoxSlot* ButtonSlot = RootBox->AddChildToVerticalBox(NewGameButton);
-                if (ButtonSlot)
-                {
-                        ButtonSlot->SetPadding(FMargin(0.f, 8.f));
-                }
-        }
-
-        LoadGameButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("LoadGameButton"));
-        if (LoadGameButton)
-        {
-                UTextBlock* LoadGameLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("LoadGameLabel"));
-                if (LoadGameLabel)
-                {
-                        LoadGameLabel->SetText(NSLOCTEXT("MO56MainMenu", "LoadGame", "Load Game"));
-                        LoadGameButton->AddChild(LoadGameLabel);
-                }
-
-                UVerticalBoxSlot* ButtonSlot = RootBox->AddChildToVerticalBox(LoadGameButton);
-                if (ButtonSlot)
-                {
-                        ButtonSlot->SetPadding(FMargin(0.f, 8.f));
-                }
-        }
-
-        SaveList = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("SaveList"));
-        if (SaveList)
-        {
-                UVerticalBoxSlot* ListSlot = RootBox->AddChildToVerticalBox(SaveList);
-                if (ListSlot)
-                {
-                        ListSlot->SetPadding(FMargin(0.f, 12.f));
-                        ListSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-                }
-        }
 }
 
 void UMO56MainMenuWidget::RefreshSaveEntries()
 {
         if (!SaveList)
         {
+                UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
+                SaveButtonIds.Empty();
                 return;
         }
 
@@ -240,35 +172,7 @@ FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime)
         return FText::AsDateTime(DateTime);
 }
 
-void UMO56MainMenuWidget::OnWidgetRebuilt()
-{
-        Super::OnWidgetRebuilt();
-
-        // If you build the menu tree here, do it first:
-        if (WidgetTree && !WidgetTree->RootWidget)
-        {
-                BuildMenuLayout();
-        }
-
-        // Avoid duplicate binds
-        if (NewGameButton)
-        {
-                NewGameButton->OnClicked.RemoveDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
-                                                               &ThisClass::HandleNewGameClicked));
-                NewGameButton->OnClicked.AddDynamic(this, TBaseDynamicDelegate<FNotThreadSafeDelegateMode, void>::TMethodPtrResolver<UMO56MainMenuWidget>::FMethodPtr(
-                                                            &ThisClass::HandleNewGameClicked));
-        }
-
-        if (LoadGameButton)
-        {
-                LoadGameButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleLoadClicked);
-                LoadGameButton->OnClicked.AddDynamic(this, &ThisClass::HandleLoadClicked);
-        }
-
-        RefreshSaveEntries();
-}
-
-void UMO56MainMenuWidget::HandleNewGameClicked() const
+void UMO56MainMenuWidget::HandleNewGameClicked()
 {
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
@@ -290,3 +194,4 @@ void UMO56MainMenuWidget::NativeDestruct()
 
         Super::NativeDestruct();
 }
+
