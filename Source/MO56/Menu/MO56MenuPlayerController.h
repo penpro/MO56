@@ -17,7 +17,7 @@ public:
         virtual void BeginPlay() override;
 
 protected:
-        UPROPERTY(EditDefaultsOnly, Category = "Menu")
+        UPROPERTY(EditAnywhere, Category = "Menu")
         TSubclassOf<UMO56MainMenuWidget> MainMenuWidgetClass;
 
         UPROPERTY()
