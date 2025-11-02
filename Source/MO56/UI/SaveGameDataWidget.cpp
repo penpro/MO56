@@ -72,6 +72,18 @@ void USaveGameDataWidget::RefreshDisplay()
         {
                 InventoryCountText->SetText(FText::AsNumber(CachedSummary.InventoryCount));
         }
+
+        if (SaveIdText)
+        {
+                if (CachedSummary.SaveId.IsValid())
+                {
+                        SaveIdText->SetText(FText::FromString(CachedSummary.SaveId.ToString()));
+                }
+                else
+                {
+                        SaveIdText->SetText(NSLOCTEXT("SaveGameDataWidget", "UnknownSaveId", "No Id"));
+                }
+        }
 }
 
 FText USaveGameDataWidget::FormatDateTime(const FDateTime& DateTime) const

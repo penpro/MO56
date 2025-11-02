@@ -54,6 +54,9 @@ protected:
         TObjectPtr<UTextBlock> InventoryCountText;
 
         UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
+        TObjectPtr<UTextBlock> SaveIdText;
+
+        UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional))
         TObjectPtr<UButton> LoadButton;
 
         UFUNCTION()

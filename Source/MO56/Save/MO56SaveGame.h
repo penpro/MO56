@@ -1,6 +1,3 @@
-// Implementation: Create a MO56SaveGame asset via the save subsystem; inventories and
-// world actors register automatically. When adding new systems, extend this data container
-// with serializable fields and update UMO56SaveSubsystem to read/write them.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -8,166 +5,168 @@
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
 #include "Skills/SkillTypes.h"
+#include "Save/MO56SaveTypes.h"
 #include "MO56SaveGame.generated.h"
 
-/**
- * Serializable information describing a single world pickup.
- */
 USTRUCT(BlueprintType)
 struct FWorldItemSaveData
 {
         GENERATED_BODY()
 
-        /** Unique identifier for the pickup. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         FGuid PickupId;
 
-        /** Soft reference to the item definition. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         FSoftObjectPath ItemPath;
 
-        /** Class used when spawning the pickup into the world. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         TSoftClassPtr<AItemPickup> PickupClass;
 
-        /** World transform recorded at save time. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         FTransform Transform = FTransform::Identity;
 
-        /** Quantity held by the pickup. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         int32 Quantity = 0;
 
-        /** True when the pickup originated from an inventory drop. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         bool bSpawnedFromInventory = false;
 };
 
-/**
- * Aggregated world state for a single level.
- */
 USTRUCT(BlueprintType)
 struct FLevelWorldState
 {
         GENERATED_BODY()
 
-        /** Pickups that should exist when the level is loaded. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         TArray<FWorldItemSaveData> DroppedItems;
 
-        /** Pickups that were removed from the level and should not respawn. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         TSet<FGuid> RemovedPickupIds;
 
-        /** Reserved set for future PCG removals (trees, rocks, etc.). */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World")
         TSet<FGuid> RemovedProceduralIds;
 };
 
-/**
- * Save data for a single persistent character.
- */
 USTRUCT(BlueprintType)
 struct FCharacterSaveData
 {
         GENERATED_BODY()
 
-        /** Persistent identifier generated for the character pawn. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
         FGuid CharacterId;
 
-        /** Persistent identifier of the character's inventory component. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
         FGuid InventoryId;
 
-        /** Last known world transform for the pawn at save time. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
         FTransform Transform = FTransform::Identity;
 
-        /** Serialized skill system state for the character. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
         FSkillSystemSaveData SkillState;
 };
 
-/**
- * Save data for a single connected player.
- */
 USTRUCT(BlueprintType)
 struct FPlayerSaveData
 {
         GENERATED_BODY()
 
-        /** Persistent identifier generated for the player controller. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FGuid PlayerId;
 
-        /** Numeric controller id recorded at save time for matching reconnects. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         int32 ControllerId = INDEX_NONE;
 
-        /** Display name captured from the player state. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FString PlayerName;
 
-        /** Legacy transform retained for migration purposes. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FTransform Transform = FTransform::Identity;
 
-        /** Legacy skill state retained for migration purposes. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player")
         FSkillSystemSaveData SkillState;
 };
 
-/**
- * Save game asset for the MO56 project.
- *
- * Editor Implementation Guide:
- * 1. You do not instantiate UMO56SaveGame directly in the editor; instead expose slots via UMO56SaveSubsystem Blueprint nodes.
- * 2. When extending save data, add UPROPERTY fields here and update subsystem serialization helpers accordingly.
- * 3. Use BlueprintCallable accessors in the save subsystem to read/write InventoryStates and PlayerStates for UI menus.
- * 4. To inspect save contents during development, create a SaveGame Blueprint of this class and load it in PIE for debugging.
- * 5. Maintain versioning by adding new fields with sensible defaults so legacy saves remain compatible.
- */
 UCLASS()
 class MO56_API UMO56SaveGame : public USaveGame
 {
         GENERATED_BODY()
 
 public:
-        /** Timestamp recording when the save file was first created. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
-        FDateTime InitialSaveTimestamp;
+        int32 SaveVersion = MO56_SAVE_VERSION;
 
-        /** Timestamp of the most recent time the save file was written. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
-        FDateTime LastSaveTimestamp;
+        FGuid SaveId;
 
-        /** Accumulated play time stored with the save (in seconds). */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FString SlotName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FString LevelName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FDateTime CreatedUtc;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FDateTime UpdatedUtc;
+
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
         float TotalPlayTimeSeconds = 0.f;
 
-        /** The last level name recorded when this save was written. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
-        FName LastLevelName;
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Player")
+        FMO56PlayerStats PlayerStats;
 
-        /** Serialized inventory states keyed by persistent identifier. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
-        TMap<FGuid, FInventorySaveData> InventoryStates;
-
-        /** Level-specific world state used for persistence. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|World")
         TMap<FName, FLevelWorldState> LevelStates;
 
-        /** Persistent character state keyed by character identifier. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Inventory")
+        TMap<FGuid, FInventorySaveData> InventoryStates;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Character")
         TMap<FGuid, FCharacterSaveData> CharacterStates;
 
-        /** Per-player save state used for profile/controller data. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Player")
         TMap<FGuid, FPlayerSaveData> PlayerStates;
 
-        /** Legacy mapping retained for migration of older saves. */
-        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Legacy")
         TMap<FGuid, FGuid> PlayerInventoryIds;
+};
+
+UCLASS()
+class MO56_API UMO56SaveMetadata : public USaveGame
+{
+        GENERATED_BODY()
+
+public:
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        int32 SaveVersion = MO56_SAVE_VERSION;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FGuid SaveId;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FString SlotName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FString LevelName;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FDateTime CreatedUtc;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        FDateTime UpdatedUtc;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        float TotalPlaySeconds = 0.f;
+};
+
+UCLASS()
+class MO56_API UMO56SaveIndex : public USaveGame
+{
+        GENERATED_BODY()
+
+public:
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Index")
+        TArray<FSaveIndexEntry> Entries;
 };
 

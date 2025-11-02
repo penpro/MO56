@@ -7,6 +7,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Save/MO56SaveGame.h"
+#include "Save/MO56SaveTypes.h"
 #include "TimerManager.h"
 #include "MO56SaveSubsystem.generated.h"
 
@@ -48,6 +49,10 @@ struct FSaveGameSummary
         /** Count of serialized inventories in the save. */
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
         int32 InventoryCount = 0;
+
+        /** Identifier of the save entry. */
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save")
+        FGuid SaveId;
 };
 
 /**
@@ -79,6 +84,27 @@ public:
 
         virtual void Initialize(FSubsystemCollectionBase& Collection) override;
         virtual void Deinitialize() override;
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        TArray<FSaveIndexEntry> ListSaves(bool bRebuildFromDiskIfMissing = true);
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        bool DoesSaveExist(const FGuid& SaveId) const;
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        UMO56SaveGame* PeekSaveHeader(const FGuid& SaveId);
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        void StartNewGame(const FString& LevelName = TEXT("TestLevel"));
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        void LoadSave(const FGuid& SaveId);
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        bool SaveCurrentGame();
+
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        bool DeleteSave(const FGuid& SaveId);
 
         /** Saves the current world and inventory state to disk. */
         UFUNCTION(BlueprintCallable, Category = "Save")
@@ -148,12 +174,23 @@ public:
 private:
         static constexpr const TCHAR* SaveSlotName = TEXT("MO56_Default");
         static constexpr int32 SaveUserIndex = 0;
+        static constexpr const TCHAR* SaveIndexSlotName = TEXT("MO56_SaveIndex");
 
         UPROPERTY()
         TObjectPtr<UMO56SaveGame> CurrentSaveGame = nullptr;
 
         FString ActiveSaveSlotName;
         int32 ActiveSaveUserIndex = SaveUserIndex;
+
+        UPROPERTY()
+        TObjectPtr<UMO56SaveIndex> CachedSaveIndex = nullptr;
+
+        UPROPERTY()
+        TObjectPtr<UMO56SaveGame> PendingLoadedSave = nullptr;
+
+        FGuid ActiveSaveId;
+        FString PendingLevelName;
+        bool bPendingApplyOnNextLevel = false;
 
         UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
@@ -188,6 +225,7 @@ private:
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
         FDelegateHandle PostWorldInitHandle;
         FDelegateHandle WorldCleanupHandle;
+        FDelegateHandle PostLoadMapHandle;
 
         bool bIsApplyingSave = false;
         bool bAutosavePending = false;
@@ -198,6 +236,7 @@ private:
         void HandlePostWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
         void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
         void HandleActorSpawned(AActor* Actor);
+        void HandlePostLoadMapWithWorld(UWorld* World);
 
         UFUNCTION()
         void HandlePickupSettled(AItemPickup* Pickup);
@@ -210,6 +249,8 @@ private:
         void ApplySaveToWorld(UWorld* World);
         void RefreshInventorySaveData();
         void RefreshTrackedPickups();
+
+        void ApplyPendingSave(UWorld& World);
 
         FName ResolveLevelName(const AActor& Actor) const;
         FName ResolveLevelName(const UWorld& World) const;
@@ -234,5 +275,13 @@ private:
         void ApplyCharacterStateFromSave(const FGuid& CharacterId);
         void RefreshCharacterSaveData(const FGuid& CharacterId);
         void HandleAutosaveTimerElapsed();
+
+        FString MakeSlotName(const FGuid& SaveId) const;
+        FString GetSaveDir() const;
+        bool IsSaveFileName(const FString& Name) const;
+        bool WriteSave(const UMO56SaveGame* Data);
+        UMO56SaveGame* ReadSave(const FGuid& SaveId, bool bUpdateMetadata = true);
+        void UpdateOrRebuildSaveIndex(bool bForceRebuild = false);
+        void CacheSaveMetadata(UMO56SaveGame& SaveGame);
 };
 

@@ -93,12 +93,14 @@ void AMO56PlayerController::RequestNewGame()
 {
         if (!HasAuthority())
         {
-                UE_LOG(LogMO56, Warning, TEXT("RequestNewGame ignored on non-authority controller."));
+                ServerExecuteNewGame(TEXT("TestLevel"));
                 return;
         }
 
-        const FString LevelName = UGameplayStatics::GetCurrentLevelName(this, true);
-        HandleNewGameOnServer(LevelName);
+        if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
+        {
+                SaveSubsystem->StartNewGame(TEXT("TestLevel"));
+        }
 }
 
 void AMO56PlayerController::RequestSaveGame()
@@ -144,6 +146,22 @@ bool AMO56PlayerController::RequestLoadGameBySlot(const FString& SlotName, int32
         }
 
         ServerLoadGame(SlotName, UserIndex);
+        return true;
+}
+
+bool AMO56PlayerController::RequestLoadGameById(const FGuid& SaveId)
+{
+        if (!SaveId.IsValid())
+        {
+                return false;
+        }
+
+        if (HasAuthority())
+        {
+                return HandleLoadGameByIdOnServer(SaveId);
+        }
+
+        ServerLoadGameById(SaveId);
         return true;
 }
 
@@ -262,6 +280,11 @@ void AMO56PlayerController::ServerLoadGame_Implementation(const FString& SlotNam
         HandleLoadGameOnServer(SlotName, UserIndex);
 }
 
+void AMO56PlayerController::ServerLoadGameById_Implementation(const FGuid& SaveId)
+{
+        HandleLoadGameByIdOnServer(SaveId);
+}
+
 void AMO56PlayerController::ServerCreateNewSaveSlot_Implementation()
 {
         HandleCreateNewSaveSlot();
@@ -366,48 +389,9 @@ void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
 
         if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
         {
-                SaveSubsystem->ResetToNewGame();
+                const FString DesiredLevel = LevelName.IsEmpty() ? TEXT("TestLevel") : LevelName;
+                SaveSubsystem->StartNewGame(DesiredLevel);
         }
-
-        UWorld* World = GetWorld();
-        if (!World)
-        {
-                return;
-        }
-
-        FString DesiredLevel = LevelName;
-        if (DesiredLevel.IsEmpty())
-        {
-                DesiredLevel = UGameplayStatics::GetCurrentLevelName(World, true);
-        }
-
-        if (DesiredLevel.IsEmpty())
-        {
-                UE_LOG(LogMO56, Warning, TEXT("HandleNewGameOnServer: No valid level name."));
-                return;
-        }
-
-        FString TravelURL = DesiredLevel;
-        if (World->GetNetMode() != NM_DedicatedServer)
-        {
-                const bool bHasOptions = TravelURL.Contains(TEXT("?"));
-                const bool bHasListen = TravelURL.Contains(TEXT("listen"));
-                if (!bHasListen)
-                {
-                        TravelURL += bHasOptions ? TEXT("&listen") : TEXT("?listen");
-                }
-        }
-
-        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-        {
-                if (AMO56PlayerController* OtherController = Cast<AMO56PlayerController>(*It))
-                {
-                        OtherController->ClientEnsureGameInput();
-                }
-        }
-
-        UE_LOG(LogMO56, Display, TEXT("Starting new game on level %s"), *TravelURL);
-        World->ServerTravel(TravelURL, true);
 }
 
 void AMO56PlayerController::HandleSaveGameOnServer(bool bAlsoExit)
@@ -419,7 +403,7 @@ void AMO56PlayerController::HandleSaveGameOnServer(bool bAlsoExit)
 
         if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
         {
-                SaveSubsystem->SaveGame();
+                SaveSubsystem->SaveCurrentGame();
         }
 
         if (bAlsoExit)
@@ -445,7 +429,49 @@ bool AMO56PlayerController::HandleLoadGameOnServer(const FString& SlotName, int3
                 }
                 else
                 {
-                        bLoaded = SaveSubsystem->LoadGame();
+                        if (UMO56SaveGame* CurrentSave = SaveSubsystem->GetCurrentSaveGame())
+                        {
+                                if (CurrentSave->SaveId.IsValid())
+                                {
+                                        SaveSubsystem->LoadSave(CurrentSave->SaveId);
+                                        bLoaded = true;
+                                }
+                        }
+                }
+        }
+
+        if (bLoaded)
+        {
+                if (UWorld* World = GetWorld())
+                {
+                        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+                        {
+                                if (AMO56PlayerController* OtherController = Cast<AMO56PlayerController>(*It))
+                                {
+                                        OtherController->ClientEnsureGameInput();
+                                }
+                        }
+                }
+        }
+
+        return bLoaded;
+}
+
+bool AMO56PlayerController::HandleLoadGameByIdOnServer(const FGuid& SaveId)
+{
+        if (!HasAuthority() || !SaveId.IsValid())
+        {
+                return false;
+        }
+
+        bool bLoaded = false;
+
+        if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
+        {
+                if (SaveSubsystem->DoesSaveExist(SaveId))
+                {
+                        SaveSubsystem->LoadSave(SaveId);
+                        bLoaded = true;
                 }
         }
 

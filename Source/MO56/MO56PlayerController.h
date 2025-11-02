@@ -73,6 +73,9 @@ public:
         bool RequestLoadGameBySlot(const FString& SlotName, int32 UserIndex);
 
         UFUNCTION(BlueprintCallable, Category = "Game|Flow")
+        bool RequestLoadGameById(const FGuid& SaveId);
+
+        UFUNCTION(BlueprintCallable, Category = "Game|Flow")
         bool RequestCreateNewSaveSlot();
 
         UFUNCTION(BlueprintCallable, Category = "Control")
@@ -104,6 +107,9 @@ protected:
 
         UFUNCTION(Server, Reliable)
         void ServerLoadGame(const FString& SlotName, int32 UserIndex);
+
+        UFUNCTION(Server, Reliable)
+        void ServerLoadGameById(const FGuid& SaveId);
 
         UFUNCTION(Server, Reliable)
         void ServerCreateNewSaveSlot();
@@ -139,6 +145,7 @@ private:
         void HandleNewGameOnServer(const FString& LevelName);
         void HandleSaveGameOnServer(bool bAlsoExit);
         bool HandleLoadGameOnServer(const FString& SlotName, int32 UserIndex);
+        bool HandleLoadGameByIdOnServer(const FGuid& SaveId);
         bool HandleCreateNewSaveSlot();
         void HandlePossessPawn(APawn* TargetPawn);
         void HandleOpenPawnInventory(APawn* TargetPawn);

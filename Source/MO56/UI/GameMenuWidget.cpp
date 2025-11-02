@@ -161,7 +161,7 @@ void UGameMenuWidget::HandleSaveGameClicked()
                         {
                                 if (World->GetNetMode() != NM_Client)
                                 {
-                                        SaveSubsystem->SaveGame();
+                                SaveSubsystem->SaveCurrentGame();
                                 }
                                 else
                                 {
@@ -184,7 +184,7 @@ void UGameMenuWidget::HandleSaveAndExitClicked()
                 EnsureSaveSubsystem();
                 if (UMO56SaveSubsystem* SaveSubsystem = CachedSaveSubsystem.Get())
                 {
-                        SaveSubsystem->SaveGame();
+                        SaveSubsystem->SaveCurrentGame();
                 }
 
                 HandleExitGameClicked();

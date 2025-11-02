@@ -3,6 +3,7 @@
 #include "Components/ScrollBox.h"
 #include "Engine/GameInstance.h"
 #include "Save/MO56SaveSubsystem.h"
+#include "Save/MO56SaveGame.h"
 #include "UI/SaveGameDataWidget.h"
 #include "GameFramework/PlayerController.h"
 #include "MO56PlayerController.h"
@@ -36,7 +37,30 @@ void USaveGameMenuWidget::RefreshSaveEntries()
 
         if (UMO56SaveSubsystem* Subsystem = ResolveSubsystem())
         {
-                Summaries = Subsystem->GetAvailableSaveSummaries();
+                const TArray<FSaveIndexEntry> Entries = Subsystem->ListSaves();
+                for (const FSaveIndexEntry& Entry : Entries)
+                {
+                        FSaveGameSummary Summary;
+                        Summary.SlotName = Entry.SlotName;
+                        Summary.UserIndex = 0;
+                        Summary.LastLevelName = Entry.LevelName.IsEmpty() ? NAME_None : FName(*Entry.LevelName);
+                        Summary.LastSaveTimestamp = Entry.UpdatedUtc;
+                        Summary.InitialSaveTimestamp = Entry.UpdatedUtc;
+                        Summary.TotalPlayTimeSeconds = Entry.TotalPlaySeconds;
+                        Summary.InventoryCount = 0;
+                        Summary.SaveId = Entry.SaveId;
+
+                        if (UMO56SaveGame* Header = Subsystem->PeekSaveHeader(Entry.SaveId))
+                        {
+                                Summary.InitialSaveTimestamp = Header->CreatedUtc;
+                                Summary.LastSaveTimestamp = Header->UpdatedUtc;
+                                Summary.TotalPlayTimeSeconds = Header->TotalPlayTimeSeconds;
+                                Summary.LastLevelName = Header->LevelName.IsEmpty() ? NAME_None : FName(*Header->LevelName);
+                                Summary.InventoryCount = Header->InventoryStates.Num();
+                        }
+
+                        Summaries.Add(Summary);
+                }
         }
 
         RebuildEntries(Summaries);
@@ -89,11 +113,22 @@ void USaveGameMenuWidget::HandleEntryLoadRequested(const FSaveGameSummary& Summa
 
         if (AMO56PlayerController* PC = Cast<AMO56PlayerController>(GetOwningPlayer()))
         {
-                bLoaded = PC->RequestLoadGameBySlot(Summary.SlotName, Summary.UserIndex);
+                if (Summary.SaveId.IsValid())
+                {
+                        bLoaded = PC->RequestLoadGameById(Summary.SaveId);
+                }
+                else
+                {
+                        bLoaded = PC->RequestLoadGameBySlot(Summary.SlotName, Summary.UserIndex);
+                }
         }
         else if (UMO56SaveSubsystem* Subsystem = ResolveSubsystem())
         {
-                bLoaded = Subsystem->LoadGameBySlot(Summary.SlotName, Summary.UserIndex);
+                if (Summary.SaveId.IsValid())
+                {
+                        Subsystem->LoadSave(Summary.SaveId);
+                        bLoaded = true;
+                }
         }
 
         if (bLoaded)
