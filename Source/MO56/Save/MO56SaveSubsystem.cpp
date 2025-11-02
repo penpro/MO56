@@ -40,7 +40,7 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
         UpdateOrRebuildSaveIndex();
 
-        PostWorldInitHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UMO56SaveSubsystem::HandlePostWorldInit);
+        FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UMO56SaveSubsystem::HandlePostWorldInit);
         WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(this, &UMO56SaveSubsystem::HandleWorldCleanup);
         
 }
@@ -49,11 +49,7 @@ void UMO56SaveSubsystem::Deinitialize()
 {
         Super::Deinitialize();
 
-        if (PostWorldInitHandle.IsValid())
-        {
-                FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitHandle);
-                PostWorldInitHandle.Reset();
-        }
+        FWorldDelegates::OnPostWorldInitialization.RemoveAll(this);
 
         if (WorldCleanupHandle.IsValid())
         {

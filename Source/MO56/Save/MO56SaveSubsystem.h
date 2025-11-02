@@ -225,7 +225,6 @@ private:
         TMap<FGuid, TWeakObjectPtr<AMO56Character>> RegisteredCharacters;
 
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
-
         FDelegateHandle WorldCleanupHandle;
         FDelegateHandle PostLoadMapHandle;
 
