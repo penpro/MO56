@@ -271,12 +271,12 @@ bool UMO56SaveSubsystem::SaveGame()
         }
 
         const FDateTime NowUtc = FDateTime::UtcNow();
-        if (CurrentSaveGame->InitialSaveTimestamp.GetTicks() == 0)
+        if (CurrentSaveGame->CreatedUtc.GetTicks() == 0)
         {
-                CurrentSaveGame->InitialSaveTimestamp = NowUtc;
+                CurrentSaveGame->CreatedUtc = NowUtc;
         }
 
-        CurrentSaveGame->LastSaveTimestamp = NowUtc;
+        CurrentSaveGame->UpdatedUtc = NowUtc;
 
         if (UWorld* World = GetWorld())
         {
@@ -284,16 +284,11 @@ bool UMO56SaveSubsystem::SaveGame()
                 const FName LevelName = ResolveLevelName(*World);
                 if (!LevelName.IsNone())
                 {
-                        CurrentSaveGame->LastLevelName = LevelName;
+                        CurrentSaveGame->LevelName = LevelName.ToString();
                 }
         }
 
         CacheSaveMetadata(*CurrentSaveGame);
-
-        if (CurrentSaveGame->LevelName.IsEmpty() && !CurrentSaveGame->LastLevelName.IsNone())
-        {
-                CurrentSaveGame->LevelName = CurrentSaveGame->LastLevelName.ToString();
-        }
 
         const bool bSaved = WriteSave(CurrentSaveGame);
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("SaveGame: Slot=%s Result=%s"), *CurrentSaveGame->SlotName, bSaved ? TEXT("Success") : TEXT("Failure"));
@@ -325,8 +320,8 @@ void UMO56SaveSubsystem::ResetToNewGame()
 
         CurrentSaveGame = NewObject<UMO56SaveGame>(this);
         const FDateTime NowUtc = FDateTime::UtcNow();
-        CurrentSaveGame->InitialSaveTimestamp = NowUtc;
-        CurrentSaveGame->LastSaveTimestamp = NowUtc;
+        CurrentSaveGame->CreatedUtc = NowUtc;
+        CurrentSaveGame->UpdatedUtc = NowUtc;
         CurrentSaveGame->PlayerInventoryIds.Empty();
         CurrentSaveGame->CharacterStates.Empty();
         CurrentSaveGame->InventoryStates.Empty();
@@ -405,9 +400,16 @@ FSaveGameSummary UMO56SaveSubsystem::CreateNewSaveSlot()
         ActiveSaveId = FGuid::NewGuid();
         CacheSaveMetadata(*CurrentSaveGame);
 
-        if (CurrentSaveGame->LevelName.IsEmpty() && !CurrentSaveGame->LastLevelName.IsNone())
+        if (CurrentSaveGame->LevelName.IsEmpty())
         {
-                CurrentSaveGame->LevelName = CurrentSaveGame->LastLevelName.ToString();
+                if (UWorld* World = GetWorld())
+                {
+                        const FName LevelName = ResolveLevelName(*World);
+                        if (!LevelName.IsNone())
+                        {
+                                CurrentSaveGame->LevelName = LevelName.ToString();
+                        }
+                }
         }
 
         if (!SaveCurrentGame())
@@ -966,8 +968,8 @@ void UMO56SaveSubsystem::LoadOrCreateSaveGame()
         {
                 CurrentSaveGame = NewObject<UMO56SaveGame>(this);
                 const FDateTime NowUtc = FDateTime::UtcNow();
-                CurrentSaveGame->InitialSaveTimestamp = NowUtc;
-                CurrentSaveGame->LastSaveTimestamp = NowUtc;
+                CurrentSaveGame->CreatedUtc = NowUtc;
+                CurrentSaveGame->UpdatedUtc = NowUtc;
                 CacheSaveMetadata(*CurrentSaveGame);
         }
 }
@@ -1723,7 +1725,7 @@ void UMO56SaveSubsystem::CacheSaveMetadata(UMO56SaveGame& SaveGame)
         SaveGame.SaveVersion = MO56_SAVE_VERSION;
         SaveGame.SlotName = MakeSlotName(SaveGame.SaveId);
 
-        if (!SaveGame.CreatedUtc.IsValid())
+        if (SaveGame.CreatedUtc.GetTicks() == 0)
         {
                 SaveGame.CreatedUtc = FDateTime::UtcNow();
         }
