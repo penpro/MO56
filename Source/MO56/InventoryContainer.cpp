@@ -37,7 +37,7 @@ void AInventoryContainer::BeginPlay()
                 {
                         if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                         {
-                                SaveSubsystem->RegisterInventoryComponent(InventoryComponent, false);
+                                SaveSubsystem->RegisterInventoryComponent(InventoryComponent, EMO56InventoryOwner::Container);
                         }
                 }
         }

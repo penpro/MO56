@@ -103,6 +103,32 @@ void AMO56Character::BeginPlay()
 {
         Super::BeginPlay();
 
+        if (HasAuthority())
+        {
+                if (!CharacterId.IsValid())
+                {
+                        CharacterId = FGuid::NewGuid();
+                }
+
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        {
+                                SaveSubsystem->RegisterCharacter(this);
+
+                                if (Inventory)
+                                {
+                                        SaveSubsystem->RegisterInventoryComponent(Inventory, EMO56InventoryOwner::Character, CharacterId);
+                                }
+
+                                if (SkillSystem)
+                                {
+                                        SaveSubsystem->RegisterSkillComponent(SkillSystem, CharacterId);
+                                }
+                        }
+                }
+        }
+
         if (HUDWidgetClass)
         {
                 if (APlayerController* PC = Cast<APlayerController>(GetController()))
@@ -254,19 +280,21 @@ void AMO56Character::BeginPlay()
 
 void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-        if (Inventory)
+        if (UGameInstance* GameInstance = GetGameInstance())
         {
-                if (UGameInstance* GameInstance = GetGameInstance())
+                if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                 {
-                        if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                        if (Inventory)
                         {
                                 SaveSubsystem->UnregisterInventoryComponent(Inventory);
-
-                                if (SkillSystem)
-                                {
-                                        SaveSubsystem->UnregisterSkillComponent(SkillSystem);
-                                }
                         }
+
+                        if (SkillSystem)
+                        {
+                                SaveSubsystem->UnregisterSkillComponent(SkillSystem);
+                        }
+
+                        SaveSubsystem->UnregisterCharacter(this);
                 }
         }
 
@@ -321,6 +349,7 @@ void AMO56Character::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
         Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
+        DOREPLIFETIME(AMO56Character, CharacterId);
         DOREPLIFETIME(AMO56Character, bIsPossessed);
         DOREPLIFETIME(AMO56Character, bEnableAI);
 }
@@ -340,16 +369,6 @@ void AMO56Character::PossessedBy(AController* NewController)
                                 if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(NewController))
                                 {
                                         SaveSubsystem->RegisterPlayerCharacter(this, MOController);
-
-                                        if (Inventory)
-                                        {
-                                                SaveSubsystem->RegisterInventoryComponent(Inventory, true, MOController->GetPlayerSaveId());
-                                        }
-
-                                        if (SkillSystem)
-                                        {
-                                                SaveSubsystem->RegisterSkillComponent(SkillSystem, MOController->GetPlayerSaveId());
-                                        }
                                 }
                         }
                 }
