@@ -21,6 +21,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/Paths.h"
+#include "Misc/PackageName.h"
 #include "Templates/UnrealTemplate.h"
 #include "MO56Character.h"
 #include "Skills/SkillSystemComponent.h"
@@ -36,7 +37,6 @@ UMO56SaveSubsystem::UMO56SaveSubsystem()
         ActiveSaveSlotName = SaveSlotName;
         ActiveSaveUserIndex = SaveUserIndex;
 
-        GameplayMapNames.Add(TEXT("TestLevel"));
         NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("Loading"), TEXT("Loading_"), TEXT("UI_") };
 }
 
@@ -60,7 +60,7 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
         LoadOrCreateSaveGame();
 
-        UpdateOrRebuildSaveIndex(false);
+        UpdateOrRebuildSaveIndex(true);
 }
 
 void UMO56SaveSubsystem::Deinitialize()
@@ -172,12 +172,28 @@ UMO56SaveGame* UMO56SaveSubsystem::PeekSaveHeader(const FGuid& SaveId)
 
 void UMO56SaveSubsystem::StartNewGame(const FString& LevelName)
 {
-        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("StartNewGame: Level=%s"), *LevelName);
+        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("StartNewGame: %s"), *LevelName);
 
         bPendingCreateNewSaveAfterTravel = true;
         bPendingApplyOnNextLevel = false;
         PendingLoadedSave = nullptr;
-        PendingLevelName = LevelName;
+
+        FString TravelLevelName = LevelName;
+        if (!TravelLevelName.IsEmpty())
+        {
+                TravelLevelName = FPackageName::GetShortName(TravelLevelName);
+        }
+
+        PendingLevelName = TravelLevelName.IsEmpty() ? LevelName : TravelLevelName;
+
+        if (PendingLevelName.IsEmpty())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("StartNewGame failed: invalid level name."));
+                bPendingCreateNewSaveAfterTravel = false;
+                return;
+        }
+
+        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("StartNewGame travel target: %s"), *PendingLevelName);
 
         ActiveSaveId.Invalidate();
         CurrentSaveGame = nullptr;
@@ -188,16 +204,13 @@ void UMO56SaveSubsystem::StartNewGame(const FString& LevelName)
                 {
                         PC->SetInputMode(FInputModeGameOnly());
                         PC->bShowMouseCursor = false;
-                        PC->ClientTravel(LevelName, TRAVEL_Absolute);
                 }
-                else
-                {
-                        UGameplayStatics::OpenLevel(World, FName(*LevelName), /*bAbsolute*/true);
-                }
+
+                UGameplayStatics::OpenLevel(World, FName(*PendingLevelName), true);
         }
         else
         {
-                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("StartNewGame failed: no valid world context."));
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("StartNewGame failed: no world."));
                 bPendingCreateNewSaveAfterTravel = false;
         }
 }
@@ -216,7 +229,7 @@ void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
         {
                 PendingLoadedSave = Loaded;
                 ActiveSaveId = SaveId;
-                PendingLevelName = Loaded->LevelName.IsEmpty() ? TEXT("TestLevel") : Loaded->LevelName;
+                PendingLevelName = Loaded->LevelName.IsEmpty() ? TEXT("M_TestLevel") : Loaded->LevelName;
                 bPendingApplyOnNextLevel = true;
                 bPendingCreateNewSaveAfterTravel = false;
                 CurrentSaveGame = nullptr;
@@ -258,7 +271,7 @@ bool UMO56SaveSubsystem::SaveCurrentGame()
                 return false;
         }
 
-        const bool bResult = SaveGame();
+        const bool bResult = SaveGame(true);
 
         if (bResult)
         {
@@ -290,7 +303,7 @@ bool UMO56SaveSubsystem::DeleteSave(const FGuid& SaveId)
         return bDeleted;
 }
 
-bool UMO56SaveSubsystem::SaveGame()
+bool UMO56SaveSubsystem::SaveGame(bool bForce)
 {
         if (!IsAuthoritative())
         {
@@ -305,7 +318,7 @@ bool UMO56SaveSubsystem::SaveGame()
 
         if (UWorld* World = GetWorld())
         {
-                if (!CanAutosaveInWorld(*World))
+                if (!bForce && !CanAutosaveInWorld(*World))
                 {
                         UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("SaveGame skipped for world %s."), *World->GetMapName());
                         return false;
@@ -345,7 +358,10 @@ bool UMO56SaveSubsystem::SaveGame()
         CacheSaveMetadata(*CurrentSaveGame);
 
         const bool bSaved = WriteSave(CurrentSaveGame);
-        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("SaveGame: Slot=%s Result=%s"), *CurrentSaveGame->SlotName, bSaved ? TEXT("Success") : TEXT("Failure"));
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("SaveGame: Slot=%s Result=%s%s"),
+                *CurrentSaveGame->SlotName,
+                bSaved ? TEXT("Success") : TEXT("Failure"),
+                bForce ? TEXT(" (forced)") : TEXT(""));
 
         if (bSaved && CachedSaveIndex)
         {
@@ -875,20 +891,18 @@ void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::Initia
 
 void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
 {
-        if (!World)
+        if (!World || IsMenuOrNonGameplayMap(World))
         {
-                return;
-        }
-
-        if (IsMenuOrNonGameplayMap(World))
-        {
-                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostLoadMapWithWorld: skipping non-gameplay world %s"), *World->GetMapName());
+                if (World)
+                {
+                        UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostLoadMapWithWorld: skipping non-gameplay world %s"), *World->GetMapName());
+                }
                 return;
         }
 
         const FString MapName = UWorld::RemovePIEPrefix(World->GetMapName());
 
-        if (bPendingCreateNewSaveAfterTravel)
+        if (bPendingCreateNewSaveAfterTravel || !CurrentSaveGame)
         {
                 bPendingCreateNewSaveAfterTravel = false;
 
@@ -899,20 +913,8 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
                         CurrentSaveGame->bIsGameplaySave = true;
                 }
 
-                const bool bSaved = SaveGame();
-                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("New run save initialized (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
-        }
-        else if (!CurrentSaveGame)
-        {
-                CreateNewSaveSlot();
-                if (CurrentSaveGame)
-                {
-                        CurrentSaveGame->LevelName = MapName;
-                        CurrentSaveGame->bIsGameplaySave = true;
-                }
-
-                const bool bSaved = SaveGame();
-                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Bootstrap save created after load (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
+                const bool bSaved = SaveGame(true);
+                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Bootstrap save write: %s"), bSaved ? TEXT("ok") : TEXT("failed"));
         }
 
         if (bPendingApplyOnNextLevel && PendingLoadedSave)
@@ -930,7 +932,7 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
                                 CurrentSaveGame->LevelName = MapName;
                                 CacheSaveMetadata(*CurrentSaveGame);
 
-                                const bool bSaved = SaveGame();
+                                const bool bSaved = SaveGame(true);
                                 UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Loaded run metadata refreshed (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
                         }
 

@@ -98,7 +98,7 @@ public:
         UMO56SaveGame* PeekSaveHeader(const FGuid& SaveId);
 
         UFUNCTION(BlueprintCallable, Category = "Save")
-        void StartNewGame(const FString& LevelName = TEXT("TestLevel"));
+        void StartNewGame(const FString& LevelName = TEXT("M_TestLevel"));
 
         UFUNCTION(BlueprintCallable, Category = "Save")
         void LoadSave(const FGuid& SaveId);
@@ -111,7 +111,7 @@ public:
 
         /** Saves the current world and inventory state to disk. */
         UFUNCTION(BlueprintCallable, Category = "Save")
-        bool SaveGame();
+        bool SaveGame(bool bForce = false);
 
         /** Loads the world and inventory state from disk. */
         UFUNCTION(BlueprintCallable, Category = "Save")

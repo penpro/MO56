@@ -65,7 +65,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
 
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
-                const TArray<FSaveIndexEntry> Entries = SaveSubsystem->ListSaves(true /*bRebuildFromDiskIfMissing*/);
+                const TArray<FSaveIndexEntry> Entries = SaveSubsystem->ListSaves(true);
 
                 for (const FSaveIndexEntry& Entry : Entries)
                 {
@@ -148,7 +148,7 @@ FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime)
 void UMO56MainMenuWidget::HandleNewGameClicked()
 {
         FString Dest;
-        if (StartingMap.IsValid() || StartingMap.ToSoftObjectPath().IsValid())
+        if (StartingMap.IsValid())
         {
                 Dest = StartingMap.ToSoftObjectPath().GetAssetPathString();
         }
@@ -156,16 +156,15 @@ void UMO56MainMenuWidget::HandleNewGameClicked()
         {
                 Dest = StartingMapFallback.ToString();
         }
-
         if (Dest.IsEmpty())
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s has no StartingMap configured."), *GetName());
                 return;
         }
 
-        if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
+        if (UMO56SaveSubsystem* SS = ResolveSubsystem())
         {
-                SaveSubsystem->StartNewGame(Dest);
+                SS->StartNewGame(Dest);
                 return;
         }
 
@@ -177,7 +176,7 @@ void UMO56MainMenuWidget::HandleNewGameClicked()
         }
         else
         {
-                UGameplayStatics::OpenLevel(GetWorld(), FName(*Dest), /*bAbsolute*/true);
+                UGameplayStatics::OpenLevel(GetWorld(), FName(*Dest), true);
         }
 }
 
