@@ -248,6 +248,7 @@ private:
         void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
         void HandleActorSpawned(AActor* Actor);
         void HandlePostLoadMapWithWorld(UWorld* World);
+        void HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr);
 
 
         UFUNCTION()
@@ -261,8 +262,6 @@ private:
         void ApplySaveToWorld(UWorld* World);
         void RefreshInventorySaveData();
         void RefreshTrackedPickups();
-
-        void ApplyPendingSave(UWorld& World);
 
         FName ResolveLevelName(const AActor& Actor) const;
         FName ResolveLevelName(const UWorld& World) const;
