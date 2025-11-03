@@ -194,6 +194,7 @@ private:
         FGuid ActiveSaveId;
         FString PendingLevelName;
         bool bPendingApplyOnNextLevel = false;
+        bool bPendingCreateNewSaveAfterTravel = false;
 
         UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
@@ -297,5 +298,6 @@ private:
         bool IsMenuOrNonGameplayMap(const UWorld* World) const;
         bool CanAutosaveInWorld(const UWorld& World) const;
         bool IsGameplayMapName(const FName& MapName) const;
+        bool IsMenuOrNonGameplayMapName(const FString& MapName) const;
 };
 

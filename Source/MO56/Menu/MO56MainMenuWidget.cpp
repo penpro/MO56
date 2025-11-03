@@ -65,7 +65,7 @@ void UMO56MainMenuWidget::RefreshSaveEntries()
 
         if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
         {
-                const TArray<FSaveIndexEntry> Entries = SaveSubsystem->ListSaves();
+                const TArray<FSaveIndexEntry> Entries = SaveSubsystem->ListSaves(true /*bRebuildFromDiskIfMissing*/);
 
                 for (const FSaveIndexEntry& Entry : Entries)
                 {

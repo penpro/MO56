@@ -113,6 +113,9 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
         float TotalPlayTimeSeconds = 0.f;
 
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Metadata")
+        bool bIsGameplaySave = true;
+
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Player")
         FMO56PlayerStats PlayerStats;
 
