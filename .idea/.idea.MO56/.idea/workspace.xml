@@ -13,7 +13,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/CookerOpenOrder.log" beforeDir="false" afterPath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/CookerOpenOrder.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/EditorOpenOrder.log" beforeDir="false" afterPath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/EditorOpenOrder.log" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/WBP_MainMenu.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/WBP_MainMenu.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/WBP_SaveGameMenu.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/WBP_SaveGameMenu.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/MO56/Menu/MO56MainMenuWidget.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/Menu/MO56MainMenuWidget.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/MO56/Menu/MO56MainMenuWidget.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/Menu/MO56MainMenuWidget.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/MO56/Menu/MO56MenuGameMode.h" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/Menu/MO56MenuGameMode.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Source/MO56/Save/MO56SaveSubsystem.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/Source/MO56/Save/MO56SaveSubsystem.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

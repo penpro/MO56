@@ -4,6 +4,7 @@
 #include "Components/ScrollBox.h"
 #include "Engine/GameInstance.h"
 #include "Internationalization/Text.h"
+#include "Kismet/GameplayStatics.h"
 #include "Menu/MO56SaveListItemWidget.h"
 #include "Save/MO56MenuSettingsSave.h"
 #include "Save/MO56SaveSubsystem.h"
@@ -11,7 +12,7 @@
 UMO56MainMenuWidget::UMO56MainMenuWidget(const FObjectInitializer& ObjectInitializer)
         : Super(ObjectInitializer)
 {
-        bIsFocusable = true; // allow focusing the root
+        SetIsFocusable(true); // supported, non-deprecated
 }
 
 void UMO56MainMenuWidget::NativeConstruct()
@@ -152,9 +153,16 @@ void UMO56MainMenuWidget::HandleNewGameClicked()
                 return;
         }
 
-        if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
+        // Drop any UI-only input before travel (optional)
+        if (APlayerController* PC = GetOwningPlayer())
         {
-                SaveSubsystem->StartNewGame(StartingMapName.ToString());
+                PC->SetInputMode(FInputModeGameOnly());
+                PC->bShowMouseCursor = false;
+                PC->ClientTravel(StartingMapName.ToString(), TRAVEL_Absolute);
+        }
+        else
+        {
+                UGameplayStatics::OpenLevel(GetWorld(), StartingMapName, /*bAbsolute*/true);
         }
 }
 

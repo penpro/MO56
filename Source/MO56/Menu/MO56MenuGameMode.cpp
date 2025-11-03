@@ -24,6 +24,8 @@ void AMO56MenuGameMode::BeginPlay()
         if (!MenuSettings)
         {
             MenuSettings = Cast<UMO56MenuSettingsSave>(UGameplayStatics::CreateSaveGameObject(UMO56MenuSettingsSave::StaticClass()));
+            UGameplayStatics::SaveGameToSlot(MenuSettings, UMO56MenuSettingsSave::StaticSlotName,
+                                         UMO56MenuSettingsSave::StaticUserIndex);
         }
     }
 
