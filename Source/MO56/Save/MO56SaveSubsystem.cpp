@@ -28,7 +28,6 @@
 #include "HAL/FileManager.h"
 #include "TimerManager.h"
 #include "Save/MO56MenuSettingsSave.h"
-#include "UObject/CoreUObjectDelegates.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
