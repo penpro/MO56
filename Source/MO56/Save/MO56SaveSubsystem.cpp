@@ -37,21 +37,30 @@ UMO56SaveSubsystem::UMO56SaveSubsystem()
         ActiveSaveUserIndex = SaveUserIndex;
 
         GameplayMapNames.Add(TEXT("TestLevel"));
-        NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("Loading"), TEXT("Loading_") };
+        NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("Loading"), TEXT("Loading_"), TEXT("UI_") };
 }
 
 void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
         Super::Initialize(Collection);
 
+        if (NonGameplayMapPrefixes.Num() == 0)
+        {
+                NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_") };
+        }
+
+        PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
+                this, &UMO56SaveSubsystem::HandlePostLoadMapWithWorld);
+
+        WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(
+                this, &UMO56SaveSubsystem::HandleWorldCleanup);
+
+        FWorldDelegates::OnPostWorldInitialization.AddUObject(
+                this, &UMO56SaveSubsystem::HandlePostWorldInit);
+
         LoadOrCreateSaveGame();
 
-        UpdateOrRebuildSaveIndex(true);
-
-        FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UMO56SaveSubsystem::HandlePostWorldInit);
-        WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(this, &UMO56SaveSubsystem::HandleWorldCleanup);
-        PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &UMO56SaveSubsystem::HandlePostLoadMapWithWorld);
-
+        UpdateOrRebuildSaveIndex(false);
 }
 
 void UMO56SaveSubsystem::Deinitialize()
@@ -165,17 +174,26 @@ void UMO56SaveSubsystem::StartNewGame(const FString& LevelName)
 {
         UE_LOG(LogMO56SaveSubsystem, Display, TEXT("StartNewGame: Level=%s"), *LevelName);
 
-        ActiveSaveId = FGuid::NewGuid();
-        PendingLevelName = LevelName;
-        bPendingApplyOnNextLevel = false;
         bPendingCreateNewSaveAfterTravel = true;
+        bPendingApplyOnNextLevel = false;
         PendingLoadedSave = nullptr;
+        PendingLevelName = LevelName;
 
+        ActiveSaveId.Invalidate();
         CurrentSaveGame = nullptr;
 
         if (UWorld* World = GetWorld())
         {
-                UGameplayStatics::OpenLevel(World, FName(*LevelName), true);
+                if (APlayerController* PC = World->GetFirstPlayerController())
+                {
+                        PC->SetInputMode(FInputModeGameOnly());
+                        PC->bShowMouseCursor = false;
+                        PC->ClientTravel(LevelName, TRAVEL_Absolute);
+                }
+                else
+                {
+                        UGameplayStatics::OpenLevel(World, FName(*LevelName), /*bAbsolute*/true);
+                }
         }
         else
         {
@@ -232,15 +250,13 @@ bool UMO56SaveSubsystem::SaveCurrentGame()
 
         if (!CurrentSaveGame)
         {
-                CurrentSaveGame = NewObject<UMO56SaveGame>(this);
+                CreateNewSaveSlot();
         }
 
-        if (!ActiveSaveId.IsValid())
+        if (!CurrentSaveGame)
         {
-                ActiveSaveId = CurrentSaveGame->SaveId.IsValid() ? CurrentSaveGame->SaveId : FGuid::NewGuid();
+                return false;
         }
-
-        CacheSaveMetadata(*CurrentSaveGame);
 
         const bool bResult = SaveGame();
 
@@ -436,6 +452,7 @@ FSaveGameSummary UMO56SaveSubsystem::CreateNewSaveSlot()
         }
 
         ActiveSaveId = FGuid::NewGuid();
+        CurrentSaveGame->SaveId = ActiveSaveId;
         CacheSaveMetadata(*CurrentSaveGame);
 
         if (CurrentSaveGame->LevelName.IsEmpty())
@@ -450,10 +467,13 @@ FSaveGameSummary UMO56SaveSubsystem::CreateNewSaveSlot()
                 }
         }
 
-        if (!SaveCurrentGame())
+        const bool bSaved = SaveGame();
+        if (!bSaved)
         {
                 return Summary;
         }
+
+        UpdateOrRebuildSaveIndex();
 
         Summary.SlotName = CurrentSaveGame->SlotName;
         Summary.UserIndex = ActiveSaveUserIndex;
@@ -860,41 +880,39 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
                 return;
         }
 
-        const FString MapName = UWorld::RemovePIEPrefix(World->GetMapName());
-        const AGameModeBase* GameMode = World->GetAuthGameMode();
-        const APlayerController* PlayerController = World->GetFirstPlayerController();
-        const bool bIsGameplayWorld = !IsMenuOrNonGameplayMap(World);
-        const bool bIsNewRun = bPendingCreateNewSaveAfterTravel;
-        const bool bIsLoadRun = bPendingApplyOnNextLevel && PendingLoadedSave != nullptr;
-
-        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("PostLoad: Level=%s GM=%s PC=%s NewRun=%s LoadedRun=%s"),
-                *MapName,
-                *GetNameSafe(GameMode ? GameMode->GetClass() : nullptr),
-                *GetNameSafe(PlayerController ? PlayerController->GetClass() : nullptr),
-                bIsNewRun ? TEXT("Yes") : TEXT("No"),
-                bIsLoadRun ? TEXT("Yes") : TEXT("No"));
-
-        if (!bIsGameplayWorld)
+        if (IsMenuOrNonGameplayMap(World))
         {
-                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("Post-load map %s identified as menu or non-gameplay."), *MapName);
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostLoadMapWithWorld: skipping non-gameplay world %s"), *World->GetMapName());
                 return;
         }
 
+        const FString MapName = UWorld::RemovePIEPrefix(World->GetMapName());
+
         if (bPendingCreateNewSaveAfterTravel)
         {
-                CurrentSaveGame = NewObject<UMO56SaveGame>(this);
+                bPendingCreateNewSaveAfterTravel = false;
+
+                CreateNewSaveSlot();
                 if (CurrentSaveGame)
                 {
                         CurrentSaveGame->LevelName = MapName;
                         CurrentSaveGame->bIsGameplaySave = true;
-                        CacheSaveMetadata(*CurrentSaveGame);
-
-                        const bool bSaved = SaveGame();
-                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("New run save initialized (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
-                        UpdateOrRebuildSaveIndex(true);
                 }
 
-                bPendingCreateNewSaveAfterTravel = false;
+                const bool bSaved = SaveGame();
+                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("New run save initialized (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
+        }
+        else if (!CurrentSaveGame)
+        {
+                CreateNewSaveSlot();
+                if (CurrentSaveGame)
+                {
+                        CurrentSaveGame->LevelName = MapName;
+                        CurrentSaveGame->bIsGameplaySave = true;
+                }
+
+                const bool bSaved = SaveGame();
+                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Bootstrap save created after load (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
         }
 
         if (bPendingApplyOnNextLevel && PendingLoadedSave)
@@ -1844,18 +1862,26 @@ UMO56SaveGame* UMO56SaveSubsystem::ReadSave(const FGuid& SaveId, bool bUpdateMet
 
 void UMO56SaveSubsystem::UpdateOrRebuildSaveIndex(bool bForceRebuild)
 {
+        if (CachedSaveIndex && CachedSaveIndex->GetClass() != UMO56SaveIndex::StaticClass())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("SaveIndex mismatch; rebuilding from disk"));
+                CachedSaveIndex = nullptr;
+                bForceRebuild = true;
+        }
+
         if (!CachedSaveIndex)
         {
                 if (USaveGame* LoadedIndex = UGameplayStatics::LoadGameFromSlot(SaveIndexSlotName, ActiveSaveUserIndex))
                 {
-                        if (LoadedIndex->IsA(UMO56SaveIndex::StaticClass()))
+                        if (UMO56SaveIndex* LoadedSaveIndex = Cast<UMO56SaveIndex>(LoadedIndex))
                         {
-                                CachedSaveIndex = Cast<UMO56SaveIndex>(LoadedIndex);
+                                CachedSaveIndex = LoadedSaveIndex;
                         }
                         else
                         {
                                 UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("Save index slot contained unexpected class. Rebuilding index."));
                                 UGameplayStatics::DeleteGameInSlot(SaveIndexSlotName, ActiveSaveUserIndex);
+                                bForceRebuild = true;
                         }
                 }
         }
