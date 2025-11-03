@@ -81,12 +81,6 @@ void UMO56SaveSubsystem::Deinitialize()
 
         FWorldDelegates::OnPostWorldInitialization.RemoveAll(this);
 
-        if (WorldBeginPlayHandle.IsValid())
-        {
-                FWorldDelegates::OnWorldBeginPlay.Remove(WorldBeginPlayHandle);
-                WorldBeginPlayHandle.Reset();
-        }
-
         if (WorldCleanupHandle.IsValid())
         {
                 FWorldDelegates::OnWorldCleanup.Remove(WorldCleanupHandle);
