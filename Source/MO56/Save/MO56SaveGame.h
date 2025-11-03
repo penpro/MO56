@@ -125,6 +125,12 @@ public:
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|World")
         TMap<FName, FLevelWorldState> LevelStates;
 
+        UPROPERTY()
+        TMap<FGuid, FPawnSaveData> Pawns;
+
+        UPROPERTY()
+        TMap<FGuid, FPlayerAssignment> Assignments;
+
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Save|Inventory")
         TMap<FGuid, FInventorySaveData> InventoryStates;
 

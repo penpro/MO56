@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameFramework/Pawn.h"
 #include "MO56SaveTypes.generated.h"
 
 USTRUCT(BlueprintType)
@@ -64,4 +65,37 @@ struct FSaveIndexEntry
 };
 
 inline constexpr int32 MO56_SAVE_VERSION = 1;
+
+USTRUCT()
+struct FPawnSaveData
+{
+        GENERATED_BODY()
+
+        UPROPERTY()
+        FGuid PawnId;
+
+        UPROPERTY()
+        TSoftClassPtr<APawn> ClassPath;
+
+        UPROPERTY()
+        FTransform Transform = FTransform::Identity;
+
+        UPROPERTY()
+        bool bPlayerCandidate = true;
+
+        UPROPERTY()
+        FGuid InventoryId;
+};
+
+USTRUCT()
+struct FPlayerAssignment
+{
+        GENERATED_BODY()
+
+        UPROPERTY()
+        FGuid PlayerSaveId;
+
+        UPROPERTY()
+        FGuid PawnId;
+};
 

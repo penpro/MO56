@@ -6,6 +6,9 @@
 #include "GameFramework/GameModeBase.h"
 #include "MO56GameMode.generated.h"
 
+class APlayerController;
+class UMO56SaveSubsystem;
+
 /**
  *  Simple GameMode for a third person game
  *
@@ -19,12 +22,14 @@
 UCLASS()
 class AMO56GameMode : public AGameModeBase
 {
-	GENERATED_BODY()
+        GENERATED_BODY()
 
-public:
-	
-	/** Constructor */
-	AMO56GameMode();
+ public:
+
+        /** Constructor */
+        AMO56GameMode();
+
+        virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 };
 
 
