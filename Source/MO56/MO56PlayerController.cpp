@@ -17,6 +17,7 @@
 #include "MO56Character.h"
 #include "Save/MO56SaveSubsystem.h"
 #include "Net/UnrealNetwork.h"
+#include "UI/MO56PossessMenuWidget.h"
 
 void AMO56PlayerController::BeginPlay()
 {
@@ -55,6 +56,30 @@ void AMO56PlayerController::BeginPlay()
                                 }
                         }
                 }
+        }
+
+        if (IsLocalController() && (GetPawn() == nullptr || PlayerState == nullptr))
+        {
+                ShowPossessMenu();
+                ServerQueryPossessablePawns();
+        }
+}
+
+void AMO56PlayerController::OnPossess(APawn* InPawn)
+{
+        Super::OnPossess(InPawn);
+
+        HidePossessMenu();
+}
+
+void AMO56PlayerController::OnUnPossess()
+{
+        Super::OnUnPossess();
+
+        if (IsLocalController())
+        {
+                ShowPossessMenu();
+                ServerQueryPossessablePawns();
         }
 }
 
@@ -191,6 +216,95 @@ void AMO56PlayerController::RequestPossessPawn(APawn* TargetPawn)
         {
                 ServerPossessPawn(TargetPawn);
         }
+}
+
+void AMO56PlayerController::ServerQueryPossessablePawns_Implementation()
+{
+        if (UGameInstance* GameInstance = GetGameInstance())
+        {
+                if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                {
+                        TArray<FMOPossessablePawnInfo> List;
+                        SaveSubsystem->BuildPossessablePawnList(this, List);
+                        ClientReceivePossessablePawns(List);
+                }
+        }
+}
+
+void AMO56PlayerController::ClientReceivePossessablePawns_Implementation(const TArray<FMOPossessablePawnInfo>& List)
+{
+        CachedPossessablePawns = List;
+
+        if (PossessMenu)
+        {
+                PossessMenu->SetList(CachedPossessablePawns);
+        }
+}
+
+void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FGuid& PawnId)
+{
+        if (!PawnId.IsValid())
+        {
+                return;
+        }
+
+        if (UGameInstance* GameInstance = GetGameInstance())
+        {
+                if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                {
+                        FString Reason;
+                        if (!SaveSubsystem->TryAssignAndPossess(this, PawnId, Reason))
+                        {
+                                ClientMessage(FString::Printf(TEXT("Cannot possess: %s"), *Reason));
+                        }
+                }
+        }
+}
+
+void AMO56PlayerController::ShowPossessMenu()
+{
+        if (!IsLocalController() || PossessMenu)
+        {
+                return;
+        }
+
+        if (!PossessMenuClass)
+        {
+                return;
+        }
+
+        PossessMenu = CreateWidget<UMO56PossessMenuWidget>(this, PossessMenuClass);
+        if (!PossessMenu)
+        {
+                return;
+        }
+
+        PossessMenu->AddToViewport(50);
+
+        if (CachedPossessablePawns.Num() > 0)
+        {
+                PossessMenu->SetList(CachedPossessablePawns);
+        }
+
+        FInputModeUIOnly InputMode;
+        InputMode.SetWidgetToFocus(PossessMenu->TakeWidget());
+        SetInputMode(InputMode);
+        bShowMouseCursor = true;
+}
+
+void AMO56PlayerController::HidePossessMenu()
+{
+        if (!PossessMenu)
+        {
+                return;
+        }
+
+        PossessMenu->RemoveFromParent();
+        PossessMenu = nullptr;
+
+        FInputModeGameOnly InputMode;
+        SetInputMode(InputMode);
+        bShowMouseCursor = false;
 }
 
 void AMO56PlayerController::RequestOpenPawnInventory(APawn* TargetPawn)

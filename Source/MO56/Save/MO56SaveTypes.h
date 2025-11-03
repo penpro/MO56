@@ -85,6 +85,9 @@ struct FPawnSaveData
 
         UPROPERTY()
         FGuid InventoryId;
+
+        UPROPERTY()
+        FText DisplayName;
 };
 
 USTRUCT()
