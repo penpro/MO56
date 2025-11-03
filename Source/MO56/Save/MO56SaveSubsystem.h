@@ -17,6 +17,9 @@ class UInventoryComponent;
 class USkillSystemComponent;
 class AMO56PlayerController;
 class AMO56Character;
+class APawn;
+class APlayerController;
+class UMOPersistentPawnComponent;
 class UWorld;
 
 USTRUCT(BlueprintType)
@@ -154,6 +157,8 @@ public:
         /** Unregisters a pickup actor from persistence tracking. */
         void UnregisterWorldPickup(AItemPickup* Pickup);
 
+        void AssignAndPossessPersistentPawn(APlayerController* PlayerController);
+
         /** Notifies the subsystem that a controller is ready and should be associated with save data. */
         void NotifyPlayerControllerReady(AMO56PlayerController* Controller);
 
@@ -253,6 +258,11 @@ private:
         void HandleActorSpawned(AActor* Actor);
         void HandlePostLoadMapWithWorld(UWorld* World);
         void HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr);
+
+        void SpawnPersistentPawnsFromSave();
+        APawn* FindPersistentPawnById(const FGuid& PawnId) const;
+        bool FindUnassignedPlayerCandidate(FGuid& OutPawnId) const;
+        void GatherPersistentPawnsForSave();
 
 
         UFUNCTION()

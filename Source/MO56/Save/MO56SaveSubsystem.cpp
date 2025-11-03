@@ -15,6 +15,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "Components/MOPersistentPawnComponent.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
 #include "ItemData.h"
@@ -428,6 +429,11 @@ bool UMO56SaveSubsystem::SaveGame(bool bForce)
                 LoadOrCreateSaveGame();
         }
 
+        if (CurrentSaveGame)
+        {
+                GatherPersistentPawnsForSave();
+        }
+
         if (UWorld* World = GetWorld())
         {
                 if (!bForce && !CanAutosaveInWorld(*World))
@@ -510,6 +516,8 @@ void UMO56SaveSubsystem::ResetToNewGame()
         CurrentSaveGame->InventoryStates.Empty();
         CurrentSaveGame->LevelStates.Empty();
         CurrentSaveGame->PlayerStates.Empty();
+        CurrentSaveGame->Pawns.Empty();
+        CurrentSaveGame->Assignments.Empty();
 
         if (UWorld* World = GetWorld())
         {
@@ -775,7 +783,22 @@ void UMO56SaveSubsystem::RegisterCharacter(AMO56Character* Character)
                 return;
         }
 
-        const FGuid CharacterId = Character->GetCharacterId();
+        FGuid CharacterId = Character->GetCharacterId();
+
+        if (UMOPersistentPawnComponent* PersistentComp = Character->FindComponentByClass<UMOPersistentPawnComponent>())
+        {
+                if (!PersistentComp->PawnId.IsValid())
+                {
+                        PersistentComp->PawnId = FGuid::NewGuid();
+                }
+
+                if (!CharacterId.IsValid() || CharacterId != PersistentComp->PawnId)
+                {
+                        CharacterId = PersistentComp->PawnId;
+                        Character->CharacterId = CharacterId;
+                }
+        }
+
         if (!CharacterId.IsValid())
         {
                 UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("RegisterCharacter: Character %s has invalid CharacterId."), *GetNameSafe(Character));
@@ -793,6 +816,15 @@ void UMO56SaveSubsystem::RegisterCharacter(AMO56Character* Character)
         {
                 FCharacterSaveData& CharacterData = CurrentSaveGame->CharacterStates.FindOrAdd(CharacterId);
                 CharacterData.CharacterId = CharacterId;
+        }
+
+        if (CurrentSaveGame)
+        {
+                FPawnSaveData& PawnData = CurrentSaveGame->Pawns.FindOrAdd(CharacterId);
+                PawnData.PawnId = CharacterId;
+                PawnData.ClassPath = Character->GetClass();
+                PawnData.Transform = Character->GetActorTransform();
+                PawnData.bPlayerCandidate = true;
         }
 
         const FGuid InventoryId = Character->GetInventoryComponent() ? Character->GetInventoryComponent()->GetPersistentId() : FGuid();
@@ -1053,6 +1085,460 @@ void UMO56SaveSubsystem::UnregisterWorldPickup(AItemPickup* Pickup)
         PickupToLevelMap.Remove(PickupId);
 }
 
+void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* PlayerController)
+{
+        if (!IsAuthoritative() || !PlayerController)
+        {
+                return;
+        }
+
+        if (!CurrentSaveGame)
+        {
+                LoadOrCreateSaveGame();
+        }
+
+        if (!CurrentSaveGame)
+        {
+                PlayerController->StartSpectatingOnly();
+                return;
+        }
+
+        AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController);
+        if (MOController)
+        {
+                NotifyPlayerControllerReady(MOController);
+        }
+
+        const FGuid PlayerSaveId = MOController ? MOController->GetPlayerSaveId() : FGuid();
+        if (!PlayerSaveId.IsValid())
+        {
+                PlayerController->StartSpectatingOnly();
+                return;
+        }
+
+        if (MOController)
+        {
+                PlayerControllers.FindOrAdd(PlayerSaveId) = MOController;
+        }
+
+        if (FPlayerAssignment* Assignment = CurrentSaveGame->Assignments.Find(PlayerSaveId))
+        {
+                if (Assignment->PawnId.IsValid())
+                {
+                        if (APawn* AssignedPawn = FindPersistentPawnById(Assignment->PawnId))
+                        {
+                                PlayerController->Possess(AssignedPawn);
+
+                                if (UInventoryComponent* Inventory = AssignedPawn->FindComponentByClass<UInventoryComponent>())
+                                {
+                                        const FGuid InventoryId = Inventory->GetPersistentId();
+                                        if (InventoryId.IsValid())
+                                        {
+                                                const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
+                                                ensureMsgf(!Existing || Existing->Get() == Inventory,
+                                                        TEXT("Duplicate InventoryId at possess: %s"), *InventoryId.ToString());
+                                        }
+                                }
+
+                                return;
+                        }
+                }
+        }
+
+        FGuid CandidatePawnId;
+        if (FindUnassignedPlayerCandidate(CandidatePawnId))
+        {
+                CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, CandidatePawnId };
+
+                if (APawn* CandidatePawn = FindPersistentPawnById(CandidatePawnId))
+                {
+                        PlayerController->Possess(CandidatePawn);
+
+                        if (UInventoryComponent* Inventory = CandidatePawn->FindComponentByClass<UInventoryComponent>())
+                        {
+                                const FGuid InventoryId = Inventory->GetPersistentId();
+                                if (InventoryId.IsValid())
+                                {
+                                        const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
+                                        ensureMsgf(!Existing || Existing->Get() == Inventory,
+                                                TEXT("Duplicate InventoryId at possess: %s"), *InventoryId.ToString());
+                                }
+                        }
+
+                        return;
+                }
+        }
+
+        PlayerController->StartSpectatingOnly();
+}
+
+void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
+{
+        if (!IsAuthoritative() || !CurrentSaveGame)
+        {
+                return;
+        }
+
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                return;
+        }
+
+        TMap<FGuid, APawn*> ExistingPawns;
+        for (TActorIterator<APawn> It(World); It; ++It)
+        {
+                APawn* Pawn = *It;
+                if (!Pawn)
+                {
+                        continue;
+                }
+
+                if (UMOPersistentPawnComponent* PersistentComp = Pawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                {
+                        if (!PersistentComp->PawnId.IsValid())
+                        {
+                                PersistentComp->PawnId = FGuid::NewGuid();
+                        }
+
+                        ExistingPawns.Add(PersistentComp->PawnId, Pawn);
+
+                        FPawnSaveData& PawnData = CurrentSaveGame->Pawns.FindOrAdd(PersistentComp->PawnId);
+                        PawnData.PawnId = PersistentComp->PawnId;
+                        PawnData.ClassPath = Pawn->GetClass();
+                        PawnData.Transform = Pawn->GetActorTransform();
+                        PawnData.bPlayerCandidate = PersistentComp->bPlayerCandidate;
+                        if (!PawnData.InventoryId.IsValid())
+                        {
+                                PawnData.InventoryId = PersistentComp->PawnId;
+                        }
+                }
+        }
+
+        for (auto& Pair : CurrentSaveGame->Pawns)
+        {
+                FPawnSaveData& PawnData = Pair.Value;
+
+                if (!PawnData.PawnId.IsValid())
+                {
+                        PawnData.PawnId = Pair.Key.IsValid() ? Pair.Key : FGuid::NewGuid();
+                }
+
+                if (!PawnData.InventoryId.IsValid())
+                {
+                        PawnData.InventoryId = PawnData.PawnId;
+                }
+
+                if (APawn* ExistingPawn = ExistingPawns.FindRef(PawnData.PawnId))
+                {
+                        ExistingPawn->SetActorTransform(PawnData.Transform);
+
+                        if (UMOPersistentPawnComponent* PersistentComp = ExistingPawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                        {
+                                PersistentComp->PawnId = PawnData.PawnId;
+                                PersistentComp->bPlayerCandidate = PawnData.bPlayerCandidate;
+                        }
+
+                        if (UInventoryComponent* Inventory = ExistingPawn->FindComponentByClass<UInventoryComponent>())
+                        {
+                                FGuid TargetInventoryId = PawnData.InventoryId.IsValid() ? PawnData.InventoryId : PawnData.PawnId;
+                                const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(TargetInventoryId);
+                                if (Existing && Existing->Get() && Existing->Get() != Inventory)
+                                {
+                                        const FGuid NewId = PawnData.PawnId;
+                                        if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
+                                        {
+                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                        }
+                                        TargetInventoryId = NewId;
+                                }
+
+                                Inventory->OverridePersistentId(TargetInventoryId);
+
+                                if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
+                                {
+                                        TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                                        Inventory->ReadFromSaveData(*SavedInventory);
+                                }
+                        }
+
+                        continue;
+                }
+
+                if (!PawnData.ClassPath.IsValid())
+                {
+                        continue;
+                }
+
+                UClass* PawnClass = PawnData.ClassPath.LoadSynchronous();
+                if (!PawnClass)
+                {
+                        continue;
+                }
+
+                FActorSpawnParameters SpawnParams;
+                SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+                APawn* SpawnedPawn = World->SpawnActor<APawn>(PawnClass, PawnData.Transform, SpawnParams);
+                if (!SpawnedPawn)
+                {
+                        continue;
+                }
+
+                if (UMOPersistentPawnComponent* PersistentComp = SpawnedPawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                {
+                        PersistentComp->PawnId = PawnData.PawnId;
+                        PersistentComp->bPlayerCandidate = PawnData.bPlayerCandidate;
+                }
+
+                if (UInventoryComponent* Inventory = SpawnedPawn->FindComponentByClass<UInventoryComponent>())
+                {
+                        FGuid TargetInventoryId = PawnData.InventoryId.IsValid() ? PawnData.InventoryId : PawnData.PawnId;
+                        const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(TargetInventoryId);
+                        if (Existing && Existing->Get() && Existing->Get() != Inventory)
+                        {
+                                const FGuid NewId = PawnData.PawnId;
+                                if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
+                                {
+                                        CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                }
+                                TargetInventoryId = NewId;
+                        }
+
+                        Inventory->OverridePersistentId(TargetInventoryId);
+                        RegisteredInventories.Add(TargetInventoryId, Inventory);
+
+                        if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
+                        {
+                                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                                Inventory->ReadFromSaveData(*SavedInventory);
+                        }
+                }
+
+                ExistingPawns.Add(PawnData.PawnId, SpawnedPawn);
+        }
+}
+
+APawn* UMO56SaveSubsystem::FindPersistentPawnById(const FGuid& PawnId) const
+{
+        if (!PawnId.IsValid())
+        {
+                return nullptr;
+        }
+
+        if (const UWorld* World = GetWorld())
+        {
+                for (TActorIterator<APawn> It(World); It; ++It)
+                {
+                        APawn* Pawn = *It;
+                        if (!Pawn)
+                        {
+                                continue;
+                        }
+
+                        if (UMOPersistentPawnComponent* PersistentComp = Pawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                        {
+                                if (PersistentComp->PawnId == PawnId)
+                                {
+                                        return Pawn;
+                                }
+                        }
+                }
+        }
+
+        return nullptr;
+}
+
+bool UMO56SaveSubsystem::FindUnassignedPlayerCandidate(FGuid& OutPawnId) const
+{
+        OutPawnId.Invalidate();
+
+        if (!CurrentSaveGame)
+        {
+                return false;
+        }
+
+        TSet<FGuid> ClaimedPawns;
+        for (const auto& Pair : CurrentSaveGame->Assignments)
+        {
+                if (Pair.Value.PawnId.IsValid())
+                {
+                        ClaimedPawns.Add(Pair.Value.PawnId);
+                }
+        }
+
+        for (const auto& Pair : CurrentSaveGame->Pawns)
+        {
+                const FPawnSaveData& PawnData = Pair.Value;
+                if (!PawnData.PawnId.IsValid() || ClaimedPawns.Contains(PawnData.PawnId))
+                {
+                        continue;
+                }
+
+                if (!PawnData.bPlayerCandidate)
+                {
+                        continue;
+                }
+
+                if (FindPersistentPawnById(PawnData.PawnId))
+                {
+                        OutPawnId = PawnData.PawnId;
+                        return true;
+                }
+        }
+
+        if (const UWorld* World = GetWorld())
+        {
+                for (TActorIterator<APawn> It(World); It; ++It)
+                {
+                        APawn* Pawn = *It;
+                        if (!Pawn)
+                        {
+                                continue;
+                        }
+
+                        if (UMOPersistentPawnComponent* PersistentComp = Pawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                        {
+                                if (!PersistentComp->PawnId.IsValid() || ClaimedPawns.Contains(PersistentComp->PawnId))
+                                {
+                                        continue;
+                                }
+
+                                if (!PersistentComp->bPlayerCandidate)
+                                {
+                                        continue;
+                                }
+
+                                FPawnSaveData& PawnData = CurrentSaveGame->Pawns.FindOrAdd(PersistentComp->PawnId);
+                                PawnData.PawnId = PersistentComp->PawnId;
+                                PawnData.ClassPath = Pawn->GetClass();
+                                PawnData.Transform = Pawn->GetActorTransform();
+                                PawnData.bPlayerCandidate = PersistentComp->bPlayerCandidate;
+                                if (!PawnData.InventoryId.IsValid())
+                                {
+                                        PawnData.InventoryId = PersistentComp->PawnId;
+                                }
+
+                                OutPawnId = PersistentComp->PawnId;
+                                return true;
+                        }
+                }
+        }
+
+        return false;
+}
+
+void UMO56SaveSubsystem::GatherPersistentPawnsForSave()
+{
+        if (!IsAuthoritative() || !CurrentSaveGame)
+        {
+                return;
+        }
+
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                return;
+        }
+
+        TMap<FGuid, FPawnSaveData> NewPawnMap;
+
+        for (TActorIterator<APawn> It(World); It; ++It)
+        {
+                APawn* Pawn = *It;
+                if (!Pawn)
+                {
+                        continue;
+                }
+
+                if (UMOPersistentPawnComponent* PersistentComp = Pawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                {
+                        if (!PersistentComp->PawnId.IsValid())
+                        {
+                                PersistentComp->PawnId = FGuid::NewGuid();
+                        }
+
+                        FPawnSaveData& PawnData = NewPawnMap.FindOrAdd(PersistentComp->PawnId);
+                        PawnData.PawnId = PersistentComp->PawnId;
+                        PawnData.ClassPath = Pawn->GetClass();
+                        PawnData.Transform = Pawn->GetActorTransform();
+                        PawnData.bPlayerCandidate = PersistentComp->bPlayerCandidate;
+
+                        if (UInventoryComponent* Inventory = Pawn->FindComponentByClass<UInventoryComponent>())
+                        {
+                                Inventory->EnsurePersistentId();
+                                FGuid InventoryId = Inventory->GetPersistentId();
+
+                                if (!InventoryId.IsValid())
+                                {
+                                        InventoryId = PersistentComp->PawnId;
+                                        Inventory->OverridePersistentId(InventoryId);
+                                }
+
+                                const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
+                                if (Existing && Existing->Get() && Existing->Get() != Inventory)
+                                {
+                                        const FGuid NewId = PersistentComp->PawnId;
+                                        if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(InventoryId))
+                                        {
+                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                        }
+                                        InventoryId = NewId;
+                                        Inventory->OverridePersistentId(InventoryId);
+                                }
+
+                                PawnData.InventoryId = InventoryId;
+
+                                FInventorySaveData& InventoryData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
+                                Inventory->WriteToSaveData(InventoryData);
+                        }
+                        else
+                        {
+                                PawnData.InventoryId = PersistentComp->PawnId;
+                        }
+                }
+        }
+
+        CurrentSaveGame->Pawns = MoveTemp(NewPawnMap);
+
+        for (auto It = CurrentSaveGame->Assignments.CreateIterator(); It; ++It)
+        {
+                FPlayerAssignment& Assignment = It.Value();
+                if (!Assignment.PlayerSaveId.IsValid() || !Assignment.PawnId.IsValid() || !CurrentSaveGame->Pawns.Contains(Assignment.PawnId))
+                {
+                        It.RemoveCurrent();
+                }
+        }
+
+        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+                if (APlayerController* Controller = It->Get())
+                {
+                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(Controller))
+                        {
+                                const FGuid PlayerId = MOController->GetPlayerSaveId();
+                                if (!PlayerId.IsValid())
+                                {
+                                        continue;
+                                }
+
+                                FPlayerAssignment& Assignment = CurrentSaveGame->Assignments.FindOrAdd(PlayerId);
+                                Assignment.PlayerSaveId = PlayerId;
+
+                                if (APawn* PossessedPawn = Controller->GetPawn())
+                                {
+                                        if (UMOPersistentPawnComponent* PersistentComp = PossessedPawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                                        {
+                                                if (PersistentComp->PawnId.IsValid())
+                                                {
+                                                        Assignment.PawnId = PersistentComp->PawnId;
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+}
+
 void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::InitializationValues IVS)
 {
         if (!World || !World->IsGameWorld())
@@ -1237,6 +1723,16 @@ void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr
                 CacheSaveMetadata(*CurrentSaveGame);
 
                 ApplySaveToWorld(World);
+        }
+
+        if (IsAuthoritative())
+        {
+                SpawnPersistentPawnsFromSave();
+
+                for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+                {
+                        AssignAndPossessPersistentPawn(It->Get());
+                }
         }
 }
 
@@ -1785,6 +2281,24 @@ bool UMO56SaveSubsystem::ApplyPendingSave(UWorld& World)
 
 void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
 {
+        TMap<FGuid, FPawnSaveData> SanitizedPawns;
+
+        for (auto It = Save.Pawns.CreateIterator(); It; ++It)
+        {
+                FPawnSaveData PawnData = It.Value();
+                if (!PawnData.PawnId.IsValid())
+                {
+                        PawnData.PawnId = It.Key().IsValid() ? It.Key() : FGuid::NewGuid();
+                }
+
+                if (!PawnData.InventoryId.IsValid())
+                {
+                        PawnData.InventoryId = PawnData.PawnId;
+                }
+
+                SanitizedPawns.FindOrAdd(PawnData.PawnId) = PawnData;
+        }
+
         for (auto It = Save.CharacterStates.CreateIterator(); It; ++It)
         {
                 FCharacterSaveData& CharacterData = It.Value();
@@ -1798,6 +2312,65 @@ void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
                 {
                         CharacterData.InventoryId.Invalidate();
                 }
+
+                if (CharacterData.CharacterId.IsValid())
+                {
+                        FPawnSaveData& PawnData = SanitizedPawns.FindOrAdd(CharacterData.CharacterId);
+                        PawnData.PawnId = CharacterData.CharacterId;
+                        PawnData.Transform = CharacterData.Transform;
+                        PawnData.bPlayerCandidate = true;
+                        if (!PawnData.InventoryId.IsValid())
+                        {
+                                PawnData.InventoryId = CharacterData.InventoryId.IsValid() ? CharacterData.InventoryId : CharacterData.CharacterId;
+                        }
+                }
+
+                if (CharacterData.OwningPlayerId.IsValid() && CharacterData.CharacterId.IsValid())
+                {
+                        FPlayerAssignment& Assignment = Save.Assignments.FindOrAdd(CharacterData.OwningPlayerId);
+                        Assignment.PlayerSaveId = CharacterData.OwningPlayerId;
+                        Assignment.PawnId = CharacterData.CharacterId;
+                }
+        }
+
+        Save.Pawns = MoveTemp(SanitizedPawns);
+
+        for (auto It = Save.Assignments.CreateIterator(); It; ++It)
+        {
+                FPlayerAssignment& Assignment = It.Value();
+                if (!Assignment.PlayerSaveId.IsValid())
+                {
+                        It.RemoveCurrent();
+                        continue;
+                }
+
+                if (!Assignment.PawnId.IsValid())
+                {
+                        bool bResolved = false;
+                        for (const auto& Pair : Save.CharacterStates)
+                        {
+                                const FCharacterSaveData& CharacterData = Pair.Value;
+                                if (CharacterData.OwningPlayerId == Assignment.PlayerSaveId && CharacterData.CharacterId.IsValid())
+                                {
+                                        Assignment.PawnId = CharacterData.CharacterId;
+                                        bResolved = true;
+                                        break;
+                                }
+                        }
+
+                        if (!bResolved)
+                        {
+                                It.RemoveCurrent();
+                                continue;
+                        }
+                }
+
+                FPawnSaveData& PawnData = Save.Pawns.FindOrAdd(Assignment.PawnId);
+                PawnData.PawnId = Assignment.PawnId;
+                if (!PawnData.InventoryId.IsValid())
+                {
+                        PawnData.InventoryId = Assignment.PawnId;
+                }
         }
 
         for (auto It = Save.PlayerInventoryIds.CreateIterator(); It; ++It)
@@ -1806,6 +2379,20 @@ void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
                 if (!InventoryId.IsValid() || !Save.InventoryStates.Contains(InventoryId))
                 {
                         It.RemoveCurrent();
+                }
+        }
+
+        for (auto& Pair : Save.Pawns)
+        {
+                FPawnSaveData& PawnData = Pair.Value;
+                if (!PawnData.InventoryId.IsValid())
+                {
+                        PawnData.InventoryId = PawnData.PawnId;
+                }
+
+                if (PawnData.InventoryId.IsValid() && !Save.InventoryStates.Contains(PawnData.InventoryId))
+                {
+                        Save.InventoryStates.FindOrAdd(PawnData.InventoryId);
                 }
         }
 
@@ -1878,6 +2465,16 @@ bool UMO56SaveSubsystem::LoadGameBySlot(const FString& SlotName, int32 UserIndex
                         if (UWorld* World = GetWorld())
                         {
                                 ApplySaveToWorld(World);
+
+                                if (IsAuthoritative())
+                                {
+                                        SpawnPersistentPawnsFromSave();
+
+                                        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+                                        {
+                                                AssignAndPossessPersistentPawn(It->Get());
+                                        }
+                                }
                         }
                 }
 
