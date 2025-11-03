@@ -20,6 +20,17 @@ public:
         {
                 Info = InInfo;
         }
+
+        UFUNCTION(BlueprintPure, Category = "Possess")
+        FText GetDisplayText() const
+        {
+                if (!Info.DisplayName.IsEmpty())
+                {
+                        return Info.DisplayName;
+                }
+
+                return Info.PawnId.IsValid() ? FText::FromString(Info.PawnId.ToString()) : FText::GetEmpty();
+        }
 };
 
 UCLASS()
@@ -32,6 +43,12 @@ public:
 
         UFUNCTION(BlueprintCallable, Category = "Possess")
         void RequestPossessSelected();
+
+protected:
+        virtual void NativeConstruct() override;
+        virtual void NativeDestruct() override;
+
+        void HandlePawnItemClicked(UObject* Item);
 
 protected:
         UPROPERTY(meta = (BindWidget))
