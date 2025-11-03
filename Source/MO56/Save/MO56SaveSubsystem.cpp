@@ -331,6 +331,63 @@ bool UMO56SaveSubsystem::DeleteSave(const FGuid& SaveId)
         return bDeleted;
 }
 
+bool UMO56SaveSubsystem::DeleteAllSaves(bool bAlsoDeleteIndex, bool bAlsoDeleteMenuSettings)
+{
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                return false;
+        }
+
+        if (!IsMenuOrNonGameplayMap(World))
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("DeleteAllSaves blocked in gameplay world %s"), *World->GetMapName());
+                return false;
+        }
+
+        const FString SaveDir = FPaths::ProjectSavedDir() / TEXT("SaveGames");
+        IFileManager& FM = IFileManager::Get();
+
+        TArray<FString> Files;
+        FM.FindFiles(Files, *(SaveDir / TEXT("*.sav")), true, false);
+
+        int32 Deleted = 0;
+        for (const FString& File : Files)
+        {
+                const FString Full = SaveDir / File;
+
+                if (!bAlsoDeleteMenuSettings && File.Equals(TEXT("MO56_MenuSettings.sav"), ESearchCase::IgnoreCase))
+                {
+                        continue;
+                }
+
+                if (!bAlsoDeleteIndex && File.Equals(TEXT("MO56_SaveIndex.sav"), ESearchCase::IgnoreCase))
+                {
+                        continue;
+                }
+
+                if (FM.Delete(*Full, false, true, true))
+                {
+                        ++Deleted;
+                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Deleted save file: %s"), *Full);
+                }
+                else
+                {
+                        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("Failed to delete: %s"), *Full);
+                }
+        }
+
+        ActiveSaveId.Invalidate();
+        CurrentSaveGame = nullptr;
+        PendingLoadedSave = nullptr;
+        bPendingApplyOnNextLevel = false;
+
+        UpdateOrRebuildSaveIndex(true);
+
+        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("DeleteAllSaves complete. Files deleted: %d"), Deleted);
+        return true;
+}
+
 bool UMO56SaveSubsystem::SaveGame(bool bForce)
 {
         if (!IsAuthoritative())
