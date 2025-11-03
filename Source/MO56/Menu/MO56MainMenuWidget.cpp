@@ -147,22 +147,37 @@ FText UMO56MainMenuWidget::FormatDateTime(const FDateTime& DateTime)
 
 void UMO56MainMenuWidget::HandleNewGameClicked()
 {
-        if (StartingMapName.IsNone())
+        FString Dest;
+        if (StartingMap.IsValid() || StartingMap.ToSoftObjectPath().IsValid())
         {
-                UE_LOG(LogTemp, Warning, TEXT("%s has no StartingMapName configured."), *GetName());
+                Dest = StartingMap.ToSoftObjectPath().GetAssetPathString();
+        }
+        else if (!StartingMapFallback.IsNone())
+        {
+                Dest = StartingMapFallback.ToString();
+        }
+
+        if (Dest.IsEmpty())
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s has no StartingMap configured."), *GetName());
                 return;
         }
 
-        // Drop any UI-only input before travel (optional)
+        if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
+        {
+                SaveSubsystem->StartNewGame(Dest);
+                return;
+        }
+
         if (APlayerController* PC = GetOwningPlayer())
         {
                 PC->SetInputMode(FInputModeGameOnly());
                 PC->bShowMouseCursor = false;
-                PC->ClientTravel(StartingMapName.ToString(), TRAVEL_Absolute);
+                PC->ClientTravel(Dest, TRAVEL_Absolute);
         }
         else
         {
-                UGameplayStatics::OpenLevel(GetWorld(), StartingMapName, /*bAbsolute*/true);
+                UGameplayStatics::OpenLevel(GetWorld(), FName(*Dest), /*bAbsolute*/true);
         }
 }
 
