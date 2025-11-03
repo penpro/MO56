@@ -249,7 +249,7 @@ private:
         void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
         void HandleActorSpawned(AActor* Actor);
         void HandlePostLoadMapWithWorld(UWorld* World);
-        void HandleWorldBeginPlay();
+        void HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr);
 
 
         UFUNCTION()

@@ -54,20 +54,11 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
                 NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_") };
         }
 
-        if (WorldBeginPlayHandle.IsValid())
-        {
-                FWorldDelegates::OnWorldBeginPlay.Remove(WorldBeginPlayHandle);
-                WorldBeginPlayHandle.Reset();
-        }
-
         if (PostLoadMapHandle.IsValid())
         {
                 FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapHandle);
                 PostLoadMapHandle.Reset();
         }
-
-        WorldBeginPlayHandle = FWorldDelegates::OnWorldBeginPlay.AddUObject(
-                this, &UMO56SaveSubsystem::HandleWorldBeginPlay);
 
         PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
                 this, &UMO56SaveSubsystem::HandlePostLoadMapWithWorld);
@@ -936,6 +927,11 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
 
         const FString MapName = UWorld::RemovePIEPrefix(World->GetMapName());
         const bool bIsGameplayWorld = !IsMenuOrNonGameplayMap(World);
+        FString MapShortName = FPackageName::GetShortName(MapName);
+        if (MapShortName.IsEmpty())
+        {
+                MapShortName = MapName;
+        }
 
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("HandlePostLoadMapWithWorld: %s (Gameplay=%s)"), *MapName, bIsGameplayWorld ? TEXT("true") : TEXT("false"));
 
@@ -943,11 +939,21 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
         {
                 return;
         }
+
+        PendingLevelName = MapShortName;
+
+        World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(
+                this, &UMO56SaveSubsystem::HandleDeferredBeginPlay, TWeakObjectPtr<UWorld>(World)));
 }
 
-void UMO56SaveSubsystem::HandleWorldBeginPlay()
+void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr)
 {
-        UWorld* World = GetWorld();
+        if (!WorldPtr.IsValid())
+        {
+                return;
+        }
+
+        UWorld* World = WorldPtr.Get();
         if (!World)
         {
                 return;
@@ -972,14 +978,19 @@ void UMO56SaveSubsystem::HandleWorldBeginPlay()
                 return;
         }
 
-        PendingLevelName = MapShortName;
-
-        if (bPendingApplyOnNextLevel && PendingLoadedSave && !World->GetAuthGameMode())
+        if (!World->HasBegunPlay() || !World->GetAuthGameMode())
         {
-                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("BeginPlay: No GameMode yet for world %s, deferring save apply."), *MapShortName);
-                World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandleWorldBeginPlay));
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("BeginPlay: World %s not ready (HasBegunPlay=%s GM=%s), retrying next tick."),
+                        *MapShortName,
+                        World->HasBegunPlay() ? TEXT("true") : TEXT("false"),
+                        *GetNameSafe(World->GetAuthGameMode()));
+
+                World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(
+                        this, &UMO56SaveSubsystem::HandleDeferredBeginPlay, WorldPtr));
                 return;
         }
+
+        PendingLevelName = MapShortName;
 
         bool bAppliedLoadedSave = false;
 
