@@ -32,6 +32,11 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
 
+namespace
+{
+static const TCHAR* const GameplayGameModeOption = TEXT("?game=/Game/MyStuff/BP_MO56GameMode.BP_MO56GameMode_C");
+}
+
 UMO56SaveSubsystem::UMO56SaveSubsystem()
 {
         ActiveSaveSlotName = SaveSlotName;
@@ -48,6 +53,21 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         {
                 NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_") };
         }
+
+        if (WorldBeginPlayHandle.IsValid())
+        {
+                FWorldDelegates::OnWorldBeginPlay.Remove(WorldBeginPlayHandle);
+                WorldBeginPlayHandle.Reset();
+        }
+
+        if (PostLoadMapHandle.IsValid())
+        {
+                FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PostLoadMapHandle);
+                PostLoadMapHandle.Reset();
+        }
+
+        WorldBeginPlayHandle = FWorldDelegates::OnWorldBeginPlay.AddUObject(
+                this, &UMO56SaveSubsystem::HandleWorldBeginPlay);
 
         PostLoadMapHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(
                 this, &UMO56SaveSubsystem::HandlePostLoadMapWithWorld);
@@ -68,6 +88,12 @@ void UMO56SaveSubsystem::Deinitialize()
         Super::Deinitialize();
 
         FWorldDelegates::OnPostWorldInitialization.RemoveAll(this);
+
+        if (WorldBeginPlayHandle.IsValid())
+        {
+                FWorldDelegates::OnWorldBeginPlay.Remove(WorldBeginPlayHandle);
+                WorldBeginPlayHandle.Reset();
+        }
 
         if (WorldCleanupHandle.IsValid())
         {
@@ -206,7 +232,8 @@ void UMO56SaveSubsystem::StartNewGame(const FString& LevelName)
                         PC->bShowMouseCursor = false;
                 }
 
-                UGameplayStatics::OpenLevel(World, FName(*PendingLevelName), true);
+                UE_LOG(LogMO56SaveSubsystem, Display, TEXT("StartNewGame OpenLevel: %s%s"), *PendingLevelName, GameplayGameModeOption);
+                UGameplayStatics::OpenLevel(World, FName(*PendingLevelName), true, GameplayGameModeOption);
         }
         else
         {
@@ -227,29 +254,32 @@ void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
 
         if (UMO56SaveGame* Loaded = ReadSave(SaveId))
         {
+                FString MapName = UWorld::RemovePIEPrefix(Loaded->LevelName);
+                FString MapShortName = FPackageName::GetShortName(MapName);
+                if (MapShortName.IsEmpty())
+                {
+                        MapShortName = TEXT("M_TestLevel");
+                }
+
                 PendingLoadedSave = Loaded;
                 ActiveSaveId = SaveId;
-                PendingLevelName = Loaded->LevelName.IsEmpty() ? TEXT("M_TestLevel") : Loaded->LevelName;
+                PendingLevelName = MapShortName;
                 bPendingApplyOnNextLevel = true;
                 bPendingCreateNewSaveAfterTravel = false;
                 CurrentSaveGame = nullptr;
 
                 if (UWorld* World = GetWorld())
                 {
-                        FString URL = PendingLevelName;
-                        URL += TEXT("?game=/Script/MO56.MO56GameMode");
+                        const FString URL = MapShortName + GameplayGameModeOption;
+                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("LoadSave travel URL: %s"), *URL);
 
                         if (APlayerController* PC = World->GetFirstPlayerController())
                         {
                                 PC->SetInputMode(FInputModeGameOnly());
                                 PC->bShowMouseCursor = false;
+                        }
 
-                                PC->ClientTravel(URL, TRAVEL_Absolute);
-                        }
-                        else
-                        {
-                                UGameplayStatics::OpenLevel(World, FName(*PendingLevelName), true, TEXT("?game=/Script/MO56.MO56GameMode"));
-                        }
+                        UGameplayStatics::OpenLevel(World, FName(*MapShortName), true, GameplayGameModeOption);
                 }
                 else
                 {
@@ -894,26 +924,64 @@ void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::Initia
                 RegisterWorldPickup(*It);
         }
 
-        ApplySaveToWorld(World);
-
-        if (bPendingApplyOnNextLevel && PendingLoadedSave)
-        {
-                ApplyPendingSave(*World);
-        }
+        UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostWorldInit: World=%s ready (gameplay)."), *UWorld::RemovePIEPrefix(World->GetMapName()));
 }
 
 void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
 {
-        if (!World || IsMenuOrNonGameplayMap(World))
+        if (!World)
         {
-                if (World)
-                {
-                        UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostLoadMapWithWorld: skipping non-gameplay world %s"), *World->GetMapName());
-                }
                 return;
         }
 
         const FString MapName = UWorld::RemovePIEPrefix(World->GetMapName());
+        const bool bIsGameplayWorld = !IsMenuOrNonGameplayMap(World);
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("HandlePostLoadMapWithWorld: %s (Gameplay=%s)"), *MapName, bIsGameplayWorld ? TEXT("true") : TEXT("false"));
+
+        if (!bIsGameplayWorld)
+        {
+                return;
+        }
+}
+
+void UMO56SaveSubsystem::HandleWorldBeginPlay()
+{
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                return;
+        }
+
+        const FString MapName = UWorld::RemovePIEPrefix(World->GetMapName());
+        FString MapShortName = FPackageName::GetShortName(MapName);
+        if (MapShortName.IsEmpty())
+        {
+                MapShortName = MapName;
+        }
+        const bool bIsGameplayWorld = !IsMenuOrNonGameplayMap(World);
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("BeginPlay: World=%s Gameplay=%s GM=%s PC=%s"),
+                *MapShortName,
+                bIsGameplayWorld ? TEXT("true") : TEXT("false"),
+                *GetNameSafe(World->GetAuthGameMode()),
+                *GetNameSafe(World->GetFirstPlayerController()));
+
+        if (!bIsGameplayWorld)
+        {
+                return;
+        }
+
+        PendingLevelName = MapShortName;
+
+        if (bPendingApplyOnNextLevel && PendingLoadedSave && !World->GetAuthGameMode())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("BeginPlay: No GameMode yet for world %s, deferring save apply."), *MapShortName);
+                World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandleWorldBeginPlay));
+                return;
+        }
+
+        bool bAppliedLoadedSave = false;
 
         if (bPendingCreateNewSaveAfterTravel || !CurrentSaveGame)
         {
@@ -922,27 +990,30 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
                 CreateNewSaveSlot();
                 if (CurrentSaveGame)
                 {
-                        CurrentSaveGame->LevelName = MapName;
+                        CurrentSaveGame->LevelName = MapShortName;
                         CurrentSaveGame->bIsGameplaySave = true;
-                }
+                        CacheSaveMetadata(*CurrentSaveGame);
 
-                const bool bSaved = SaveGame(true);
-                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Bootstrap save write: %s"), bSaved ? TEXT("ok") : TEXT("failed"));
+                        const bool bSaved = SaveGame(true);
+                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Bootstrap save write: %s"), bSaved ? TEXT("ok") : TEXT("failed"));
+                }
         }
 
         if (bPendingApplyOnNextLevel && PendingLoadedSave)
         {
-                PendingLoadedSave->LevelName = MapName;
+                bPendingApplyOnNextLevel = false;
+
+                PendingLoadedSave->LevelName = MapShortName;
                 PendingLoadedSave->bIsGameplaySave = true;
 
                 if (ApplyLoadedSaveGame(PendingLoadedSave))
                 {
-                        bPendingApplyOnNextLevel = false;
+                        bAppliedLoadedSave = true;
                         PendingLoadedSave = nullptr;
 
                         if (CurrentSaveGame)
                         {
-                                CurrentSaveGame->LevelName = MapName;
+                                CurrentSaveGame->LevelName = MapShortName;
                                 CacheSaveMetadata(*CurrentSaveGame);
 
                                 const bool bSaved = SaveGame(true);
@@ -950,11 +1021,30 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
                         }
 
                         UpdateOrRebuildSaveIndex(true);
+
+                        if (APlayerController* PC = World->GetFirstPlayerController())
+                        {
+                                PC->SetInputMode(FInputModeGameOnly());
+                                PC->bShowMouseCursor = false;
+                        }
+
+                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Applied save on world %s"), *MapShortName);
                 }
                 else
                 {
-                        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("Failed to apply loaded save on level %s."), *MapName);
+                        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("Failed to apply loaded save on level %s."), *MapShortName);
+                        bPendingApplyOnNextLevel = false;
+                        PendingLoadedSave = nullptr;
                 }
+        }
+
+        if (!bAppliedLoadedSave && CurrentSaveGame)
+        {
+                CurrentSaveGame->LevelName = MapShortName;
+                CurrentSaveGame->bIsGameplaySave = true;
+                CacheSaveMetadata(*CurrentSaveGame);
+
+                ApplySaveToWorld(World);
         }
 }
 
@@ -1722,32 +1812,6 @@ void UMO56SaveSubsystem::HandleAutosaveTimerElapsed()
 }
 
 
-
-void UMO56SaveSubsystem::ApplyPendingSave(UWorld& World)
-{
-        if (!PendingLoadedSave)
-        {
-                bPendingApplyOnNextLevel = false;
-                return;
-        }
-
-        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("ApplyPendingSave: Level=%s"), *World.GetMapName());
-
-        if (ApplyLoadedSaveGame(PendingLoadedSave))
-        {
-                bPendingApplyOnNextLevel = false;
-                PendingLoadedSave = nullptr;
-
-                if (!IsMenuOrNonGameplayMap(&World))
-                {
-                        if (APlayerController* PC = World.GetFirstPlayerController())
-                        {
-                                PC->SetInputMode(FInputModeGameOnly());
-                                PC->bShowMouseCursor = false;
-                        }
-                }
-        }
-}
 
 FString UMO56SaveSubsystem::MakeSlotName(const FGuid& SaveId) const
 {
