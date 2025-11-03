@@ -59,6 +59,9 @@ struct FCharacterSaveData
         FGuid InventoryId;
 
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+        FGuid OwningPlayerId;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
         FTransform Transform = FTransform::Identity;
 
         UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
