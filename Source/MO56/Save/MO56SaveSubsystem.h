@@ -229,6 +229,7 @@ private:
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
         FDelegateHandle WorldCleanupHandle;
         FDelegateHandle PostLoadMapHandle;
+        FDelegateHandle WorldBeginPlayHandle;
 
         bool bIsApplyingSave = false;
         bool bAutosavePending = false;
@@ -248,6 +249,7 @@ private:
         void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
         void HandleActorSpawned(AActor* Actor);
         void HandlePostLoadMapWithWorld(UWorld* World);
+        void HandleWorldBeginPlay();
 
 
         UFUNCTION()
@@ -261,8 +263,6 @@ private:
         void ApplySaveToWorld(UWorld* World);
         void RefreshInventorySaveData();
         void RefreshTrackedPickups();
-
-        void ApplyPendingSave(UWorld& World);
 
         FName ResolveLevelName(const AActor& Actor) const;
         FName ResolveLevelName(const UWorld& World) const;
