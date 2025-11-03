@@ -109,6 +109,9 @@ public:
         UFUNCTION(BlueprintCallable, Category = "Save")
         bool DeleteSave(const FGuid& SaveId);
 
+        UFUNCTION(BlueprintCallable, Category = "Save")
+        bool DeleteAllSaves(bool bAlsoDeleteIndex = true, bool bAlsoDeleteMenuSettings = false);
+
         /** Saves the current world and inventory state to disk. */
         UFUNCTION(BlueprintCallable, Category = "Save")
         bool SaveGame(bool bForce = false);

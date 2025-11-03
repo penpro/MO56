@@ -39,6 +39,16 @@ void UMO56MainMenuWidget::NativeConstruct()
                 UE_LOG(LogTemp, Warning, TEXT("%s missing LoadGameButton binding"), *GetName());
         }
 
+        if (ClearAllSavesButton)
+        {
+                ClearAllSavesButton->OnClicked.RemoveDynamic(this, &ThisClass::HandleClearAllSavesClicked);
+                ClearAllSavesButton->OnClicked.AddDynamic(this, &ThisClass::HandleClearAllSavesClicked);
+        }
+        else
+        {
+                UE_LOG(LogTemp, Warning, TEXT("%s missing ClearAllSavesButton binding"), *GetName());
+        }
+
         if (!SaveList)
         {
                 UE_LOG(LogTemp, Warning, TEXT("%s missing SaveList binding"), *GetName());
@@ -185,6 +195,16 @@ void UMO56MainMenuWidget::HandleLoadClicked()
         RefreshSaveEntries();
 }
 
+void UMO56MainMenuWidget::HandleClearAllSavesClicked()
+{
+        if (UMO56SaveSubsystem* SS = ResolveSubsystem())
+        {
+                const bool bOK = SS->DeleteAllSaves(true, false);
+                UE_LOG(LogTemp, Log, TEXT("ClearAllSaves clicked. Result: %s"), bOK ? TEXT("OK") : TEXT("Fail"));
+                RefreshSaveEntries();
+        }
+}
+
 void UMO56MainMenuWidget::HandleSaveChosen(FGuid SaveId)
 {
         HandleSaveEntryClicked(SaveId);
@@ -199,6 +219,10 @@ void UMO56MainMenuWidget::NativeDestruct()
         if (LoadGameButton)
         {
                 LoadGameButton->OnClicked.RemoveAll(this);
+        }
+        if (ClearAllSavesButton)
+        {
+                ClearAllSavesButton->OnClicked.RemoveAll(this);
         }
 
         Super::NativeDestruct();

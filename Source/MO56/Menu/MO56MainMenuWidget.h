@@ -37,11 +37,16 @@ void HandleLoadClicked();
 
 UFUNCTION()
 void HandleSaveChosen(FGuid SaveId);
+
+UFUNCTION()
+void HandleClearAllSavesClicked();
 virtual void NativeDestruct() override;
 
 UPROPERTY(meta=(BindWidget)) UButton* NewGameButton = nullptr;
 
 UPROPERTY(meta=(BindWidget)) UButton* LoadGameButton = nullptr;
+
+UPROPERTY(meta=(BindWidget)) UButton* ClearAllSavesButton = nullptr;
 
 UPROPERTY(meta=(BindWidget)) UScrollBox* SaveList = nullptr;
 
