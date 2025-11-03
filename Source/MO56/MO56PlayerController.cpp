@@ -220,11 +220,14 @@ void AMO56PlayerController::RequestPossessPawn(APawn* TargetPawn)
 
 void AMO56PlayerController::ServerQueryPossessablePawns_Implementation()
 {
-        if (UMO56SaveSubsystem* SaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UMO56SaveSubsystem>() : nullptr)
+        if (UGameInstance* GameInstance = GetGameInstance())
         {
-                TArray<FMOPossessablePawnInfo> List;
-                SaveSubsystem->BuildPossessablePawnList(this, List);
-                ClientReceivePossessablePawns(List);
+                if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
+                {
+                        TArray<FMOPossessablePawnInfo> List;
+                        SaveSubsystem->BuildPossessablePawnList(this, List);
+                        ClientReceivePossessablePawns(List);
+                }
         }
 }
 
@@ -245,12 +248,15 @@ void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FG
                 return;
         }
 
-        if (UMO56SaveSubsystem* SaveSubsystem = GetWorld() ? GetWorld()->GetSubsystem<UMO56SaveSubsystem>() : nullptr)
+        if (UGameInstance* GameInstance = GetGameInstance())
         {
-                FString Reason;
-                if (!SaveSubsystem->TryAssignAndPossess(this, PawnId, Reason))
+                if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                 {
-                        ClientMessage(FString::Printf(TEXT("Cannot possess: %s"), *Reason));
+                        FString Reason;
+                        if (!SaveSubsystem->TryAssignAndPossess(this, PawnId, Reason))
+                        {
+                                ClientMessage(FString::Printf(TEXT("Cannot possess: %s"), *Reason));
+                        }
                 }
         }
 }
