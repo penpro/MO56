@@ -28,6 +28,7 @@
 #include "HAL/FileManager.h"
 #include "TimerManager.h"
 #include "Save/MO56MenuSettingsSave.h"
+#include "UObject/CoreUObjectDelegates.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
@@ -922,6 +923,14 @@ void UMO56SaveSubsystem::HandlePostLoadMapWithWorld(UWorld* World)
 {
         if (!World)
         {
+                return;
+        }
+
+        const EWorldType::Type WorldType = World->WorldType;
+        if (WorldType != EWorldType::Game && WorldType != EWorldType::PIE)
+        {
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostLoadMapWithWorld: skipping world %s (type=%d)"),
+                        *UWorld::RemovePIEPrefix(World->GetMapName()), static_cast<int32>(WorldType));
                 return;
         }
 
