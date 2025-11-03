@@ -22,6 +22,7 @@
 #include "Misc/ScopeExit.h"
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
+#include "Misc/SecureHash.h"
 #include "Templates/UnrealTemplate.h"
 #include "MO56Character.h"
 #include "Skills/SkillSystemComponent.h"
@@ -35,6 +36,25 @@ DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
 namespace
 {
 static const TCHAR* const GameplayGameModeOption = TEXT("?game=/Game/MyStuff/BP_MO56GameMode.BP_MO56GameMode_C");
+}
+
+static FGuid GuidFromString(const FString& S)
+{
+        uint8 D[16];
+        FMD5::HashBuffer(TCHAR_TO_ANSI(*S), S.Len(), D);
+        return FGuid(
+                (D[0] << 24) | (D[1] << 16) | (D[2] << 8) | D[3],
+                (D[4] << 24) | (D[5] << 16) | (D[6] << 8) | D[7],
+                (D[8] << 24) | (D[9] << 16) | (D[10] << 8) | D[11],
+                (D[12] << 24) | (D[13] << 16) | (D[14] << 8) | D[15]);
+}
+
+static FGuid StableGuidForActor(const AActor& Actor)
+{
+        const UWorld* W = Actor.GetWorld();
+        const FString Map = W ? UWorld::RemovePIEPrefix(W->GetMapName()) : TEXT("UnknownMap");
+        const FString Key = Actor.GetPathName() + TEXT("|") + Map;
+        return GuidFromString(Key);
 }
 
 UMO56SaveSubsystem::UMO56SaveSubsystem()
@@ -955,7 +975,10 @@ void UMO56SaveSubsystem::RegisterWorldPickup(AItemPickup* Pickup)
 
         if (!Pickup->GetPersistentId().IsValid())
         {
-                Pickup->SetPersistentId(FGuid::NewGuid());
+                const FGuid NewId = Pickup->WasSpawnedFromInventory()
+                        ? FGuid::NewGuid()
+                        : StableGuidForActor(*Pickup);
+                Pickup->SetPersistentId(NewId);
         }
 
         BindPickupDelegates(*Pickup);
@@ -1946,9 +1969,24 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
 
                         if (CharacterData.InventoryId.IsValid() && CharacterData.InventoryId != InventoryId)
                         {
-                                RegisteredInventories.Remove(InventoryId);
-                                InventoryComponent->OverridePersistentId(CharacterData.InventoryId);
-                                InventoryId = InventoryComponent->GetPersistentId();
+                                const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(CharacterData.InventoryId);
+                                const bool bIdCollidesWithDifferentComp = Existing && Existing->Get() && Existing->Get() != InventoryComponent;
+
+                                if (bIdCollidesWithDifferentComp)
+                                {
+                                        const FGuid NewInvId = InventoryComponent->GetPersistentId();
+                                        if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(CharacterData.InventoryId))
+                                        {
+                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewInvId) = *ExistingData;
+                                        }
+                                        CharacterData.InventoryId = NewInvId;
+                                }
+                                else
+                                {
+                                        RegisteredInventories.Remove(InventoryId);
+                                        InventoryComponent->OverridePersistentId(CharacterData.InventoryId);
+                                        InventoryId = InventoryComponent->GetPersistentId();
+                                }
                         }
 
                         if (!CharacterData.InventoryId.IsValid())
@@ -2421,9 +2459,24 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                         const FGuid CurrentId = Inventory->GetPersistentId();
                                         if (CurrentId != CharacterData->InventoryId)
                                         {
-                                                RegisteredInventories.Remove(CurrentId);
-                                                Inventory->OverridePersistentId(CharacterData->InventoryId);
-                                                RegisteredInventories.Add(CharacterData->InventoryId, Inventory);
+                                                const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(CharacterData->InventoryId);
+                                                const bool bIdCollidesWithDifferentComp = Existing && Existing->Get() && Existing->Get() != Inventory;
+
+                                                if (bIdCollidesWithDifferentComp)
+                                                {
+                                                        const FGuid NewInvId = CurrentId;
+                                                        if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId))
+                                                        {
+                                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewInvId) = *ExistingData;
+                                                        }
+                                                        CharacterData->InventoryId = NewInvId;
+                                                }
+                                                else
+                                                {
+                                                        RegisteredInventories.Remove(CurrentId);
+                                                        Inventory->OverridePersistentId(CharacterData->InventoryId);
+                                                        RegisteredInventories.Add(CharacterData->InventoryId, Inventory);
+                                                }
                                         }
 
                                         if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId))
