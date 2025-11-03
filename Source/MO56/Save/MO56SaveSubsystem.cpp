@@ -24,11 +24,13 @@
 #include "Misc/PackageName.h"
 #include "Misc/SecureHash.h"
 #include "Templates/UnrealTemplate.h"
+#include "Containers/StringConv.h"
 #include "MO56Character.h"
 #include "Skills/SkillSystemComponent.h"
 #include "HAL/FileManager.h"
 #include "TimerManager.h"
 #include "Save/MO56MenuSettingsSave.h"
+#include "MO56VersionChecks.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
@@ -40,21 +42,16 @@ static const TCHAR* const GameplayGameModeOption = TEXT("?game=/Game/MyStuff/BP_
 
 static FGuid GuidFromString(const FString& S)
 {
-        // Convert to UTF-8 and hash the *bytes* (S.Len() counts TCHARs, not bytes).
-        FTCHARToUTF8 Utf8(*S);
-
+        uint8 Digest[16];
+        FTCHARToUTF8 Converted(*S);
         FMD5 Md5;
-        Md5.Update(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
-
-        uint8 D[16];
-        Md5.Final(D);
-
-        auto U32 = [](const uint8* p)->uint32
-        {
-                return (uint32(p[0]) << 24) | (uint32(p[1]) << 16) | (uint32(p[2]) << 8) | uint32(p[3]);
-        };
-
-        return FGuid(U32(D + 0), U32(D + 4), U32(D + 8), U32(D + 12));
+        Md5.Update(reinterpret_cast<const uint8*>(Converted.Get()), Converted.Length());
+        Md5.Final(Digest);
+        return FGuid(
+                (Digest[0] << 24) | (Digest[1] << 16) | (Digest[2] << 8) | Digest[3],
+                (Digest[4] << 24) | (Digest[5] << 16) | (Digest[6] << 8) | Digest[7],
+                (Digest[8] << 24) | (Digest[9] << 16) | (Digest[10] << 8) | Digest[11],
+                (Digest[12] << 24) | (Digest[13] << 16) | (Digest[14] << 8) | Digest[15]);
 }
 
 static FGuid StableGuidForActor(const AActor& Actor)
@@ -988,6 +985,8 @@ void UMO56SaveSubsystem::RegisterWorldPickup(AItemPickup* Pickup)
                         : StableGuidForActor(*Pickup);
                 Pickup->SetPersistentId(NewId);
         }
+
+        ensureMsgf(Pickup->GetPersistentId().IsValid(), TEXT("Pickup persistent id must be valid after registration"));
 
         BindPickupDelegates(*Pickup);
 
@@ -2012,6 +2011,14 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                         }
 
                         CharacterData.InventoryId = InventoryComponent->GetPersistentId();
+                        InventoryId = CharacterData.InventoryId;
+
+                        UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("Inv map [register]: Character %s -> InvId %s"),
+                                *OwnerId.ToString(), *CharacterData.InventoryId.ToString());
+
+                        const TWeakObjectPtr<UInventoryComponent>* ExistingPtr = RegisteredInventories.Find(CharacterData.InventoryId);
+                        ensureMsgf(!(ExistingPtr && ExistingPtr->Get() && ExistingPtr->Get() != InventoryComponent),
+                                TEXT("Two live inventories share InventoryId %s"), *CharacterData.InventoryId.ToString());
                 }
 
                 CharacterToInventoryComponent.FindOrAdd(OwnerId) = InventoryComponent;
@@ -2487,11 +2494,21 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                                 }
                                         }
 
-                                        if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId))
+                                        const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId);
+                                        if (SavedInventory)
                                         {
                                                 TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
                                                 Inventory->ReadFromSaveData(*SavedInventory);
                                         }
+
+                                        ensureMsgf(CharacterData->InventoryId.IsValid(), TEXT("Character %s has invalid InventoryId after apply"), *CharacterId.ToString());
+                                        const TWeakObjectPtr<UInventoryComponent>* CurrentPtr = RegisteredInventories.Find(CurrentId);
+                                        ensureMsgf(!CurrentPtr || CurrentPtr->Get() == Inventory,
+                                                TEXT("RegisteredInventories map inconsistent for %s"), *CharacterId.ToString());
+
+                                        const int32 StackCount = SavedInventory ? SavedInventory->Stacks.Num() : -1;
+                                        UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("Inv map [apply]: Character %s -> InvId %s (stacks %d)"),
+                                                *CharacterId.ToString(), *CharacterData->InventoryId.ToString(), StackCount);
                                 }
                         }
                 }
