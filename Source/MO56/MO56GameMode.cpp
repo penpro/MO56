@@ -3,6 +3,7 @@
 #include "MO56GameMode.h"
 
 #include "GameFramework/PlayerController.h"
+#include "Engine/GameInstance.h"
 #include "Save/MO56SaveSubsystem.h"
 
 AMO56GameMode::AMO56GameMode()
@@ -19,9 +20,9 @@ void AMO56GameMode::HandleStartingNewPlayer_Implementation(APlayerController* Ne
                 return;
         }
 
-        if (UWorld* World = GetWorld())
+        if (UGameInstance* GameInstance = GetGameInstance())
         {
-                if (UMO56SaveSubsystem* SaveSubsystem = World->GetSubsystem<UMO56SaveSubsystem>())
+                if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                 {
                         SaveSubsystem->AssignAndPossessPersistentPawn(NewPlayer);
                 }
