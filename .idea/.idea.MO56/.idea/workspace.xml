@@ -12,7 +12,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="" />
+    <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/CookerOpenOrder.log" beforeDir="false" afterPath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/CookerOpenOrder.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/EditorOpenOrder.log" beforeDir="false" afterPath="$PROJECT_DIR$/Build/Windows/FileOpenOrder/EditorOpenOrder.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MenuPlayerController.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MenuPlayerController.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/WBP_MainMenu.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/WBP_MainMenu.uasset" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -186,7 +192,7 @@
       <workItem from="1761786316353" duration="520000" />
       <workItem from="1761786871822" duration="563000" />
       <workItem from="1762135108281" duration="697000" />
-      <workItem from="1762141296400" duration="2486000" />
+      <workItem from="1762141296400" duration="3944000" />
     </task>
     <servers />
   </component>
