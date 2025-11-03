@@ -229,7 +229,6 @@ private:
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
         FDelegateHandle WorldCleanupHandle;
         FDelegateHandle PostLoadMapHandle;
-        FDelegateHandle WorldBeginPlayHandle;
 
         bool bIsApplyingSave = false;
         bool bAutosavePending = false;
