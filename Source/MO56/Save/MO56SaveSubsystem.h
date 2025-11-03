@@ -8,6 +8,7 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Save/MO56SaveGame.h"
 #include "Save/MO56SaveTypes.h"
+#include "MO56PlayerController.h"
 #include "Delegates/Delegate.h"
 #include "TimerManager.h"
 #include "MO56SaveSubsystem.generated.h"
@@ -158,6 +159,9 @@ public:
         void UnregisterWorldPickup(AItemPickup* Pickup);
 
         void AssignAndPossessPersistentPawn(APlayerController* PlayerController);
+
+        bool BuildPossessablePawnList(APlayerController* ForPC, TArray<FMOPossessablePawnInfo>& Out) const;
+        bool TryAssignAndPossess(APlayerController* PC, const FGuid& PawnId, FString& OutReason);
 
         /** Notifies the subsystem that a controller is ready and should be associated with save data. */
         void NotifyPlayerControllerReady(AMO56PlayerController* Controller);

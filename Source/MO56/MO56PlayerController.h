@@ -11,6 +11,28 @@ class UInputMappingContext;
 class UUserWidget;
 class UMO56SaveSubsystem;
 class AInventoryContainer;
+class UMO56PossessMenuWidget;
+
+USTRUCT(BlueprintType)
+struct FMOPossessablePawnInfo
+{
+        GENERATED_BODY()
+
+        UPROPERTY(BlueprintReadOnly)
+        FGuid PawnId;
+
+        UPROPERTY(BlueprintReadOnly)
+        FText DisplayName;
+
+        UPROPERTY(BlueprintReadOnly)
+        FVector Location = FVector::ZeroVector;
+
+        UPROPERTY(BlueprintReadOnly)
+        bool bAssigned = false;
+
+        UPROPERTY(BlueprintReadOnly)
+        FGuid AssignedTo;
+};
 
 /**
  *  Basic PlayerController class for a third person game
@@ -51,6 +73,9 @@ protected:
 /** Gameplay initialization */
 virtual void BeginPlay() override;
 
+virtual void OnPossess(APawn* InPawn) override;
+virtual void OnUnPossess() override;
+
 /** Input mapping context setup */
 virtual void SetupInputComponent() override;
 
@@ -80,6 +105,18 @@ public:
 
         UFUNCTION(BlueprintCallable, Category = "Control")
         void RequestPossessPawn(APawn* TargetPawn);
+
+        UFUNCTION(Server, Reliable)
+        void ServerQueryPossessablePawns();
+
+        UFUNCTION(Client, Reliable)
+        void ClientReceivePossessablePawns(const TArray<FMOPossessablePawnInfo>& List);
+
+        UFUNCTION(Server, Reliable)
+        void ServerRequestPossessPawnById(const FGuid& PawnId);
+
+        void ShowPossessMenu();
+        void HidePossessMenu();
 
 UFUNCTION(BlueprintCallable, Category = "Control")
 void RequestOpenPawnInventory(APawn* TargetPawn);
@@ -153,6 +190,15 @@ private:
         UMO56SaveSubsystem* GetSaveSubsystem() const;
 
         void SetPlayerSaveId(const FGuid& InId);
+
+        UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+        TSubclassOf<UMO56PossessMenuWidget> PossessMenuClass;
+
+        UPROPERTY()
+        UMO56PossessMenuWidget* PossessMenu = nullptr;
+
+        UPROPERTY()
+        TArray<FMOPossessablePawnInfo> CachedPossessablePawns;
 
         UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Save", meta = (AllowPrivateAccess = "true"))
         FGuid PlayerSaveId;
