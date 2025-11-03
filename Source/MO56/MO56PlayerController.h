@@ -21,7 +21,7 @@ struct FMOPossessablePawnInfo
         UPROPERTY(BlueprintReadOnly)
         FGuid PawnId;
 
-        UPROPERTY(BlueprintReadOnly)
+        UPROPERTY(EditAnywhere, BlueprintReadWrite)
         FText DisplayName;
 
         UPROPERTY(BlueprintReadOnly)
@@ -115,8 +115,8 @@ public:
         UFUNCTION(Server, Reliable)
         void ServerRequestPossessPawnById(const FGuid& PawnId);
 
-        void ShowPossessMenu();
-        void HidePossessMenu();
+        void OpenPossessMenu();
+        void ClosePossessMenu();
 
 UFUNCTION(BlueprintCallable, Category = "Control")
 void RequestOpenPawnInventory(APawn* TargetPawn);
@@ -195,7 +195,7 @@ private:
         TSubclassOf<UMO56PossessMenuWidget> PossessMenuClass;
 
         UPROPERTY()
-        UMO56PossessMenuWidget* PossessMenu = nullptr;
+        TObjectPtr<UMO56PossessMenuWidget> PossessMenu = nullptr;
 
         UPROPERTY()
         TArray<FMOPossessablePawnInfo> CachedPossessablePawns;

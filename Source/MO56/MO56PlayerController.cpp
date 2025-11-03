@@ -7,6 +7,7 @@
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "MO56.h"
+#include "Engine/EngineTypes.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -58,9 +59,9 @@ void AMO56PlayerController::BeginPlay()
                 }
         }
 
-        if (IsLocalController() && (GetPawn() == nullptr || PlayerState == nullptr))
+        if (IsLocalPlayerController() && (GetPawn() == nullptr || PlayerState == nullptr))
         {
-                ShowPossessMenu();
+                OpenPossessMenu();
                 ServerQueryPossessablePawns();
         }
 }
@@ -69,16 +70,16 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
 {
         Super::OnPossess(InPawn);
 
-        HidePossessMenu();
+        ClosePossessMenu();
 }
 
 void AMO56PlayerController::OnUnPossess()
 {
         Super::OnUnPossess();
 
-        if (IsLocalController())
+        if (IsLocalPlayerController())
         {
-                ShowPossessMenu();
+                OpenPossessMenu();
                 ServerQueryPossessablePawns();
         }
 }
@@ -243,6 +244,9 @@ void AMO56PlayerController::ClientReceivePossessablePawns_Implementation(const T
 
 void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FGuid& PawnId)
 {
+        UE_LOG(LogMO56, Display, TEXT("ServerRequestPossessPawnById: Controller=%s PawnId=%s HasAuthority=%s"),
+               *GetNameSafe(this), *PawnId.ToString(), HasAuthority() ? TEXT("true") : TEXT("false"));
+
         if (!PawnId.IsValid())
         {
                 return;
@@ -261,39 +265,62 @@ void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FG
         }
 }
 
-void AMO56PlayerController::ShowPossessMenu()
+void AMO56PlayerController::OpenPossessMenu()
 {
-        if (!IsLocalController() || PossessMenu)
+        if (!IsLocalPlayerController())
         {
+                return;
+        }
+
+        if (PossessMenu)
+        {
+                UE_LOG(LogMO56, Verbose, TEXT("OpenPossessMenu skipped; widget already active for %s"), *GetNameSafe(this));
                 return;
         }
 
         if (!PossessMenuClass)
         {
+                UE_LOG(LogMO56, Warning, TEXT("OpenPossessMenu aborted; PossessMenuClass not set on %s"), *GetNameSafe(this));
                 return;
         }
 
         PossessMenu = CreateWidget<UMO56PossessMenuWidget>(this, PossessMenuClass);
         if (!PossessMenu)
         {
+                UE_LOG(LogMO56, Warning, TEXT("OpenPossessMenu failed; widget creation returned null for %s"), *GetNameSafe(this));
                 return;
         }
 
-        PossessMenu->AddToViewport(50);
+        PossessMenu->AddToViewport(10000);
 
         if (CachedPossessablePawns.Num() > 0)
         {
                 PossessMenu->SetList(CachedPossessablePawns);
         }
 
-        FInputModeUIOnly InputMode;
-        InputMode.SetWidgetToFocus(PossessMenu->TakeWidget());
-        SetInputMode(InputMode);
+        FInputModeGameAndUI Mode;
+        Mode.SetWidgetToFocus(PossessMenu->TakeWidget());
+        Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        Mode.SetHideCursorDuringCapture(false);
+        SetInputMode(Mode);
+
         bShowMouseCursor = true;
+        bEnableClickEvents = true;
+        bEnableMouseOverEvents = true;
+
+        SetIgnoreLookInput(true);
+        SetIgnoreMoveInput(true);
+
+        UE_LOG(LogMO56, Display, TEXT("OpenPossessMenu: Controller=%s CachedEntries=%d"), *GetNameSafe(this), CachedPossessablePawns.Num());
 }
 
-void AMO56PlayerController::HidePossessMenu()
+void AMO56PlayerController::ClosePossessMenu()
 {
+        if (!IsLocalPlayerController())
+        {
+                return;
+        }
+
         if (!PossessMenu)
         {
                 return;
@@ -302,9 +329,17 @@ void AMO56PlayerController::HidePossessMenu()
         PossessMenu->RemoveFromParent();
         PossessMenu = nullptr;
 
-        FInputModeGameOnly InputMode;
-        SetInputMode(InputMode);
+        SetIgnoreLookInput(false);
+        SetIgnoreMoveInput(false);
+
         bShowMouseCursor = false;
+        bEnableClickEvents = false;
+        bEnableMouseOverEvents = false;
+
+        FInputModeGameOnly Mode;
+        SetInputMode(Mode);
+
+        UE_LOG(LogMO56, Display, TEXT("ClosePossessMenu: Controller=%s"), *GetNameSafe(this));
 }
 
 void AMO56PlayerController::RequestOpenPawnInventory(APawn* TargetPawn)
