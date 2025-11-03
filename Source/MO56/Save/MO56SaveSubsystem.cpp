@@ -236,7 +236,20 @@ void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
 
                 if (UWorld* World = GetWorld())
                 {
-                        UGameplayStatics::OpenLevel(World, FName(*PendingLevelName), true);
+                        FString URL = PendingLevelName;
+                        URL += TEXT("?game=/Script/MO56.MO56GameMode");
+
+                        if (APlayerController* PC = World->GetFirstPlayerController())
+                        {
+                                PC->SetInputMode(FInputModeGameOnly());
+                                PC->bShowMouseCursor = false;
+
+                                PC->ClientTravel(URL, TRAVEL_Absolute);
+                        }
+                        else
+                        {
+                                UGameplayStatics::OpenLevel(World, FName(*PendingLevelName), true, TEXT("?game=/Script/MO56.MO56GameMode"));
+                        }
                 }
                 else
                 {
@@ -1724,6 +1737,15 @@ void UMO56SaveSubsystem::ApplyPendingSave(UWorld& World)
         {
                 bPendingApplyOnNextLevel = false;
                 PendingLoadedSave = nullptr;
+
+                if (!IsMenuOrNonGameplayMap(&World))
+                {
+                        if (APlayerController* PC = World.GetFirstPlayerController())
+                        {
+                                PC->SetInputMode(FInputModeGameOnly());
+                                PC->bShowMouseCursor = false;
+                        }
+                }
         }
 }
 
