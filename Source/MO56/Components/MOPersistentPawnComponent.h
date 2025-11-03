@@ -19,7 +19,11 @@ public:
         UPROPERTY(EditAnywhere, SaveGame)
         bool bPlayerCandidate = true;
 
+        UPROPERTY(EditAnywhere, SaveGame)
+        FText DisplayName;
+
         virtual void OnComponentCreated() override;
 
         FGuid GetPawnId() const { return PawnId; }
+        FText GetDisplayName() const { return DisplayName; }
 };

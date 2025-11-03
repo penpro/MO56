@@ -1121,55 +1121,164 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                 PlayerControllers.FindOrAdd(PlayerSaveId) = MOController;
         }
 
-        if (FPlayerAssignment* Assignment = CurrentSaveGame->Assignments.Find(PlayerSaveId))
+        if (const FPlayerAssignment* Assignment = CurrentSaveGame->Assignments.Find(PlayerSaveId))
         {
                 if (Assignment->PawnId.IsValid())
                 {
-                        if (APawn* AssignedPawn = FindPersistentPawnById(Assignment->PawnId))
+                        FString Reason;
+                        if (TryAssignAndPossess(PlayerController, Assignment->PawnId, Reason))
                         {
-                                PlayerController->Possess(AssignedPawn);
-
-                                if (UInventoryComponent* Inventory = AssignedPawn->FindComponentByClass<UInventoryComponent>())
-                                {
-                                        const FGuid InventoryId = Inventory->GetPersistentId();
-                                        if (InventoryId.IsValid())
-                                        {
-                                                const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
-                                                ensureMsgf(!Existing || Existing->Get() == Inventory,
-                                                        TEXT("Duplicate InventoryId at possess: %s"), *InventoryId.ToString());
-                                        }
-                                }
-
                                 return;
                         }
+
+                        UE_LOG(LogMO56SaveSubsystem, Warning,
+                                TEXT("AssignAndPossessPersistentPawn: Failed to reclaim pawn %s for player %s (%s)"),
+                                *Assignment->PawnId.ToString(), *PlayerSaveId.ToString(), *Reason);
                 }
         }
 
         FGuid CandidatePawnId;
         if (FindUnassignedPlayerCandidate(CandidatePawnId))
         {
-                CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, CandidatePawnId };
-
-                if (APawn* CandidatePawn = FindPersistentPawnById(CandidatePawnId))
+                FString Reason;
+                if (TryAssignAndPossess(PlayerController, CandidatePawnId, Reason))
                 {
-                        PlayerController->Possess(CandidatePawn);
-
-                        if (UInventoryComponent* Inventory = CandidatePawn->FindComponentByClass<UInventoryComponent>())
-                        {
-                                const FGuid InventoryId = Inventory->GetPersistentId();
-                                if (InventoryId.IsValid())
-                                {
-                                        const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
-                                        ensureMsgf(!Existing || Existing->Get() == Inventory,
-                                                TEXT("Duplicate InventoryId at possess: %s"), *InventoryId.ToString());
-                                }
-                        }
-
                         return;
                 }
+
+                UE_LOG(LogMO56SaveSubsystem, Warning,
+                        TEXT("AssignAndPossessPersistentPawn: Candidate pawn %s rejected for player %s (%s)"),
+                        *CandidatePawnId.ToString(), *PlayerSaveId.ToString(), *Reason);
         }
 
         PlayerController->StartSpectatingOnly();
+}
+
+bool UMO56SaveSubsystem::BuildPossessablePawnList(APlayerController* ForPC, TArray<FMOPossessablePawnInfo>& Out) const
+{
+        Out.Reset();
+
+        if (!CurrentSaveGame)
+        {
+                return false;
+        }
+
+        const AMO56PlayerController* RequestingController = Cast<AMO56PlayerController>(ForPC);
+        const FGuid RequestingPlayerId = RequestingController ? RequestingController->GetPlayerSaveId() : FGuid();
+
+        for (const auto& Pair : CurrentSaveGame->Pawns)
+        {
+                const FPawnSaveData& PawnData = Pair.Value;
+                if (!PawnData.bPlayerCandidate)
+                {
+                        continue;
+                }
+
+                FMOPossessablePawnInfo Info;
+                Info.PawnId = PawnData.PawnId;
+                Info.DisplayName = PawnData.DisplayName;
+                Info.Location = PawnData.Transform.GetLocation();
+                Info.bAssigned = false;
+                Info.AssignedTo = FGuid();
+
+                APawn* ExistingPawn = FindPersistentPawnById(PawnData.PawnId);
+                if (ExistingPawn)
+                {
+                        Info.Location = ExistingPawn->GetActorLocation();
+
+                        if (Info.DisplayName.IsEmpty())
+                        {
+                                Info.DisplayName = FText::FromString(ExistingPawn->GetName());
+                        }
+                }
+
+                for (const auto& AssignmentPair : CurrentSaveGame->Assignments)
+                {
+                        const FPlayerAssignment& Assignment = AssignmentPair.Value;
+                        if (Assignment.PawnId == PawnData.PawnId)
+                        {
+                                Info.bAssigned = true;
+                                Info.AssignedTo = Assignment.PlayerSaveId;
+                                break;
+                        }
+                }
+
+                if (Info.DisplayName.IsEmpty())
+                {
+                        const FString ClassString = PawnData.ClassPath.ToString();
+                        const FString Label = ClassString.IsEmpty() ? TEXT("Unnamed Pawn") : FPackageName::GetShortName(ClassString);
+                        Info.DisplayName = FText::FromString(Label);
+                }
+
+                Out.Add(Info);
+        }
+
+        return true;
+}
+
+bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid& PawnId, FString& OutReason)
+{
+        OutReason.Reset();
+
+        if (!IsAuthoritative() || !PC || !CurrentSaveGame)
+        {
+                OutReason = TEXT("Server unavailable");
+                return false;
+        }
+
+        AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PC);
+        const FGuid PlayerSaveId = MOController ? MOController->GetPlayerSaveId() : FGuid();
+        if (!PlayerSaveId.IsValid())
+        {
+                OutReason = TEXT("No PlayerSaveId");
+                return false;
+        }
+
+        const FPawnSaveData* PawnData = CurrentSaveGame->Pawns.Find(PawnId);
+        if (!PawnData || !PawnData->bPlayerCandidate)
+        {
+                OutReason = TEXT("Pawn not possessable");
+                return false;
+        }
+
+        for (const auto& AssignmentPair : CurrentSaveGame->Assignments)
+        {
+                const FPlayerAssignment& Assignment = AssignmentPair.Value;
+                if (Assignment.PawnId == PawnId && Assignment.PlayerSaveId != PlayerSaveId)
+                {
+                        OutReason = TEXT("Pawn in use");
+                        return false;
+                }
+        }
+
+        APawn* TargetPawn = FindPersistentPawnById(PawnId);
+        if (!TargetPawn)
+        {
+                OutReason = TEXT("Pawn not present in world");
+                return false;
+        }
+
+        CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, PawnId };
+
+        PC->Possess(TargetPawn);
+
+        if (UInventoryComponent* Inventory = TargetPawn->FindComponentByClass<UInventoryComponent>())
+        {
+                const FGuid InventoryId = Inventory->GetPersistentId();
+                if (InventoryId.IsValid())
+                {
+                        const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
+                        ensureMsgf(!Existing || Existing->Get() == Inventory,
+                                TEXT("Two inventories share InventoryId %s"), *InventoryId.ToString());
+                }
+        }
+
+        if (MOController)
+        {
+                PlayerControllers.FindOrAdd(PlayerSaveId) = MOController;
+        }
+
+        return true;
 }
 
 void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
@@ -1208,6 +1317,21 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                         PawnData.ClassPath = Pawn->GetClass();
                         PawnData.Transform = Pawn->GetActorTransform();
                         PawnData.bPlayerCandidate = PersistentComp->bPlayerCandidate;
+
+                        if (PawnData.DisplayName.IsEmpty())
+                        {
+                                if (PersistentComp->DisplayName.IsEmpty())
+                                {
+                                        PersistentComp->DisplayName = FText::FromString(Pawn->GetName());
+                                }
+
+                                PawnData.DisplayName = PersistentComp->DisplayName;
+                        }
+                        else
+                        {
+                                PersistentComp->DisplayName = PawnData.DisplayName;
+                        }
+
                         if (!PawnData.InventoryId.IsValid())
                         {
                                 PawnData.InventoryId = PersistentComp->PawnId;
@@ -1237,6 +1361,20 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                         {
                                 PersistentComp->PawnId = PawnData.PawnId;
                                 PersistentComp->bPlayerCandidate = PawnData.bPlayerCandidate;
+
+                                if (PawnData.DisplayName.IsEmpty())
+                                {
+                                        if (PersistentComp->DisplayName.IsEmpty())
+                                        {
+                                                PersistentComp->DisplayName = FText::FromString(ExistingPawn->GetName());
+                                        }
+
+                                        PawnData.DisplayName = PersistentComp->DisplayName;
+                                }
+                                else
+                                {
+                                        PersistentComp->DisplayName = PawnData.DisplayName;
+                                }
                         }
 
                         if (UInventoryComponent* Inventory = ExistingPawn->FindComponentByClass<UInventoryComponent>())
@@ -1288,6 +1426,20 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                 {
                         PersistentComp->PawnId = PawnData.PawnId;
                         PersistentComp->bPlayerCandidate = PawnData.bPlayerCandidate;
+
+                        if (PawnData.DisplayName.IsEmpty())
+                        {
+                                if (PersistentComp->DisplayName.IsEmpty())
+                                {
+                                        PersistentComp->DisplayName = FText::FromString(SpawnedPawn->GetName());
+                                }
+
+                                PawnData.DisplayName = PersistentComp->DisplayName;
+                        }
+                        else
+                        {
+                                PersistentComp->DisplayName = PawnData.DisplayName;
+                        }
                 }
 
                 if (UInventoryComponent* Inventory = SpawnedPawn->FindComponentByClass<UInventoryComponent>())
@@ -1413,6 +1565,21 @@ bool UMO56SaveSubsystem::FindUnassignedPlayerCandidate(FGuid& OutPawnId) const
                                 PawnData.ClassPath = Pawn->GetClass();
                                 PawnData.Transform = Pawn->GetActorTransform();
                                 PawnData.bPlayerCandidate = PersistentComp->bPlayerCandidate;
+
+                                if (PawnData.DisplayName.IsEmpty())
+                                {
+                                        if (PersistentComp->DisplayName.IsEmpty())
+                                        {
+                                                PersistentComp->DisplayName = FText::FromString(Pawn->GetName());
+                                        }
+
+                                        PawnData.DisplayName = PersistentComp->DisplayName;
+                                }
+                                else
+                                {
+                                        PersistentComp->DisplayName = PawnData.DisplayName;
+                                }
+
                                 if (!PawnData.InventoryId.IsValid())
                                 {
                                         PawnData.InventoryId = PersistentComp->PawnId;
@@ -1462,6 +1629,13 @@ void UMO56SaveSubsystem::GatherPersistentPawnsForSave()
                         PawnData.ClassPath = Pawn->GetClass();
                         PawnData.Transform = Pawn->GetActorTransform();
                         PawnData.bPlayerCandidate = PersistentComp->bPlayerCandidate;
+
+                        if (PersistentComp->DisplayName.IsEmpty())
+                        {
+                                PersistentComp->DisplayName = FText::FromString(Pawn->GetName());
+                        }
+
+                        PawnData.DisplayName = PersistentComp->DisplayName;
 
                         if (UInventoryComponent* Inventory = Pawn->FindComponentByClass<UInventoryComponent>())
                         {
@@ -2559,6 +2733,34 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
         InventoryComponent->EnsurePersistentId();
         FGuid InventoryId = InventoryComponent->GetPersistentId();
 
+        AActor* OwnerActor = InventoryComponent->GetOwner();
+        const UMOPersistentPawnComponent* PersistentComp = OwnerActor ? OwnerActor->FindComponentByClass<UMOPersistentPawnComponent>() : nullptr;
+
+        if (!InventoryId.IsValid())
+        {
+                const FGuid SeedId = (PersistentComp && PersistentComp->GetPawnId().IsValid()) ? PersistentComp->GetPawnId() : FGuid::NewGuid();
+                InventoryComponent->OverridePersistentId(SeedId);
+                InventoryId = InventoryComponent->GetPersistentId();
+        }
+
+        if (const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId))
+        {
+                if (Existing->Get() && Existing->Get() != InventoryComponent)
+                {
+                        const FGuid NewId = FGuid::NewGuid();
+                        if (CurrentSaveGame)
+                        {
+                                if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(InventoryId))
+                                {
+                                        CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                }
+                        }
+
+                        InventoryComponent->OverridePersistentId(NewId);
+                        InventoryId = InventoryComponent->GetPersistentId();
+                }
+        }
+
         if (!CurrentSaveGame)
         {
                 LoadOrCreateSaveGame();
@@ -2587,7 +2789,6 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                                 }
                                 else
                                 {
-                                        RegisteredInventories.Remove(InventoryId);
                                         InventoryComponent->OverridePersistentId(CharacterData.InventoryId);
                                         InventoryId = InventoryComponent->GetPersistentId();
                                 }
