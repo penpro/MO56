@@ -2506,9 +2506,14 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                         ensureMsgf(!CurrentPtr || CurrentPtr->Get() == Inventory,
                                                 TEXT("RegisteredInventories map inconsistent for %s"), *CharacterId.ToString());
 
-                                        const int32 StackCount = SavedInventory ? SavedInventory->Stacks.Num() : -1;
-                                        UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("Inv map [apply]: Character %s -> InvId %s (stacks %d)"),
-                                                *CharacterId.ToString(), *CharacterData->InventoryId.ToString(), StackCount);
+                                        const bool bHadSaved = CurrentSaveGame && CurrentSaveGame->InventoryStates.Contains(CharacterData->InventoryId);
+
+                                        UE_LOG(LogMO56SaveSubsystem, Verbose,
+                                            TEXT("Inv map: Character %s -> InvId %s (hadSaved=%s)"),
+                                            *CharacterId.ToString(),
+                                            *CharacterData->InventoryId.ToString(),
+                                            bHadSaved ? TEXT("true") : TEXT("false"));
+
                                 }
                         }
                 }
