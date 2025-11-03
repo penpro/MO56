@@ -52,7 +52,7 @@ UPROPERTY(EditAnywhere, Category="Menu", meta=(AllowedClasses="World"))
 TSoftObjectPtr<UWorld> StartingMap;
 
 UPROPERTY(EditAnywhere, Category="Menu")
-FName StartingMapFallback = TEXT("TestLevel");
+FName StartingMapFallback = TEXT("M_TestLevel");
 
 mutable TWeakObjectPtr<UMO56SaveSubsystem> CachedSubsystem;
 };
