@@ -16,7 +16,7 @@
  *  4. Use GameMode Blueprint events (BeginPlay, OnPostLogin) to initialize crafting/skill systems or spawn UI managers.
  *  5. Combine with world settings (World Settings panel) to ensure server-travel maps load the same configuration.
  */
-UCLASS(abstract)
+UCLASS()
 class AMO56GameMode : public AGameModeBase
 {
 	GENERATED_BODY()
