@@ -188,6 +188,7 @@ void UMO56SaveSubsystem::StartNewGame(const FString& LevelName)
         bPendingCreateNewSaveAfterTravel = true;
         bPendingApplyOnNextLevel = false;
         PendingLoadedSave = nullptr;
+        bAppliedPendingSaveThisLevel = false;
 
         FString TravelLevelName = LevelName;
         if (!TravelLevelName.IsEmpty())
@@ -251,6 +252,7 @@ void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
                 PendingLevelName = MapShortName;
                 bPendingApplyOnNextLevel = true;
                 bPendingCreateNewSaveAfterTravel = false;
+                bAppliedPendingSaveThisLevel = false;
                 CurrentSaveGame = nullptr;
 
                 if (UWorld* World = GetWorld())
@@ -474,6 +476,7 @@ void UMO56SaveSubsystem::ResetToNewGame()
         UGameplayStatics::DeleteGameInSlot(SlotName, ActiveSaveUserIndex);
 
         CurrentSaveGame = NewObject<UMO56SaveGame>(this);
+        bAppliedPendingSaveThisLevel = false;
         const FDateTime NowUtc = FDateTime::UtcNow();
         CurrentSaveGame->CreatedUtc = NowUtc;
         CurrentSaveGame->UpdatedUtc = NowUtc;
@@ -811,34 +814,114 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
 
         PlayerControllers.FindOrAdd(PlayerId) = Controller;
 
-        const FGuid CharacterId = Character->GetCharacterId();
-        const FGuid InventoryId = Character->GetInventoryComponent() ? Character->GetInventoryComponent()->GetPersistentId() : FGuid();
-        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Possess: PC=%s Pawn=%s CharId=%s InvId=%s (no data moved)"), *GetNameSafe(Controller), *GetNameSafe(Character), CharacterId.IsValid() ? *CharacterId.ToString() : TEXT("None"), InventoryId.IsValid() ? *InventoryId.ToString() : TEXT("None"));
-
-        if (CurrentSaveGame && CharacterId.IsValid())
+        if (!CurrentSaveGame)
         {
-                FCharacterSaveData* CharacterData = CurrentSaveGame->CharacterStates.Find(CharacterId);
-                const bool bNeedsMigration = !CharacterData || !CharacterData->InventoryId.IsValid() || CurrentSaveGame->PlayerInventoryIds.Contains(PlayerId);
-                if (bNeedsMigration)
+                LoadOrCreateSaveGame();
+        }
+
+        FGuid CharacterId = Character->GetCharacterId();
+        const FGuid InventoryId = Character->GetInventoryComponent() ? Character->GetInventoryComponent()->GetPersistentId() : FGuid();
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterPlayerCharacter: PlayerId=%s Controller=%s Pawn=%s CharId=%s InvId=%s"),
+                *PlayerId.ToString(),
+                *GetNameSafe(Controller),
+                *GetNameSafe(Character),
+                CharacterId.IsValid() ? *CharacterId.ToString() : TEXT("None"),
+                InventoryId.IsValid() ? *InventoryId.ToString() : TEXT("None"));
+
+        FGuid ResolvedCharacterId = CharacterId;
+        FCharacterSaveData* CharacterData = nullptr;
+
+        if (CurrentSaveGame)
+        {
+                for (auto& Pair : CurrentSaveGame->CharacterStates)
                 {
-                        if (const FGuid* LegacyInventoryId = CurrentSaveGame->PlayerInventoryIds.Find(PlayerId))
+                        if (Pair.Value.OwningPlayerId == PlayerId && Pair.Key.IsValid())
                         {
-                                FCharacterSaveData& CharacterDataRef = CurrentSaveGame->CharacterStates.FindOrAdd(CharacterId);
-                                CharacterDataRef.CharacterId = CharacterId;
-                                CharacterDataRef.InventoryId = *LegacyInventoryId;
-
-                                if (const FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
-                                {
-                                        CharacterDataRef.SkillState = PlayerData->SkillState;
-                                        CharacterDataRef.Transform = PlayerData->Transform;
-                                }
-
-                                CurrentSaveGame->PlayerInventoryIds.Remove(PlayerId);
-                                ApplyCharacterStateFromSave(CharacterId);
+                                ResolvedCharacterId = Pair.Key;
+                                CharacterData = &Pair.Value;
+                                break;
                         }
+                }
+
+                if (!CharacterData && CharacterId.IsValid())
+                {
+                        CharacterData = CurrentSaveGame->CharacterStates.Find(CharacterId);
+                        if (CharacterData)
+                        {
+                                ResolvedCharacterId = CharacterId;
+                        }
+                }
+
+                if (const FGuid* LegacyInventoryId = CurrentSaveGame->PlayerInventoryIds.Find(PlayerId))
+                {
+                        const FGuid BindingId = ResolvedCharacterId.IsValid() ? ResolvedCharacterId : CharacterId;
+                        FCharacterSaveData& CharacterDataRef = CurrentSaveGame->CharacterStates.FindOrAdd(BindingId);
+                        CharacterDataRef.CharacterId = BindingId;
+                        CharacterDataRef.InventoryId = *LegacyInventoryId;
+                        CharacterDataRef.OwningPlayerId = PlayerId;
+
+                        if (const FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
+                        {
+                                CharacterDataRef.SkillState = PlayerData->SkillState;
+                                CharacterDataRef.Transform = PlayerData->Transform;
+                        }
+
+                        CurrentSaveGame->PlayerInventoryIds.Remove(PlayerId);
+
+                        ResolvedCharacterId = BindingId;
+                        CharacterData = &CharacterDataRef;
+                }
+
+                if (CharacterData)
+                {
+                        CharacterData->CharacterId = ResolvedCharacterId;
+                        CharacterData->OwningPlayerId = PlayerId;
+                }
+
+                if (!CharacterData && ResolvedCharacterId.IsValid())
+                {
+                        FCharacterSaveData& NewData = CurrentSaveGame->CharacterStates.FindOrAdd(ResolvedCharacterId);
+                        NewData.CharacterId = ResolvedCharacterId;
+                        NewData.OwningPlayerId = PlayerId;
+                        CharacterData = &NewData;
                 }
         }
 
+        if (ResolvedCharacterId.IsValid() && CharacterId.IsValid() && ResolvedCharacterId != CharacterId)
+        {
+                if (CurrentSaveGame)
+                {
+                        CurrentSaveGame->CharacterStates.Remove(CharacterId);
+                }
+
+                const FGuid OldCharacterId = CharacterId;
+                Character->CharacterId = ResolvedCharacterId;
+                CharacterId = ResolvedCharacterId;
+
+                RegisteredCharacters.Remove(OldCharacterId);
+                RegisteredCharacters.FindOrAdd(CharacterId) = Character;
+
+                if (UInventoryComponent* CharacterInventory = Character->GetInventoryComponent())
+                {
+                        CharacterToInventoryComponent.Remove(OldCharacterId);
+                        CharacterToInventoryComponent.FindOrAdd(CharacterId) = CharacterInventory;
+                        InventoryOwnerIds.FindOrAdd(CharacterInventory) = CharacterId;
+                }
+
+                if (USkillSystemComponent* Skill = Character->GetSkillSystemComponent())
+                {
+                        CharacterToSkillComponent.Remove(OldCharacterId);
+                        CharacterToSkillComponent.FindOrAdd(CharacterId) = Skill;
+                        SkillComponentToCharacterId.FindOrAdd(Skill) = CharacterId;
+                }
+        }
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterPlayerCharacter: PlayerId=%s ResolvedCharId=%s"),
+                *PlayerId.ToString(),
+                CharacterId.IsValid() ? *CharacterId.ToString() : TEXT("None"));
+
+        ApplyCharacterStateFromSave(CharacterId);
         SyncPlayerSaveData(PlayerId);
 }
 
@@ -958,12 +1041,20 @@ void UMO56SaveSubsystem::HandlePostWorldInit(UWorld* World, const UWorld::Initia
                 return;
         }
 
+        bAppliedPendingSaveThisLevel = false;
+
         FDelegateHandle SpawnHandle = World->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandleActorSpawned));
         WorldSpawnHandles.Add(World, SpawnHandle);
 
         for (TActorIterator<AItemPickup> It(World); It; ++It)
         {
                 RegisterWorldPickup(*It);
+        }
+
+        const bool bAppliedPendingSave = ApplyPendingSave(*World);
+        if (bAppliedPendingSave)
+        {
+                ApplySaveToWorld(World);
         }
 
         UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("HandlePostWorldInit: World=%s ready (gameplay)."), *UWorld::RemovePIEPrefix(World->GetMapName()));
@@ -1051,7 +1142,7 @@ void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr
 
         PendingLevelName = MapShortName;
 
-        bool bAppliedLoadedSave = false;
+        bool bAppliedLoadedSave = bAppliedPendingSaveThisLevel;
 
         if (bPendingCreateNewSaveAfterTravel || !CurrentSaveGame)
         {
@@ -1069,36 +1160,13 @@ void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr
                 }
         }
 
-        if (bPendingApplyOnNextLevel && PendingLoadedSave)
+        if (!bAppliedLoadedSave && bPendingApplyOnNextLevel && PendingLoadedSave)
         {
-                bPendingApplyOnNextLevel = false;
-
-                PendingLoadedSave->LevelName = MapShortName;
-                PendingLoadedSave->bIsGameplaySave = true;
-
-                if (ApplyLoadedSaveGame(PendingLoadedSave))
+                const bool bAppliedNow = ApplyPendingSave(*World);
+                bAppliedLoadedSave = bAppliedNow;
+                if (bAppliedNow)
                 {
-                        bAppliedLoadedSave = true;
-                        PendingLoadedSave = nullptr;
-
-                        if (CurrentSaveGame)
-                        {
-                                CurrentSaveGame->LevelName = MapShortName;
-                                CacheSaveMetadata(*CurrentSaveGame);
-
-                                const bool bSaved = SaveGame(true);
-                                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Loaded run metadata refreshed (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
-                        }
-
-                        UpdateOrRebuildSaveIndex(true);
-
-                        if (APlayerController* PC = World->GetFirstPlayerController())
-                        {
-                                PC->SetInputMode(FInputModeGameOnly());
-                                PC->bShowMouseCursor = false;
-                        }
-
-                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Applied save on world %s"), *MapShortName);
+                        ApplySaveToWorld(World);
                 }
                 else
                 {
@@ -1108,7 +1176,31 @@ void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr
                 }
         }
 
-        if (!bAppliedLoadedSave && CurrentSaveGame)
+        if (bAppliedLoadedSave)
+        {
+                bAppliedPendingSaveThisLevel = true;
+
+                if (CurrentSaveGame)
+                {
+                        CurrentSaveGame->LevelName = MapShortName;
+                        CurrentSaveGame->bIsGameplaySave = true;
+                        CacheSaveMetadata(*CurrentSaveGame);
+
+                        const bool bSaved = SaveGame(true);
+                        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Loaded run metadata refreshed (result=%s)."), bSaved ? TEXT("Success") : TEXT("Failure"));
+                }
+
+                UpdateOrRebuildSaveIndex(true);
+
+                if (APlayerController* PC = World->GetFirstPlayerController())
+                {
+                        PC->SetInputMode(FInputModeGameOnly());
+                        PC->bShowMouseCursor = false;
+                }
+
+                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("Applied save on world %s"), *MapShortName);
+        }
+        else if (CurrentSaveGame)
         {
                 CurrentSaveGame->LevelName = MapShortName;
                 CurrentSaveGame->bIsGameplaySave = true;
@@ -1295,20 +1387,33 @@ void UMO56SaveSubsystem::ApplySaveToInventories()
         }
 
         TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplySaveToInventories: Begin Registered=%d"), RegisteredInventories.Num());
+
+        int32 AppliedCount = 0;
 
         for (auto It = RegisteredInventories.CreateIterator(); It; ++It)
         {
                 const FGuid InventoryId = It.Key();
                 if (UInventoryComponent* Inventory = It.Value().Get())
                 {
+                        const EMO56InventoryOwner* OwnerTypePtr = InventoryOwnerTypes.Find(Inventory);
+                        const bool bIsCharacterInventory = OwnerTypePtr && *OwnerTypePtr == EMO56InventoryOwner::Character;
+
+                        if (bIsCharacterInventory)
+                        {
+                                continue;
+                        }
+
                         if (const FInventorySaveData* Data = CurrentSaveGame->InventoryStates.Find(InventoryId))
                         {
                                 Inventory->ReadFromSaveData(*Data);
+                                ++AppliedCount;
                         }
                         else
                         {
                                 FInventorySaveData EmptyData;
                                 Inventory->ReadFromSaveData(EmptyData);
+                                ++AppliedCount;
                         }
                 }
                 else
@@ -1316,6 +1421,8 @@ void UMO56SaveSubsystem::ApplySaveToInventories()
                         It.RemoveCurrent();
                 }
         }
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplySaveToInventories: Completed Applied=%d"), AppliedCount);
 }
 
 void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
@@ -1344,11 +1451,20 @@ void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
 
         TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
 
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplySaveToWorld: Begin Level=%s DroppedItems=%d Removed=%d"),
+                *LevelName.ToString(),
+                LevelState->DroppedItems.Num(),
+                LevelState->RemovedPickupIds.Num());
+
         TSet<FGuid> PendingIds;
         for (const FWorldItemSaveData& Entry : LevelState->DroppedItems)
         {
                 PendingIds.Add(Entry.PickupId);
         }
+
+        int32 DestroyedCount = 0;
+        int32 UpdatedCount = 0;
+        int32 SpawnedCount = 0;
 
         for (TActorIterator<AItemPickup> It(World); It; ++It)
         {
@@ -1367,6 +1483,7 @@ void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
                 if (LevelState->RemovedPickupIds.Contains(PickupId))
                 {
                         Pickup->Destroy();
+                        ++DestroyedCount;
                         continue;
                 }
 
@@ -1385,6 +1502,7 @@ void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
                         Pickup->SetActorTransform(SavedData->Transform);
 
                         PendingIds.Remove(PickupId);
+                        ++UpdatedCount;
                 }
         }
 
@@ -1424,7 +1542,14 @@ void UMO56SaveSubsystem::ApplySaveToWorld(UWorld* World)
                 SpawnedPickup->SetQuantity(SavedData.Quantity);
                 SpawnedPickup->SetWasSpawnedFromInventory(SavedData.bSpawnedFromInventory);
                 SpawnedPickup->SetActorTransform(SavedData.Transform);
+                ++SpawnedCount;
         }
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplySaveToWorld: Completed Level=%s Updated=%d Spawned=%d Destroyed=%d"),
+                *LevelName.ToString(),
+                UpdatedCount,
+                SpawnedCount,
+                DestroyedCount);
 }
 
 void UMO56SaveSubsystem::RefreshInventorySaveData()
@@ -1583,13 +1708,49 @@ bool UMO56SaveSubsystem::ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave)
 
         ApplySaveToInventories();
 
-        if (UWorld* World = GetWorld())
-        {
-                ApplySaveToWorld(World);
-        }
-
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("LoadGame: success"));
         return true;
+}
+
+bool UMO56SaveSubsystem::ApplyPendingSave(UWorld& World)
+{
+        if (!IsAuthoritative())
+        {
+                return false;
+        }
+
+        if (!bPendingApplyOnNextLevel || !PendingLoadedSave)
+        {
+                return false;
+        }
+
+        const FString MapName = UWorld::RemovePIEPrefix(World.GetMapName());
+        FString MapShortName = FPackageName::GetShortName(MapName);
+        if (MapShortName.IsEmpty())
+        {
+                MapShortName = MapName;
+        }
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplyPendingSave: Begin World=%s SaveId=%s"),
+                *MapShortName,
+                PendingLoadedSave->SaveId.IsValid() ? *PendingLoadedSave->SaveId.ToString() : TEXT("None"));
+
+        PendingLoadedSave->LevelName = MapShortName;
+        PendingLoadedSave->bIsGameplaySave = true;
+        PendingLevelName = MapShortName;
+
+        UMO56SaveGame* LoadedSave = PendingLoadedSave;
+        PendingLoadedSave = nullptr;
+        bPendingApplyOnNextLevel = false;
+
+        const bool bApplied = ApplyLoadedSaveGame(LoadedSave);
+        bAppliedPendingSaveThisLevel = bApplied;
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplyPendingSave: Completed World=%s Result=%s"),
+                *MapShortName,
+                bApplied ? TEXT("Success") : TEXT("Failure"));
+
+        return bApplied;
 }
 
 void UMO56SaveSubsystem::SanitizeLoadedSave(UMO56SaveGame& Save)
@@ -1681,7 +1842,16 @@ bool UMO56SaveSubsystem::LoadGameBySlot(const FString& SlotName, int32 UserIndex
         {
                 ActiveSaveSlotName = SlotName;
                 ActiveSaveUserIndex = TargetUserIndex;
-                return ApplyLoadedSaveGame(LoadedSave);
+                const bool bApplied = ApplyLoadedSaveGame(LoadedSave);
+                if (bApplied)
+                {
+                        if (UWorld* World = GetWorld())
+                        {
+                                ApplySaveToWorld(World);
+                        }
+                }
+
+                return bApplied;
         }
 
         UE_LOG(LogMO56SaveSubsystem, Error, TEXT("LoadGame: save slot %s contained an incompatible object"), *SlotName);
@@ -1817,8 +1987,11 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
 
         if (const FInventorySaveData* SavedData = CurrentSaveGame->InventoryStates.Find(InventoryId))
         {
-                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
-                InventoryComponent->ReadFromSaveData(*SavedData);
+                if (OwnerType != EMO56InventoryOwner::Character)
+                {
+                        TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                        InventoryComponent->ReadFromSaveData(*SavedData);
+                }
         }
 
         if (OwnerType == EMO56InventoryOwner::Character && OwnerId.IsValid())
@@ -2280,9 +2453,10 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                 }
 
                 UE_LOG(LogMO56SaveSubsystem, Log,
-                    TEXT("ApplyToCharacter: CharId=%s InvId=%s"),
-                    *CharacterId.ToString(),
-                    CharacterData->InventoryId.IsValid() ? *CharacterData->InventoryId.ToString() : TEXT("None"));        }
+                        TEXT("ApplyCharacterStateFromSave: CharacterId=%s InventoryId=%s"),
+                        *CharacterId.ToString(),
+                        CharacterData->InventoryId.IsValid() ? *CharacterData->InventoryId.ToString() : TEXT("None"));
+        }
 }
 
 void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
@@ -2327,5 +2501,41 @@ void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
                         Skill->WriteToSaveData(CharacterData.SkillState);
                 }
         }
+
+        FGuid OwningPlayerId;
+        if (const TWeakObjectPtr<AMO56Character>* CharacterPtr = RegisteredCharacters.Find(CharacterId))
+        {
+                if (AMO56Character* Character = CharacterPtr->Get())
+                {
+                        for (const auto& ControllerPair : PlayerControllers)
+                        {
+                                if (AMO56PlayerController* PlayerController = ControllerPair.Value.Get())
+                                {
+                                        if (APawn* PossessedPawn = PlayerController->GetPawn())
+                                        {
+                                                if (PossessedPawn == Character)
+                                                {
+                                                        OwningPlayerId = ControllerPair.Key;
+                                                        break;
+                                                }
+
+                                                if (!OwningPlayerId.IsValid())
+                                                {
+                                                        if (const AMO56Character* PossessedCharacter = Cast<AMO56Character>(PossessedPawn))
+                                                        {
+                                                                if (PossessedCharacter->GetCharacterId() == CharacterId)
+                                                                {
+                                                                        OwningPlayerId = ControllerPair.Key;
+                                                                        break;
+                                                                }
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+        }
+
+        CharacterData.OwningPlayerId = OwningPlayerId;
 }
 

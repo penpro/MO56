@@ -198,6 +198,7 @@ private:
         FString PendingLevelName;
         bool bPendingApplyOnNextLevel = false;
         bool bPendingCreateNewSaveAfterTravel = false;
+        bool bAppliedPendingSaveThisLevel = false;
 
         UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
@@ -274,6 +275,7 @@ private:
 
         void ApplyPlayerTransforms();
         bool ApplyLoadedSaveGame(UMO56SaveGame* LoadedSave);
+        bool ApplyPendingSave(UWorld& World);
 
         void SanitizeLoadedSave(UMO56SaveGame& Save);
 
