@@ -40,13 +40,21 @@ static const TCHAR* const GameplayGameModeOption = TEXT("?game=/Game/MyStuff/BP_
 
 static FGuid GuidFromString(const FString& S)
 {
+        // Convert to UTF-8 and hash the *bytes* (S.Len() counts TCHARs, not bytes).
+        FTCHARToUTF8 Utf8(*S);
+
+        FMD5 Md5;
+        Md5.Update(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+
         uint8 D[16];
-        FMD5::HashBuffer(TCHAR_TO_ANSI(*S), S.Len(), D);
-        return FGuid(
-                (D[0] << 24) | (D[1] << 16) | (D[2] << 8) | D[3],
-                (D[4] << 24) | (D[5] << 16) | (D[6] << 8) | D[7],
-                (D[8] << 24) | (D[9] << 16) | (D[10] << 8) | D[11],
-                (D[12] << 24) | (D[13] << 16) | (D[14] << 8) | D[15]);
+        Md5.Final(D);
+
+        auto U32 = [](const uint8* p)->uint32
+        {
+                return (uint32(p[0]) << 24) | (uint32(p[1]) << 16) | (uint32(p[2]) << 8) | uint32(p[3]);
+        };
+
+        return FGuid(U32(D + 0), U32(D + 4), U32(D + 8), U32(D + 12));
 }
 
 static FGuid StableGuidForActor(const AActor& Actor)
