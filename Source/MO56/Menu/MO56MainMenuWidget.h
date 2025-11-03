@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Save/MO56SaveTypes.h"
+#include "MO56GameMode.h"
 #include "MO56MainMenuWidget.generated.h"
 
 class UButton;

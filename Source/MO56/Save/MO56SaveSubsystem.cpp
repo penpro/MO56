@@ -27,7 +27,7 @@
 #include "HAL/FileManager.h"
 #include "TimerManager.h"
 #include "Save/MO56MenuSettingsSave.h"
-#include "UObject/CoreUObjectDelegates.h"
+
 
 DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
 
@@ -1792,6 +1792,7 @@ void UMO56SaveSubsystem::UpdateOrRebuildSaveIndex(bool bForceRebuild)
                 }
 
                 const FString SlotName = FPaths::GetBaseFilename(FileName);
+                if (SlotName == SaveIndexSlotName) { continue; }
                 if (USaveGame* Loaded = UGameplayStatics::LoadGameFromSlot(SlotName, ActiveSaveUserIndex))
                 {
                         if (UMO56SaveGame* SaveGame = Cast<UMO56SaveGame>(Loaded))

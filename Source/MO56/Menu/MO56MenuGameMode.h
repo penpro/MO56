@@ -5,9 +5,10 @@
 #include "MO56MenuGameMode.generated.h"
 
 class AMO56MenuPlayerController;
+class UMO56MenuSettingsSave;
 
 UCLASS()
-class UMO56MenuSettingsSave;
+
 
 class MO56_API AMO56MenuGameMode : public AGameModeBase
 {
