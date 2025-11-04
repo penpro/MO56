@@ -43,6 +43,10 @@ struct MOINVENTORY_API FInventorySaveData
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
     float MaxVolume = 0.f;
 
+    /** Character identifier that owned this inventory when the save was captured. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
+    FGuid OwnerCharacterId;
+
     /** Serialized representation of all slots. */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
     TArray<FInventorySlotSaveData> Slots;
