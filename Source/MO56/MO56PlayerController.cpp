@@ -2,6 +2,7 @@
 // Menu widgets call the BlueprintCallable helpers, which forward to the server and manage
 // save/load as well as pawn possession for multiplayer.
 #include "MO56PlayerController.h"
+#include "EnhancedInputSubsystemInterface.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
@@ -69,13 +70,21 @@ namespace
                 {
                         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                         {
-                                TArray<TObjectPtr<const UInputMappingContext>> Contexts;
-                                Subsystem->GetAppliedInputContexts(Contexts);
+                                const IEnhancedInputSubsystemInterface::FSubsystemInfo& Info = Subsystem->GetSubsystemInfo();
 
                                 FString Names;
-                                for (const TObjectPtr<const UInputMappingContext>& Context : Contexts)
+                                for (const FEnhancedInputContextHandle& Handle : Info.AppliedInputContexts)
                                 {
-                                        Names += Context ? Context->GetName() + TEXT(" ") : TEXT("<null> ");
+                                        if (const UInputMappingContext* Context = Handle.Get())
+                                        {
+                                                Names += Context->GetName();
+                                        }
+                                        else
+                                        {
+                                                Names += TEXT("<null>");
+                                        }
+
+                                        Names += TEXT(" ");
                                 }
 
                                 UE_LOG(LogTemp, Log, TEXT("[Input] Contexts: %s"), *Names);
