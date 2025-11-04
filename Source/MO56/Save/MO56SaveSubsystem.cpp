@@ -612,6 +612,7 @@ void UMO56SaveSubsystem::ResetToNewGame()
         CharacterToInventoryComponent.Empty();
         PlayerControllers.Empty();
         RegisteredCharacters.Empty();
+        PlayersWithEstablishedCharacters.Empty();
 
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ResetToNewGame: save data cleared."));
 }
@@ -937,7 +938,12 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
         FGuid CharacterId = Character->GetCharacterId();
         const FGuid InventoryId = Character->GetInventoryComponent() ? Character->GetInventoryComponent()->GetPersistentId() : FGuid();
 
-        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterPlayerCharacter: PlayerId=%s Controller=%s Pawn=%s CharId=%s InvId=%s"),
+        const bool bAlreadyEstablished = PlayersWithEstablishedCharacters.Contains(PlayerId);
+        const ERegisterPlayerCharacterContext RegisterContext = bAlreadyEstablished ? ERegisterPlayerCharacterContext::PossessionSwitch : ERegisterPlayerCharacterContext::FirstAssociation;
+        const TCHAR* ContextString = RegisterContext == ERegisterPlayerCharacterContext::FirstAssociation ? TEXT("FirstAssociation") : TEXT("PossessionSwitch");
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterPlayerCharacter: Context=%s PlayerId=%s Controller=%s Pawn=%s CharId=%s InvId=%s"),
+                ContextString,
                 *PlayerId.ToString(),
                 *GetNameSafe(Controller),
                 *GetNameSafe(Character),
@@ -949,13 +955,16 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
 
         if (CurrentSaveGame)
         {
-                for (auto& Pair : CurrentSaveGame->CharacterStates)
+                if (RegisterContext == ERegisterPlayerCharacterContext::FirstAssociation)
                 {
-                        if (Pair.Value.OwningPlayerId == PlayerId && Pair.Key.IsValid())
+                        for (auto& Pair : CurrentSaveGame->CharacterStates)
                         {
-                                ResolvedCharacterId = Pair.Key;
-                                CharacterData = &Pair.Value;
-                                break;
+                                if (Pair.Value.OwningPlayerId == PlayerId && Pair.Key.IsValid())
+                                {
+                                        ResolvedCharacterId = Pair.Key;
+                                        CharacterData = &Pair.Value;
+                                        break;
+                                }
                         }
                 }
 
@@ -968,30 +977,38 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
                         }
                 }
 
-                if (const FGuid* LegacyInventoryId = CurrentSaveGame->PlayerInventoryIds.Find(PlayerId))
+                if (RegisterContext == ERegisterPlayerCharacterContext::FirstAssociation)
                 {
-                        const FGuid BindingId = ResolvedCharacterId.IsValid() ? ResolvedCharacterId : CharacterId;
-                        FCharacterSaveData& CharacterDataRef = CurrentSaveGame->CharacterStates.FindOrAdd(BindingId);
-                        CharacterDataRef.CharacterId = BindingId;
-                        CharacterDataRef.InventoryId = *LegacyInventoryId;
-                        CharacterDataRef.OwningPlayerId = PlayerId;
-
-                        if (const FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
+                        if (const FGuid* LegacyInventoryId = CurrentSaveGame->PlayerInventoryIds.Find(PlayerId))
                         {
-                                CharacterDataRef.SkillState = PlayerData->SkillState;
-                                CharacterDataRef.Transform = PlayerData->Transform;
+                                const FGuid BindingId = ResolvedCharacterId.IsValid() ? ResolvedCharacterId : CharacterId;
+                                FCharacterSaveData& CharacterDataRef = CurrentSaveGame->CharacterStates.FindOrAdd(BindingId);
+                                CharacterDataRef.CharacterId = BindingId;
+                                CharacterDataRef.InventoryId = *LegacyInventoryId;
+                                CharacterDataRef.OwningPlayerId = PlayerId;
+
+                                if (const FPlayerSaveData* PlayerData = CurrentSaveGame->PlayerStates.Find(PlayerId))
+                                {
+                                        CharacterDataRef.SkillState = PlayerData->SkillState;
+                                        CharacterDataRef.Transform = PlayerData->Transform;
+                                }
+
+                                CurrentSaveGame->PlayerInventoryIds.Remove(PlayerId);
+
+                                ResolvedCharacterId = BindingId;
+                                CharacterData = &CharacterDataRef;
                         }
-
-                        CurrentSaveGame->PlayerInventoryIds.Remove(PlayerId);
-
-                        ResolvedCharacterId = BindingId;
-                        CharacterData = &CharacterDataRef;
                 }
 
                 if (CharacterData)
                 {
                         CharacterData->CharacterId = ResolvedCharacterId;
                         CharacterData->OwningPlayerId = PlayerId;
+
+                        if (!CharacterData->InventoryId.IsValid() && InventoryId.IsValid())
+                        {
+                                CharacterData->InventoryId = InventoryId;
+                        }
                 }
 
                 if (!CharacterData && ResolvedCharacterId.IsValid())
@@ -999,6 +1016,10 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
                         FCharacterSaveData& NewData = CurrentSaveGame->CharacterStates.FindOrAdd(ResolvedCharacterId);
                         NewData.CharacterId = ResolvedCharacterId;
                         NewData.OwningPlayerId = PlayerId;
+                        if (!NewData.InventoryId.IsValid() && InventoryId.IsValid())
+                        {
+                                NewData.InventoryId = InventoryId;
+                        }
                         CharacterData = &NewData;
                 }
         }
@@ -1032,9 +1053,30 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
                 }
         }
 
+        const FGuid EffectiveInventoryId = (CharacterData && CharacterData->InventoryId.IsValid()) ? CharacterData->InventoryId : InventoryId;
+
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterPlayerCharacter: PlayerId=%s ResolvedCharId=%s"),
                 *PlayerId.ToString(),
                 CharacterId.IsValid() ? *CharacterId.ToString() : TEXT("None"));
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterPlayerCharacterIdentity: Player=%s Character=%s Inventory=%s Context=%s"),
+                *PlayerId.ToString(),
+                CharacterId.IsValid() ? *CharacterId.ToString() : TEXT("None"),
+                EffectiveInventoryId.IsValid() ? *EffectiveInventoryId.ToString() : TEXT("None"),
+                ContextString);
+
+        LogSaveEvent(this, TEXT("RegisterPlayerCharacterIdentity"),
+                FString::Printf(TEXT("Player=%s Character=%s Inventory=%s Context=%s"),
+                        *PlayerId.ToString(EGuidFormats::DigitsWithHyphens),
+                        CharacterId.IsValid() ? *CharacterId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None"),
+                        EffectiveInventoryId.IsValid() ? *EffectiveInventoryId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None"),
+                        ContextString),
+                Controller, Character);
+
+        if (RegisterContext == ERegisterPlayerCharacterContext::FirstAssociation)
+        {
+                PlayersWithEstablishedCharacters.Add(PlayerId);
+        }
 
         ApplyCharacterStateFromSave(CharacterId);
         SyncPlayerSaveData(PlayerId);
@@ -1235,6 +1277,28 @@ bool UMO56SaveSubsystem::BuildPossessablePawnList(APlayerController* ForPC, TArr
         const AMO56PlayerController* RequestingController = Cast<AMO56PlayerController>(ForPC);
         const FGuid RequestingPlayerId = RequestingController ? RequestingController->GetPlayerSaveId() : FGuid();
 
+        int32 PlayerCandidateCount = 0;
+        for (const auto& Pair : CurrentSaveGame->Pawns)
+        {
+                if (Pair.Value.bPlayerCandidate)
+                {
+                        ++PlayerCandidateCount;
+                }
+        }
+
+        UE_LOG(LogMO56SaveSubsystem, Log, TEXT("BuildPossessablePawnList: Player=%s RegisteredCharacters=%d PlayerCandidates=%d"),
+                RequestingPlayerId.IsValid() ? *RequestingPlayerId.ToString() : TEXT("None"),
+                RegisteredCharacters.Num(),
+                PlayerCandidateCount);
+
+        LogSaveEvent(this, TEXT("BuildPossessablePawnList"),
+                FString::Printf(TEXT("Player=%s RegisteredCharacters=%d PlayerCandidates=%d"),
+                        RequestingPlayerId.IsValid() ? *RequestingPlayerId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None"),
+                        RegisteredCharacters.Num(),
+                        PlayerCandidateCount),
+                RequestingController,
+                nullptr);
+
         for (const auto& Pair : CurrentSaveGame->Pawns)
         {
                 const FPawnSaveData& PawnData = Pair.Value;
@@ -1411,7 +1475,9 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
 
         if (AMO56PlayerController* ClientController = ControllerForLog)
         {
+                ClientController->ClientReapplyEnhancedInputContexts();
                 ClientController->ClientEnsureGameInput();
+                ClientController->ClientValidatePostPossess(TargetPawn);
         }
 
         if (UInventoryComponent* Inventory = TargetPawn->FindComponentByClass<UInventoryComponent>())
@@ -1420,6 +1486,16 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
                 if (InventoryId.IsValid())
                 {
                         const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId);
+                        if (Existing && Existing->Get() && Existing->Get() != Inventory)
+                        {
+                                UE_LOG(LogMO56SaveSubsystem, Warning,
+                                        TEXT("Inventory collision detected: InventoryId=%s Existing=%s New=%s Pawn=%s"),
+                                        *InventoryId.ToString(),
+                                        *GetNameSafe(Existing->Get()),
+                                        *GetNameSafe(Inventory),
+                                        *GetNameSafe(TargetPawn));
+                        }
+
                         ensureMsgf(!Existing || Existing->Get() == Inventory,
                                 TEXT("Two inventories share InventoryId %s"), *InventoryId.ToString());
                 }
@@ -3495,9 +3571,15 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                                 const FString CharacterString = CharacterId.ToString(EGuidFormats::DigitsWithHyphens);
                                                 const FString InventoryString = CharacterData->InventoryId.IsValid() ? CharacterData->InventoryId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
                                                 const FString SaveOwnerString = SavedInventory->OwnerCharacterId.IsValid() ? SavedInventory->OwnerCharacterId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                                                const FString PlayerString = CharacterData->OwningPlayerId.IsValid() ? CharacterData->OwningPlayerId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
 
                                                 LogSaveEvent(this, TEXT("AboutToApplyInventory"),
                                                         FString::Printf(TEXT("CharacterId=%s InventoryId=%s SaveOwner=%s"), *CharacterString, *InventoryString, *SaveOwnerString));
+
+                                                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("ApplyCharacterStateTriple: Player=%s Character=%s Inventory=%s"),
+                                                        *PlayerString,
+                                                        *CharacterString,
+                                                        *InventoryString);
 
                                                 if (SavedInventory->OwnerCharacterId.IsValid() && SavedInventory->OwnerCharacterId != CharacterId)
                                                 {
@@ -3512,8 +3594,69 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                                         *CharacterId.ToString(),
                                                         *SavedInventory->OwnerCharacterId.ToString());
 
-                                                TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
-                                                Inventory->ReadFromSaveData(*SavedInventory);
+                                                bool bPawnIdentityReady = false;
+                                                bool bInventoryMappingReady = false;
+                                                AMO56Character* ResolvedCharacterForLog = nullptr;
+
+                                                if (const TWeakObjectPtr<AMO56Character>* CharacterPtr = RegisteredCharacters.Find(CharacterId))
+                                                {
+                                                        if (AMO56Character* ResolvedCharacter = CharacterPtr->Get())
+                                                        {
+                                                                ResolvedCharacterForLog = ResolvedCharacter;
+                                                                if (UMOPersistentPawnComponent* PersistentComp = ResolvedCharacter->FindComponentByClass<UMOPersistentPawnComponent>())
+                                                                {
+                                                                        const bool bPawnIdValid = PersistentComp->PawnId.IsValid();
+                                                                        const bool bPawnRecorded = bPawnIdValid && (!CurrentSaveGame || CurrentSaveGame->Pawns.Contains(PersistentComp->PawnId));
+                                                                        bPawnIdentityReady = bPawnIdValid && bPawnRecorded;
+                                                                }
+                                                        }
+                                                }
+
+                                                if (CharacterData->InventoryId.IsValid())
+                                                {
+                                                        const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(CharacterData->InventoryId);
+                                                        bInventoryMappingReady = !Existing || Existing->Get() == Inventory;
+                                                }
+                                                else
+                                                {
+                                                        bInventoryMappingReady = true;
+                                                }
+
+                                                if (bPawnIdentityReady && bInventoryMappingReady)
+                                                {
+                                                        TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
+                                                        Inventory->ReadFromSaveData(*SavedInventory);
+                                                }
+                                                else
+                                                {
+                                                        UE_LOG(LogMO56SaveSubsystem, Log,
+                                                                TEXT("ApplyCharacterStateFromSave deferred. Character=%s Inventory=%s PawnReady=%s InventoryReady=%s"),
+                                                                *CharacterId.ToString(),
+                                                                CharacterData->InventoryId.IsValid() ? *CharacterData->InventoryId.ToString() : TEXT("None"),
+                                                                bPawnIdentityReady ? TEXT("true") : TEXT("false"),
+                                                                bInventoryMappingReady ? TEXT("true") : TEXT("false"));
+
+                                                                LogSaveEvent(this, TEXT("ApplyCharacterStateDeferred"),
+                                                                FString::Printf(TEXT("Character=%s Inventory=%s PawnReady=%s InventoryReady=%s"),
+                                                                        *CharacterId.ToString(EGuidFormats::DigitsWithHyphens),
+                                                                        CharacterData->InventoryId.IsValid() ? *CharacterData->InventoryId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None"),
+                                                                        bPawnIdentityReady ? TEXT("true") : TEXT("false"),
+                                                                        bInventoryMappingReady ? TEXT("true") : TEXT("false")),
+                                                                nullptr,
+                                                                ResolvedCharacterForLog);
+
+                                                        if (UWorld* World = GetWorld())
+                                                        {
+                                                                FTimerDelegate RetryDelegate;
+                                                                RetryDelegate.BindWeakLambda(this, [this, CharacterId]()
+                                                                {
+                                                                        ApplyCharacterStateFromSave(CharacterId);
+                                                                });
+                                                                World->GetTimerManager().SetTimerForNextTick(RetryDelegate);
+                                                        }
+
+                                                        return;
+                                                }
                                         }
 
                                         ensureMsgf(CharacterData->InventoryId.IsValid(), TEXT("Character %s has invalid InventoryId after apply"), *CharacterId.ToString());

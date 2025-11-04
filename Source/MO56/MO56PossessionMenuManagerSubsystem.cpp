@@ -31,12 +31,22 @@ namespace
             return TEXT("Input=None");
         }
 
-        return FString::Printf(TEXT("Input(Mouse=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s)"),
+        const bool bLeftMouseDown = PlayerController->IsInputKeyDown(EKeys::LeftMouseButton);
+        FString ModeString = TEXT("Unknown");
+
+        if (const AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+        {
+            ModeString = MOController->DescribeDebugInputMode();
+        }
+
+        return FString::Printf(TEXT("Input(Mouse=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s LeftMouseDown=%s Mode=%s)"),
             PlayerController->bShowMouseCursor ? TEXT("true") : TEXT("false"),
             PlayerController->bEnableClickEvents ? TEXT("true") : TEXT("false"),
             PlayerController->bEnableMouseOverEvents ? TEXT("true") : TEXT("false"),
             PlayerController->IsLookInputIgnored() ? TEXT("true") : TEXT("false"),
-            PlayerController->IsMoveInputIgnored() ? TEXT("true") : TEXT("false"));
+            PlayerController->IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
+            bLeftMouseDown ? TEXT("true") : TEXT("false"),
+            *ModeString);
     }
 
     void LogMenuDebug(const UObject* Context, FName Action, ULocalPlayer* LocalPlayer, const FString& Detail, APlayerController* PlayerController)
@@ -394,6 +404,11 @@ void UMO56PossessionMenuManagerSubsystem::ApplyUIOnly(APlayerController* PlayerC
     PlayerController->SetIgnoreLookInput(true);
     PlayerController->SetIgnoreMoveInput(true);
 
+    if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+    {
+        MOController->MarkDebugInputMode(TEXT("UIOnly"));
+    }
+
     LogMenuDebug(this, TEXT("ApplyUIOnlyComplete"), PlayerController ? PlayerController->GetLocalPlayer() : nullptr, FString::Printf(TEXT("After=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
 }
 
@@ -415,6 +430,11 @@ void UMO56PossessionMenuManagerSubsystem::RestoreInput(APlayerController* Player
 
     FInputModeGameOnly GameOnly;
     PlayerController->SetInputMode(GameOnly);
+
+    if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+    {
+        MOController->MarkDebugInputMode(TEXT("GameOnly"));
+    }
 
     LogMenuDebug(this, TEXT("RestoreInputComplete"), PlayerController ? PlayerController->GetLocalPlayer() : nullptr, FString::Printf(TEXT("After=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
 }

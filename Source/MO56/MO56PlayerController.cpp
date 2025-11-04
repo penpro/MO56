@@ -25,6 +25,9 @@
 #include "UI/MO56PossessMenuWidget.h"
 #include "EnhancedInputComponent.h"
 #include "InputAction.h"
+#include "InputCoreTypes.h"
+#include "GameFramework/PawnMovementComponent.h"
+#include "UObject/EnumProperty.h"
 
 namespace
 {
@@ -42,12 +45,16 @@ namespace
 
         FString DescribeInputState(const AMO56PlayerController& Controller)
         {
-                return FString::Printf(TEXT("Input(Mouse=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s)"),
+                const bool bLeftMouseDown = Controller.IsInputKeyDown(EKeys::LeftMouseButton);
+
+                return FString::Printf(TEXT("Input(Mouse=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s LeftMouseDown=%s Mode=%s)"),
                         Controller.bShowMouseCursor ? TEXT("true") : TEXT("false"),
                         Controller.bEnableClickEvents ? TEXT("true") : TEXT("false"),
                         Controller.bEnableMouseOverEvents ? TEXT("true") : TEXT("false"),
                         Controller.IsLookInputIgnored() ? TEXT("true") : TEXT("false"),
-                        Controller.IsMoveInputIgnored() ? TEXT("true") : TEXT("false"));
+                        Controller.IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
+                        bLeftMouseDown ? TEXT("true") : TEXT("false"),
+                        *Controller.DescribeDebugInputMode());
         }
 }
 
@@ -142,9 +149,17 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
 {
         Super::OnPossess(InPawn);
 
-        LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s"),
+        const ENetRole LocalRole = InPawn ? InPawn->GetLocalRole() : ROLE_None;
+        const ENetRole RemoteRole = InPawn ? InPawn->GetRemoteRole() : ROLE_None;
+        const FString RoleDetail = FString::Printf(TEXT("Roles(Local=%s Remote=%s ControllerIsLocal=%s)"),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), RemoteRole),
+                IsLocalPlayerController() ? TEXT("true") : TEXT("false"));
+
+        LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s %s"),
                 *DescribePawnForDebug(InPawn),
-                *DescribeInputState(*this)), InPawn);
+                *DescribeInputState(*this),
+                *RoleDetail), InPawn);
 
         if (IsLocalPlayerController())
         {
@@ -159,7 +174,24 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
                         }
                 }
 
+                ReapplyEnhancedInputContexts();
                 EnsureGameplayInputMode();
+
+                FInputModeGameOnly ForcedGameMode;
+                SetInputMode(ForcedGameMode);
+                bShowMouseCursor = false;
+                SetShowMouseCursor(false);
+                MarkDebugInputMode(TEXT("GameOnly"));
+        }
+
+        SetIgnoreLookInput(false);
+        SetIgnoreMoveInput(false);
+
+        if (HasAuthority())
+        {
+                ClientEnsureGameInput();
+                ClientReapplyEnhancedInputContexts();
+                ClientValidatePostPossess(InPawn);
         }
 }
 
@@ -673,9 +705,24 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
 {
         Super::ClientRestart_Implementation(NewPawn);
 
-        LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s"), *DescribePawnForDebug(NewPawn)), NewPawn);
+        const ENetRole LocalRole = NewPawn ? NewPawn->GetLocalRole() : ROLE_None;
+        const ENetRole RemoteRole = NewPawn ? NewPawn->GetRemoteRole() : ROLE_None;
+        FString MovementNetModeString = TEXT("Unknown");
+        if (UPawnMovementComponent* MovementComponent = NewPawn ? NewPawn->GetMovementComponent() : nullptr)
+        {
+                MovementNetModeString = UEnum::GetValueAsString(TEXT("ENetMode"), MovementComponent->GetNetMode());
+        }
 
+        LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
+                *DescribePawnForDebug(NewPawn),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), RemoteRole),
+                *MovementNetModeString), NewPawn);
+
+        ReapplyEnhancedInputContexts();
         EnsureGameplayInputMode();
+        SetIgnoreLookInput(false);
+        SetIgnoreMoveInput(false);
 }
 
 void AMO56PlayerController::ClientEnsureGameInput_Implementation()
@@ -688,8 +735,58 @@ void AMO56PlayerController::ClientEnsureGameInput_Implementation()
         }
 
         EnsureGameplayInputMode();
+        SetIgnoreLookInput(false);
+        SetIgnoreMoveInput(false);
 
         LogDebugEvent(TEXT("ClientEnsureGameInputComplete"), FString::Printf(TEXT("After %s"), *DescribeInputState(*this)));
+}
+
+void AMO56PlayerController::ClientReapplyEnhancedInputContexts_Implementation()
+{
+        LogDebugEvent(TEXT("ClientReapplyInputContexts"), FString::Printf(TEXT("Before %s"), *DescribeInputState(*this)));
+
+        ReapplyEnhancedInputContexts();
+
+        LogDebugEvent(TEXT("ClientReapplyInputContextsComplete"), FString::Printf(TEXT("After %s"), *DescribeInputState(*this)));
+}
+
+void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* TargetPawn)
+{
+        const FString PawnDescription = DescribePawnForDebug(TargetPawn);
+        const ENetRole LocalRole = TargetPawn ? TargetPawn->GetLocalRole() : ROLE_None;
+        const ENetRole RemoteRole = TargetPawn ? TargetPawn->GetRemoteRole() : ROLE_None;
+        FString MovementNetModeString = TEXT("Unknown");
+        if (UPawnMovementComponent* MovementComponent = TargetPawn ? TargetPawn->GetMovementComponent() : nullptr)
+        {
+                MovementNetModeString = UEnum::GetValueAsString(TEXT("ENetMode"), MovementComponent->GetNetMode());
+        }
+
+        LogDebugEvent(TEXT("ClientValidatePostPossess"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
+                *PawnDescription,
+                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), RemoteRole),
+                *MovementNetModeString), TargetPawn);
+
+        if (TargetPawn && LocalRole != ROLE_AutonomousProxy)
+        {
+                LogDebugEvent(TEXT("ClientValidatePostPossessRequestFix"), FString::Printf(TEXT("Pawn=%s"), *PawnDescription), TargetPawn);
+                ServerRequestPostPossessNetUpdate(TargetPawn);
+        }
+}
+
+void AMO56PlayerController::ServerRequestPostPossessNetUpdate_Implementation(APawn* TargetPawn)
+{
+        if (!HasAuthority() || !TargetPawn || TargetPawn->GetController() != this)
+        {
+                return;
+        }
+
+        LogDebugEvent(TEXT("ServerPostPossessNetUpdate"), FString::Printf(TEXT("Pawn=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
+
+        TargetPawn->ForceNetUpdate();
+        ClientRestart(TargetPawn);
+        ClientEnsureGameInput();
+        ClientReapplyEnhancedInputContexts();
 }
 
 void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
@@ -1003,6 +1100,52 @@ void AMO56PlayerController::EnsureDefaultInputContexts()
         }
 }
 
+void AMO56PlayerController::ReapplyEnhancedInputContexts()
+{
+        if (!IsLocalPlayerController())
+        {
+                return;
+        }
+
+        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+        {
+                if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+                {
+                        auto ReapplyContext = [Subsystem](UInputMappingContext* CurrentContext)
+                        {
+                                if (!CurrentContext)
+                                {
+                                        return;
+                                }
+
+#if UE_VERSION_OLDER_THAN(5, 3, 0)
+                                Subsystem->RemoveMappingContext(CurrentContext);
+                                Subsystem->AddMappingContext(CurrentContext, 0);
+#else
+                                if (Subsystem->HasMappingContext(CurrentContext))
+                                {
+                                        Subsystem->RemoveMappingContext(CurrentContext);
+                                }
+                                Subsystem->AddMappingContext(CurrentContext, 0);
+#endif
+                        };
+
+                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
+                        {
+                                ReapplyContext(CurrentContext);
+                        }
+
+                        if (!SVirtualJoystick::ShouldDisplayTouchInterface())
+                        {
+                                for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
+                                {
+                                        ReapplyContext(CurrentContext);
+                                }
+                        }
+                }
+        }
+}
+
 void AMO56PlayerController::EnsureGameplayInputMode()
 {
         EnsureDefaultInputContexts();
@@ -1019,11 +1162,23 @@ void AMO56PlayerController::ApplyGameplayInputState()
         bEnableMouseOverEvents = false;
         SetIgnoreLookInput(false);
         SetIgnoreMoveInput(false);
+
+        MarkDebugInputMode(TEXT("GameOnly"));
 }
 
 FString AMO56PlayerController::BuildInputStateSnapshot() const
 {
         return DescribeInputState(*this);
+}
+
+void AMO56PlayerController::MarkDebugInputMode(FName ModeTag)
+{
+        DebugInputModeTag = ModeTag;
+}
+
+FString AMO56PlayerController::DescribeDebugInputMode() const
+{
+        return DebugInputModeTag.IsNone() ? FString(TEXT("Unknown")) : DebugInputModeTag.ToString();
 }
 
 void AMO56PlayerController::LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn) const
