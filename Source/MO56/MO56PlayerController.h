@@ -187,6 +187,9 @@ void ClientCloseContainerInventory(AInventoryContainer* ContainerActor);
         void ClientReapplyEnhancedInputContexts();
 
         UFUNCTION(Client, Reliable)
+        void ClientPostRestartValidate();
+
+        UFUNCTION(Client, Reliable)
         void ClientValidatePostPossess(APawn* TargetPawn);
 
         UFUNCTION(Server, Reliable)
