@@ -11,6 +11,7 @@
 #include "InputMappingContext.h"
 #include "InputCoreTypes.h"
 #include "MO56PlayerController.h"
+#include "MO56DebugLogSubsystem.h"
 #include "TimerManager.h"
 #include "UI/MO56PossessMenuWidget.h"
 
@@ -21,10 +22,50 @@ static const TCHAR* PossessionActionPath = TEXT("/Game/Input/Actions/IA_Possessi
 static const TCHAR* PossessionContextPath = TEXT("/Game/Input/IMC_Possession.IMC_Possession");
 }
 
+namespace
+{
+    FString DescribeControllerInput(const APlayerController* PlayerController)
+    {
+        if (!PlayerController)
+        {
+            return TEXT("Input=None");
+        }
+
+        return FString::Printf(TEXT("Input(Mouse=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s)"),
+            PlayerController->bShowMouseCursor ? TEXT("true") : TEXT("false"),
+            PlayerController->bEnableClickEvents ? TEXT("true") : TEXT("false"),
+            PlayerController->bEnableMouseOverEvents ? TEXT("true") : TEXT("false"),
+            PlayerController->IsLookInputIgnored() ? TEXT("true") : TEXT("false"),
+            PlayerController->IsMoveInputIgnored() ? TEXT("true") : TEXT("false"));
+    }
+
+    void LogMenuDebug(const UObject* Context, FName Action, ULocalPlayer* LocalPlayer, const FString& Detail, APlayerController* PlayerController)
+    {
+        if (UMO56DebugLogSubsystem* Subsystem = UMO56DebugLogSubsystem::Get(Context))
+        {
+            if (Subsystem->IsEnabled())
+            {
+                FGuid PlayerId;
+                FGuid PawnId;
+
+                if (const AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+                {
+                    PlayerId = MOController->GetPlayerSaveId();
+                    PawnId = MO56ResolvePawnId(MOController->GetPawn());
+                }
+
+                Subsystem->LogEvent(TEXT("PossessionMenu"), Action, Detail, PlayerId, PawnId);
+            }
+        }
+    }
+}
+
 void UMO56PossessionMenuManagerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
     ArmDeferredSetup();
+
+    LogMenuDebug(this, TEXT("Initialize"), nullptr, TEXT("Possession menu subsystem initialized"), nullptr);
 }
 
 void UMO56PossessionMenuManagerSubsystem::Deinitialize()
@@ -39,6 +80,8 @@ void UMO56PossessionMenuManagerSubsystem::Deinitialize()
     PossessionContext = nullptr;
     PossessionAction = nullptr;
 
+    LogMenuDebug(this, TEXT("Deinitialize"), nullptr, TEXT("Possession menu subsystem shutdown"), nullptr);
+
     Super::Deinitialize();
 }
 
@@ -48,6 +91,10 @@ void UMO56PossessionMenuManagerSubsystem::ToggleMenuForLocalPlayer(ULocalPlayer*
     {
         return;
     }
+
+    APlayerController* PlayerController = LocalPlayer->GetPlayerController(GetWorld());
+    const bool bCurrentlyOpen = IsMenuOpenForLocalPlayer(LocalPlayer);
+    LogMenuDebug(this, TEXT("ToggleMenu"), LocalPlayer, FString::Printf(TEXT("CurrentlyOpen=%s"), bCurrentlyOpen ? TEXT("true") : TEXT("false")), PlayerController);
 
     if (IsMenuOpenForLocalPlayer(LocalPlayer))
     {
@@ -67,6 +114,8 @@ void UMO56PossessionMenuManagerSubsystem::EnsureBindingsForAllLocalPlayers()
     {
         return;
     }
+
+    LogMenuDebug(this, TEXT("EnsureBindings"), nullptr, TEXT("Ensuring possession menu bindings"), nullptr);
 
     if (UGameInstance* GameInstance = GetGameInstance())
     {
@@ -89,6 +138,9 @@ void UMO56PossessionMenuManagerSubsystem::EnsureBindingsForAllLocalPlayers()
             if (UEnhancedInputLocalPlayerSubsystem* EnhancedSubsystem = LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
             {
                 EnhancedSubsystem->AddMappingContext(PossessionContext, PossessionMappingPriority);
+
+                APlayerController* PlayerController = LocalPlayer->GetPlayerController(GetWorld());
+                LogMenuDebug(this, TEXT("AddMappingContext"), LocalPlayer, FString::Printf(TEXT("Context=%s Priority=%d"), *GetNameSafe(PossessionContext), PossessionMappingPriority), PlayerController);
             }
         }
     }
@@ -101,6 +153,9 @@ void UMO56PossessionMenuManagerSubsystem::EnsureMenuOpenForLocalPlayer(ULocalPla
         return;
     }
 
+    APlayerController* PlayerController = LocalPlayer->GetPlayerController(GetWorld());
+    LogMenuDebug(this, TEXT("EnsureMenuOpen"), LocalPlayer, TEXT("Ensuring menu open"), PlayerController);
+
     OpenMenu(LocalPlayer);
 }
 
@@ -111,6 +166,9 @@ void UMO56PossessionMenuManagerSubsystem::EnsureMenuClosedForLocalPlayer(ULocalP
         return;
     }
 
+    APlayerController* PlayerController = LocalPlayer->GetPlayerController(GetWorld());
+    LogMenuDebug(this, TEXT("EnsureMenuClosed"), LocalPlayer, TEXT("Ensuring menu closed"), PlayerController);
+
     CloseMenu(LocalPlayer);
 }
 
@@ -120,6 +178,9 @@ void UMO56PossessionMenuManagerSubsystem::RefreshMenuForLocalPlayer(ULocalPlayer
     {
         return;
     }
+
+    APlayerController* PlayerController = LocalPlayer->GetPlayerController(GetWorld());
+    LogMenuDebug(this, TEXT("RefreshMenu"), LocalPlayer, FString::Printf(TEXT("Entries=%d"), PawnInfos.Num()), PlayerController);
 
     if (FMO56MenuState* State = PerPlayerState.Find(LocalPlayer))
     {
@@ -155,6 +216,8 @@ void UMO56PossessionMenuManagerSubsystem::ArmDeferredSetup()
         });
     }
 
+    LogMenuDebug(this, TEXT("ArmDeferredSetup"), nullptr, TEXT("Arm deferred setup"), nullptr);
+
     EnsureBindingsForAllLocalPlayers();
 }
 
@@ -189,6 +252,8 @@ void UMO56PossessionMenuManagerSubsystem::EnsureAssetsLoaded()
             }
         }
     }
+
+    LogMenuDebug(this, TEXT("EnsureAssetsLoaded"), nullptr, FString::Printf(TEXT("Action=%s Context=%s"), *GetNameSafe(PossessionAction), *GetNameSafe(PossessionContext)), nullptr);
 }
 
 bool UMO56PossessionMenuManagerSubsystem::CanCreateMenuForPlayer(ULocalPlayer* LocalPlayer) const
@@ -243,6 +308,9 @@ void UMO56PossessionMenuManagerSubsystem::OpenMenu(ULocalPlayer* LocalPlayer)
         MenuClass = MO56Controller->GetPossessMenuClass();
     }
 
+    const FString BeforeState = DescribeControllerInput(PlayerController);
+    LogMenuDebug(this, TEXT("OpenMenu"), LocalPlayer, FString::Printf(TEXT("Before=%s"), *BeforeState), PlayerController);
+
     UMO56PossessMenuWidget* MenuWidget = CreateWidget<UMO56PossessMenuWidget>(PlayerController, MenuClass);
     if (!MenuWidget)
     {
@@ -270,6 +338,8 @@ void UMO56PossessionMenuManagerSubsystem::OpenMenu(ULocalPlayer* LocalPlayer)
     }
 
     ApplyUIOnly(PlayerController, MenuWidget);
+
+    LogMenuDebug(this, TEXT("OpenMenuApplied"), LocalPlayer, FString::Printf(TEXT("After=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
 }
 
 void UMO56PossessionMenuManagerSubsystem::CloseMenu(ULocalPlayer* LocalPlayer)
@@ -298,7 +368,9 @@ void UMO56PossessionMenuManagerSubsystem::CloseMenu(ULocalPlayer* LocalPlayer)
 
     if (APlayerController* PlayerController = LocalPlayer->GetPlayerController(World))
     {
+        LogMenuDebug(this, TEXT("CloseMenu"), LocalPlayer, FString::Printf(TEXT("Before=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
         RestoreInput(PlayerController, *State);
+        LogMenuDebug(this, TEXT("CloseMenuRestored"), LocalPlayer, FString::Printf(TEXT("After=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
     }
 
     PerPlayerState.Remove(LocalPlayer);
@@ -311,6 +383,8 @@ void UMO56PossessionMenuManagerSubsystem::ApplyUIOnly(APlayerController* PlayerC
         return;
     }
 
+    LogMenuDebug(this, TEXT("ApplyUIOnly"), PlayerController ? PlayerController->GetLocalPlayer() : nullptr, FString::Printf(TEXT("Before=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
+
     PlayerController->bShowMouseCursor = true;
     PlayerController->bEnableClickEvents = true;
     PlayerController->bEnableMouseOverEvents = true;
@@ -319,6 +393,8 @@ void UMO56PossessionMenuManagerSubsystem::ApplyUIOnly(APlayerController* PlayerC
 
     PlayerController->SetIgnoreLookInput(true);
     PlayerController->SetIgnoreMoveInput(true);
+
+    LogMenuDebug(this, TEXT("ApplyUIOnlyComplete"), PlayerController ? PlayerController->GetLocalPlayer() : nullptr, FString::Printf(TEXT("After=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
 }
 
 void UMO56PossessionMenuManagerSubsystem::RestoreInput(APlayerController* PlayerController, const FMO56MenuState& State)
@@ -327,6 +403,8 @@ void UMO56PossessionMenuManagerSubsystem::RestoreInput(APlayerController* Player
     {
         return;
     }
+
+    LogMenuDebug(this, TEXT("RestoreInput"), PlayerController ? PlayerController->GetLocalPlayer() : nullptr, FString::Printf(TEXT("TargetPrevMouse=%s"), State.bPrevShowMouseCursor ? TEXT("true") : TEXT("false")), PlayerController);
 
     PlayerController->SetIgnoreLookInput(State.bHadInputModeSaved ? State.bPrevIgnoreLookInput : false);
     PlayerController->SetIgnoreMoveInput(State.bHadInputModeSaved ? State.bPrevIgnoreMoveInput : false);
@@ -337,4 +415,6 @@ void UMO56PossessionMenuManagerSubsystem::RestoreInput(APlayerController* Player
 
     FInputModeGameOnly GameOnly;
     PlayerController->SetInputMode(GameOnly);
+
+    LogMenuDebug(this, TEXT("RestoreInputComplete"), PlayerController ? PlayerController->GetLocalPlayer() : nullptr, FString::Printf(TEXT("After=%s"), *DescribeControllerInput(PlayerController)), PlayerController);
 }
