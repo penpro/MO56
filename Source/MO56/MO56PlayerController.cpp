@@ -70,11 +70,11 @@ namespace
                 {
                         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                         {
-                                TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> ActiveContexts;
+                                TArray<UEnhancedInputLocalPlayerSubsystem::FMappingContextAndPriority> ActiveContexts;
                                 Subsystem->GetAllActiveMappingContexts(ActiveContexts);
 
                                 FString Names;
-                                for (const IEnhancedInputSubsystemInterface::FMappingContextAndPriority& ContextAndPriority : ActiveContexts)
+                                for (const UEnhancedInputLocalPlayerSubsystem::FMappingContextAndPriority& ContextAndPriority : ActiveContexts)
                                 {
                                         if (const UInputMappingContext* Context = ContextAndPriority.MappingContext)
                                         {
