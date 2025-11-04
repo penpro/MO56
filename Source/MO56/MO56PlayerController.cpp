@@ -30,6 +30,7 @@
 #include "GameFramework/PawnMovementComponent.h"
 #include "TimerManager.h"
 #include "UObject/EnumProperty.h"
+#include "EnhancedPlayerInput.h"
 
 namespace
 {
@@ -70,10 +71,12 @@ namespace
                 {
                         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                         {
+                                FString Names;
+
+#if UE_VERSION_OLDER_THAN(5, 6, 0)
                                 TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> ActiveContexts;
                                 Subsystem->GetAllActiveMappingContexts(ActiveContexts);
 
-                                FString Names;
                                 for (const IEnhancedInputSubsystemInterface::FMappingContextAndPriority& ContextAndPriority : ActiveContexts)
                                 {
                                         if (const UInputMappingContext* Context = ContextAndPriority.MappingContext)
@@ -87,6 +90,34 @@ namespace
 
                                         Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Priority);
                                 }
+#else
+                                if (const UEnhancedPlayerInput* EnhancedPlayerInput = Cast<UEnhancedPlayerInput>(Controller->PlayerInput))
+                                {
+                                        const auto& ActiveContexts = EnhancedPlayerInput->GetAppliedInputContextData();
+
+                                        // The UE 5.6+ API exposes richer per-context metadata, but only the mapping pointer
+                                        // is required for our debug logging. Priorities are no longer surfaced publicly.
+
+                                        for (const auto& ContextAndData : ActiveContexts)
+                                        {
+                                                if (!Names.IsEmpty())
+                                                {
+                                                        Names += TEXT(" ");
+                                                }
+
+                                                if (const UInputMappingContext* Context = ContextAndData.Key.Get())
+                                                {
+                                                        Names += Context->GetName();
+                                                }
+                                                else
+                                                {
+                                                        Names += TEXT("<null>");
+                                                }
+                                        }
+                                }
+#endif // UE_VERSION_OLDER_THAN(5, 6, 0)
+
+                                Names.TrimEndInline();
 
                                 if (Names.IsEmpty())
                                 {
