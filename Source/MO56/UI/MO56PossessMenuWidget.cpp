@@ -3,6 +3,9 @@
 #include "Components/ListView.h"
 #include "MO56.h"
 #include "MO56PlayerController.h"
+#include "MO56PossessionMenuManagerSubsystem.h"
+#include "Engine/GameInstance.h"
+#include "Engine/LocalPlayer.h"
 
 void UMO56PossessMenuWidget::NativeConstruct()
 {
@@ -88,6 +91,17 @@ void UMO56PossessMenuWidget::HandlePawnItemClicked(UObject* Item)
                 if (Entry->Info.PawnId.IsValid())
                 {
                         Controller->ServerRequestPossessPawnById(Entry->Info.PawnId);
+
+                        if (UGameInstance* GameInstance = GetGameInstance())
+                        {
+                                if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                                {
+                                        if (ULocalPlayer* LocalPlayer = Controller->GetLocalPlayer())
+                                        {
+                                                MenuSubsystem->EnsureMenuClosedForLocalPlayer(LocalPlayer);
+                                        }
+                                }
+                        }
                 }
         }
 }
