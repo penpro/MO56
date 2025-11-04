@@ -93,11 +93,19 @@ namespace
 #else
                                 if (const UEnhancedPlayerInput* EnhancedPlayerInput = Cast<UEnhancedPlayerInput>(Controller->PlayerInput))
                                 {
-                                        const TMap<TObjectPtr<const UInputMappingContext>, int32>& ActiveContexts = EnhancedPlayerInput->GetAppliedInputContexts();
+                                        const auto& ActiveContexts = EnhancedPlayerInput->GetAppliedInputContextData();
 
-                                        for (const TPair<TObjectPtr<const UInputMappingContext>, int32>& ContextAndPriority : ActiveContexts)
+                                        // The UE 5.6+ API exposes richer per-context metadata, but only the mapping pointer
+                                        // is required for our debug logging. Priorities are no longer surfaced publicly.
+
+                                        for (const auto& ContextAndData : ActiveContexts)
                                         {
-                                                if (const UInputMappingContext* Context = ContextAndPriority.Key.Get())
+                                                if (!Names.IsEmpty())
+                                                {
+                                                        Names += TEXT(" ");
+                                                }
+
+                                                if (const UInputMappingContext* Context = ContextAndData.Key.Get())
                                                 {
                                                         Names += Context->GetName();
                                                 }
@@ -105,8 +113,6 @@ namespace
                                                 {
                                                         Names += TEXT("<null>");
                                                 }
-
-                                                Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Value);
                                         }
                                 }
 #endif // UE_VERSION_OLDER_THAN(5, 6, 0)
