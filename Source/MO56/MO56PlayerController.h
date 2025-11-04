@@ -13,6 +13,8 @@ class UMO56SaveSubsystem;
 class AInventoryContainer;
 class UMO56PossessMenuWidget;
 class UMO56PossessionMenuManagerSubsystem;
+class UMO56DebugLogSubsystem;
+class AMO56Character;
 
 USTRUCT(BlueprintType)
 struct FMOPossessablePawnInfo
@@ -53,6 +55,7 @@ GENERATED_BODY()
 
 friend class AInventoryContainer;
 friend class UMO56SaveSubsystem;
+friend class AMO56Character;
 
 protected:
 
@@ -195,6 +198,13 @@ private:
 
         void SetPlayerSaveId(const FGuid& InId);
 
+        void EnsureDefaultInputContexts();
+        void ApplyGameplayInputState();
+        FString BuildInputStateSnapshot() const;
+        void LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn = nullptr) const;
+        FGuid ResolvePlayerGuid() const;
+        void SetLastContainerOwningCharacter(AMO56Character* InCharacter);
+
         UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
         TSubclassOf<UMO56PossessMenuWidget> PossessMenuClass;
 
@@ -205,4 +215,6 @@ private:
 
         UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Save", meta = (AllowPrivateAccess = "true"))
         FGuid PlayerSaveId;
+
+        TWeakObjectPtr<AMO56Character> LastContainerOwningCharacter;
 };

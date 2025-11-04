@@ -7,11 +7,14 @@
 #include "InputMappingContext.h"
 #include "Blueprint/UserWidget.h"
 #include "MO56.h"
+#include "MO56DebugLogSubsystem.h"
 #include "Engine/EngineTypes.h"
 #include "Widgets/Input/SVirtualJoystick.h"
+#include "Misc/EngineVersionComparison.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "GameFramework/GameModeBase.h"
+#include "GameFramework/SpectatorPawn.h"
 #include "Engine/World.h"
 #include "InventoryComponent.h"
 #include "InventoryContainer.h"
@@ -23,12 +26,44 @@
 #include "EnhancedInputComponent.h"
 #include "InputAction.h"
 
+namespace
+{
+        FString DescribePawnForDebug(const APawn* Pawn)
+        {
+                if (!Pawn)
+                {
+                        return TEXT("Pawn=None");
+                }
+
+                const FGuid PawnId = MO56ResolvePawnId(Pawn);
+                const FString IdString = PawnId.IsValid() ? PawnId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                return FString::Printf(TEXT("Pawn=%s Id=%s"), *GetNameSafe(Pawn), *IdString);
+        }
+
+        FString DescribeInputState(const AMO56PlayerController& Controller)
+        {
+                return FString::Printf(TEXT("Input(Mouse=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s)"),
+                        Controller.bShowMouseCursor ? TEXT("true") : TEXT("false"),
+                        Controller.bEnableClickEvents ? TEXT("true") : TEXT("false"),
+                        Controller.bEnableMouseOverEvents ? TEXT("true") : TEXT("false"),
+                        Controller.IsLookInputIgnored() ? TEXT("true") : TEXT("false"),
+                        Controller.IsMoveInputIgnored() ? TEXT("true") : TEXT("false"));
+        }
+}
+
 void AMO56PlayerController::BeginPlay()
 {
         Super::BeginPlay();
 
+        LogDebugEvent(TEXT("BeginPlay"), FString::Printf(TEXT("Class=%s Local=%s Authority=%s %s %s"),
+                *GetClass()->GetName(),
+                IsLocalPlayerController() ? TEXT("true") : TEXT("false"),
+                HasAuthority() ? TEXT("true") : TEXT("false"),
+                *DescribePawnForDebug(GetPawn()),
+                *DescribeInputState(*this)));
+
         // only spawn touch controls on local player controllers
-	if (SVirtualJoystick::ShouldDisplayTouchInterface() && IsLocalPlayerController())
+        if (SVirtualJoystick::ShouldDisplayTouchInterface() && IsLocalPlayerController())
 	{
 		// spawn the mobile controls widget
 		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
@@ -107,6 +142,10 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
 {
         Super::OnPossess(InPawn);
 
+        LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s"),
+                *DescribePawnForDebug(InPawn),
+                *DescribeInputState(*this)), InPawn);
+
         if (IsLocalPlayerController())
         {
                 if (UGameInstance* GameInstance = GetGameInstance())
@@ -119,12 +158,22 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
                                 }
                         }
                 }
+
+                EnsureDefaultInputContexts();
+                ApplyGameplayInputState();
         }
 }
 
 void AMO56PlayerController::OnUnPossess()
 {
+        APawn* PreviousPawn = GetPawn();
         Super::OnUnPossess();
+
+        LogDebugEvent(TEXT("OnUnPossess"), FString::Printf(TEXT("Previous=%s %s"),
+                *DescribePawnForDebug(PreviousPawn),
+                *DescribeInputState(*this)), PreviousPawn);
+
+        LastContainerOwningCharacter.Reset();
 
         if (IsLocalPlayerController())
         {
@@ -153,28 +202,17 @@ void AMO56PlayerController::SetupInputComponent()
 {
         Super::SetupInputComponent();
 
-        if (IsLocalPlayerController())
-        {
-                if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-                {
-                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
-                        {
-                                Subsystem->AddMappingContext(CurrentContext, 0);
-                        }
+        LogDebugEvent(TEXT("SetupInputComponent"), FString::Printf(TEXT("Local=%s %s"),
+                IsLocalPlayerController() ? TEXT("true") : TEXT("false"),
+                *DescribeInputState(*this)));
 
-                        if (!SVirtualJoystick::ShouldDisplayTouchInterface())
-                        {
-                                for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
-                                {
-                                        Subsystem->AddMappingContext(CurrentContext, 0);
-                                }
-                        }
-                }
-        }
+        EnsureDefaultInputContexts();
 }
 
 void AMO56PlayerController::RequestNewGame()
 {
+        LogDebugEvent(TEXT("RequestNewGame"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
+
         if (!HasAuthority())
         {
                 ServerExecuteNewGame(TEXT("TestLevel"));
@@ -189,6 +227,8 @@ void AMO56PlayerController::RequestNewGame()
 
 void AMO56PlayerController::RequestSaveGame()
 {
+        LogDebugEvent(TEXT("RequestSaveGame"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
+
         if (HasAuthority())
         {
                 HandleSaveGameOnServer(false);
@@ -201,6 +241,8 @@ void AMO56PlayerController::RequestSaveGame()
 
 void AMO56PlayerController::RequestSaveAndExit()
 {
+        LogDebugEvent(TEXT("RequestSaveAndExit"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
+
         if (HasAuthority())
         {
                 HandleSaveGameOnServer(true);
@@ -213,6 +255,8 @@ void AMO56PlayerController::RequestSaveAndExit()
 
 bool AMO56PlayerController::RequestLoadGame()
 {
+        LogDebugEvent(TEXT("RequestLoadGame"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
+
         if (HasAuthority())
         {
                 return HandleLoadGameOnServer(TEXT(""), INDEX_NONE);
@@ -224,6 +268,8 @@ bool AMO56PlayerController::RequestLoadGame()
 
 bool AMO56PlayerController::RequestLoadGameBySlot(const FString& SlotName, int32 UserIndex)
 {
+        LogDebugEvent(TEXT("RequestLoadGameBySlot"), FString::Printf(TEXT("Authority=%s Slot=%s User=%d"), HasAuthority() ? TEXT("true") : TEXT("false"), *SlotName, UserIndex));
+
         if (HasAuthority())
         {
                 return HandleLoadGameOnServer(SlotName, UserIndex);
@@ -235,6 +281,8 @@ bool AMO56PlayerController::RequestLoadGameBySlot(const FString& SlotName, int32
 
 bool AMO56PlayerController::RequestLoadGameById(const FGuid& SaveId)
 {
+        LogDebugEvent(TEXT("RequestLoadGameById"), FString::Printf(TEXT("Authority=%s SaveId=%s"), HasAuthority() ? TEXT("true") : TEXT("false"), *SaveId.ToString(EGuidFormats::DigitsWithHyphens)));
+
         if (!SaveId.IsValid())
         {
                 return false;
@@ -251,6 +299,8 @@ bool AMO56PlayerController::RequestLoadGameById(const FGuid& SaveId)
 
 bool AMO56PlayerController::RequestCreateNewSaveSlot()
 {
+        LogDebugEvent(TEXT("RequestCreateNewSaveSlot"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
+
         if (HasAuthority())
         {
                 return HandleCreateNewSaveSlot();
@@ -267,6 +317,10 @@ void AMO56PlayerController::RequestPossessPawn(APawn* TargetPawn)
                 return;
         }
 
+        LogDebugEvent(TEXT("RequestPossessPawn"), FString::Printf(TEXT("Target=%s Authority=%s"),
+                *DescribePawnForDebug(TargetPawn),
+                HasAuthority() ? TEXT("true") : TEXT("false")), TargetPawn);
+
         if (HasAuthority())
         {
                 HandlePossessPawn(TargetPawn);
@@ -279,6 +333,8 @@ void AMO56PlayerController::RequestPossessPawn(APawn* TargetPawn)
 
 void AMO56PlayerController::ServerQueryPossessablePawns_Implementation()
 {
+        LogDebugEvent(TEXT("ServerQueryPossessablePawns"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
+
         if (UGameInstance* GameInstance = GetGameInstance())
         {
                 if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
@@ -293,6 +349,8 @@ void AMO56PlayerController::ServerQueryPossessablePawns_Implementation()
 void AMO56PlayerController::ClientReceivePossessablePawns_Implementation(const TArray<FMOPossessablePawnInfo>& List)
 {
         CachedPossessablePawns = List;
+
+        LogDebugEvent(TEXT("ClientReceivePossessablePawns"), FString::Printf(TEXT("Count=%d"), List.Num()));
 
         if (IsLocalPlayerController())
         {
@@ -311,8 +369,7 @@ void AMO56PlayerController::ClientReceivePossessablePawns_Implementation(const T
 
 void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FGuid& PawnId)
 {
-        UE_LOG(LogMO56, Display, TEXT("ServerRequestPossessPawnById: Controller=%s PawnId=%s HasAuthority=%s"),
-               *GetNameSafe(this), *PawnId.ToString(), HasAuthority() ? TEXT("true") : TEXT("false"));
+        LogDebugEvent(TEXT("ServerRequestPossessPawnById"), FString::Printf(TEXT("PawnId=%s"), *PawnId.ToString(EGuidFormats::DigitsWithHyphens)));
 
         if (!PawnId.IsValid())
         {
@@ -339,6 +396,8 @@ void AMO56PlayerController::OpenPossessMenu()
                 return;
         }
 
+        LogDebugEvent(TEXT("OpenPossessMenu"), FString::Printf(TEXT("MenuState=%s"), *DescribeInputState(*this)));
+
         if (UGameInstance* GameInstance = GetGameInstance())
         {
                 if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
@@ -358,6 +417,8 @@ void AMO56PlayerController::ClosePossessMenu()
                 return;
         }
 
+        LogDebugEvent(TEXT("ClosePossessMenu"), FString::Printf(TEXT("MenuState=%s"), *DescribeInputState(*this)));
+
         if (UGameInstance* GameInstance = GetGameInstance())
         {
                 if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
@@ -372,6 +433,8 @@ void AMO56PlayerController::ClosePossessMenu()
 
 void AMO56PlayerController::OnIA_Possession()
 {
+        LogDebugEvent(TEXT("InputPossession"), FString::Printf(TEXT("MenuToggle Requested")));
+
         if (UGameInstance* GameInstance = GetGameInstance())
         {
                 if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
@@ -391,6 +454,8 @@ void AMO56PlayerController::RequestOpenPawnInventory(APawn* TargetPawn)
                 return;
         }
 
+        LogDebugEvent(TEXT("RequestOpenPawnInventory"), FString::Printf(TEXT("Target=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
+
         if (HasAuthority())
         {
                 HandleOpenPawnInventory(TargetPawn);
@@ -403,6 +468,8 @@ void AMO56PlayerController::RequestOpenPawnInventory(APawn* TargetPawn)
 
 void AMO56PlayerController::NotifyPawnContextFocus(APawn* TargetPawn, bool bHasFocus)
 {
+        LogDebugEvent(TEXT("NotifyPawnContextFocus"), FString::Printf(TEXT("Target=%s Focus=%s"), *DescribePawnForDebug(TargetPawn), bHasFocus ? TEXT("true") : TEXT("false")), TargetPawn);
+
         if (HasAuthority())
         {
                 HandlePawnContext(TargetPawn, bHasFocus);
@@ -419,6 +486,8 @@ void AMO56PlayerController::RequestContainerInventoryOwnership(AInventoryContain
         {
                 return;
         }
+
+        LogDebugEvent(TEXT("RequestContainerOwnership"), FString::Printf(TEXT("Container=%s"), *GetNameSafe(ContainerActor)));
 
         if (HasAuthority())
         {
@@ -437,9 +506,17 @@ void AMO56PlayerController::NotifyContainerInventoryClosed(AInventoryContainer* 
                 return;
         }
 
+        AMO56Character* OwningCharacter = LastContainerOwningCharacter.Get();
+        LogDebugEvent(TEXT("NotifyContainerInventoryClosed"), FString::Printf(TEXT("Container=%s OwningPawn=%s"), *GetNameSafe(ContainerActor), *DescribePawnForDebug(OwningCharacter)), OwningCharacter);
+
         if (HasAuthority())
         {
-                if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
+                if (!OwningCharacter)
+                {
+                        OwningCharacter = Cast<AMO56Character>(GetCharacter());
+                }
+
+                if (OwningCharacter)
                 {
                         ContainerActor->NotifyInventoryClosed(OwningCharacter);
                         OwningCharacter->CloseContainerInventoryForActor(ContainerActor, false);
@@ -449,51 +526,65 @@ void AMO56PlayerController::NotifyContainerInventoryClosed(AInventoryContainer* 
         {
                 ServerNotifyContainerInventoryClosed(ContainerActor);
         }
+
+        if (OwningCharacter && LastContainerOwningCharacter.Get() == OwningCharacter)
+        {
+                LastContainerOwningCharacter.Reset();
+        }
 }
 
 void AMO56PlayerController::ServerExecuteNewGame_Implementation(const FString& LevelName)
 {
+        LogDebugEvent(TEXT("ServerExecuteNewGame"), FString::Printf(TEXT("Level=%s"), *LevelName));
         HandleNewGameOnServer(LevelName);
 }
 
 void AMO56PlayerController::ServerSaveGame_Implementation()
 {
+        LogDebugEvent(TEXT("ServerSaveGame"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
         HandleSaveGameOnServer(false);
 }
 
 void AMO56PlayerController::ServerSaveAndExit_Implementation()
 {
+        LogDebugEvent(TEXT("ServerSaveAndExit"), FString::Printf(TEXT("Authority=%s"), HasAuthority() ? TEXT("true") : TEXT("false")));
         HandleSaveGameOnServer(true);
 }
 
 void AMO56PlayerController::ServerLoadGame_Implementation(const FString& SlotName, int32 UserIndex)
 {
+        LogDebugEvent(TEXT("ServerLoadGame"), FString::Printf(TEXT("Slot=%s User=%d"), *SlotName, UserIndex));
         HandleLoadGameOnServer(SlotName, UserIndex);
 }
 
 void AMO56PlayerController::ServerLoadGameById_Implementation(const FGuid& SaveId)
 {
+        LogDebugEvent(TEXT("ServerLoadGameById"), FString::Printf(TEXT("SaveId=%s"), *SaveId.ToString(EGuidFormats::DigitsWithHyphens)));
         HandleLoadGameByIdOnServer(SaveId);
 }
 
 void AMO56PlayerController::ServerCreateNewSaveSlot_Implementation()
 {
+        LogDebugEvent(TEXT("ServerCreateNewSaveSlot"), FString(TEXT("Request")));
         HandleCreateNewSaveSlot();
 }
 
 void AMO56PlayerController::ServerPossessPawn_Implementation(APawn* TargetPawn)
 {
+        LogDebugEvent(TEXT("ServerPossessPawn"), FString::Printf(TEXT("Target=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
         HandlePossessPawn(TargetPawn);
 }
 
 void AMO56PlayerController::ServerOpenPawnInventory_Implementation(APawn* TargetPawn)
 {
+        LogDebugEvent(TEXT("ServerOpenPawnInventory"), FString::Printf(TEXT("Target=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
         HandleOpenPawnInventory(TargetPawn);
         ClientOpenPawnInventoryResponse(TargetPawn);
 }
 
 void AMO56PlayerController::ServerSetPawnContext_Implementation(APawn* TargetPawn, bool bHasFocus)
 {
+        LogDebugEvent(TEXT("ServerSetPawnContext"), FString::Printf(TEXT("Target=%s Focus=%s"), *DescribePawnForDebug(TargetPawn), bHasFocus ? TEXT("true") : TEXT("false")), TargetPawn);
         HandlePawnContext(TargetPawn, bHasFocus);
 }
 
@@ -503,6 +594,8 @@ void AMO56PlayerController::ServerRequestContainerInventoryOwnership_Implementat
         {
                 return;
         }
+
+        LogDebugEvent(TEXT("ServerRequestContainerOwnership"), FString::Printf(TEXT("Container=%s"), *GetNameSafe(ContainerActor)));
 
         ContainerActor->SetOwner(this);
 }
@@ -514,20 +607,36 @@ void AMO56PlayerController::ServerNotifyContainerInventoryClosed_Implementation(
                 return;
         }
 
-        if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
+        AMO56Character* OwningCharacter = LastContainerOwningCharacter.Get();
+        if (!OwningCharacter)
+        {
+                OwningCharacter = Cast<AMO56Character>(GetCharacter());
+        }
+
+        LogDebugEvent(TEXT("ServerNotifyContainerInventoryClosed"), FString::Printf(TEXT("Container=%s OwningPawn=%s"), *GetNameSafe(ContainerActor), *DescribePawnForDebug(OwningCharacter)), OwningCharacter);
+
+        if (OwningCharacter)
         {
                 ContainerActor->NotifyInventoryClosed(OwningCharacter);
                 OwningCharacter->CloseContainerInventoryForActor(ContainerActor, false);
+        }
+
+        if (OwningCharacter && LastContainerOwningCharacter.Get() == OwningCharacter)
+        {
+                LastContainerOwningCharacter.Reset();
         }
 }
 
 void AMO56PlayerController::ClientOpenPawnInventoryResponse_Implementation(APawn* TargetPawn)
 {
+        LogDebugEvent(TEXT("ClientOpenPawnInventoryResponse"), FString::Printf(TEXT("Target=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
         HandleOpenPawnInventory(TargetPawn);
 }
 
 void AMO56PlayerController::ClientOpenContainerInventory_Implementation(AInventoryContainer* ContainerActor)
 {
+        LogDebugEvent(TEXT("ClientOpenContainerInventory"), FString::Printf(TEXT("Container=%s"), *GetNameSafe(ContainerActor)));
+
         AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter());
         if (!OwningCharacter)
         {
@@ -545,30 +654,33 @@ void AMO56PlayerController::ClientOpenContainerInventory_Implementation(AInvento
                 }
 }
 
-OwningCharacter->OpenContainerInventory(ContainerInventory, ContainerActor);
+        OwningCharacter->OpenContainerInventory(ContainerInventory, ContainerActor);
+        SetLastContainerOwningCharacter(OwningCharacter);
 }
 
 void AMO56PlayerController::ClientCloseContainerInventory_Implementation(AInventoryContainer* ContainerActor)
 {
-if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
-{
-OwningCharacter->CloseContainerInventoryForActor(ContainerActor);
-}
+        LogDebugEvent(TEXT("ClientCloseContainerInventory"), FString::Printf(TEXT("Container=%s"), *GetNameSafe(ContainerActor)));
+
+        if (AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter()))
+        {
+                OwningCharacter->CloseContainerInventoryForActor(ContainerActor);
+        }
 }
 
 void AMO56PlayerController::ClientEnsureGameInput_Implementation()
 {
+        LogDebugEvent(TEXT("ClientEnsureGameInput"), FString::Printf(TEXT("Before %s"), *DescribeInputState(*this)));
+
         if (AMO56Character* MOCharacter = Cast<AMO56Character>(GetCharacter()))
         {
                 MOCharacter->CloseAllPlayerMenus();
         }
 
-        FInputModeGameOnly InputMode;
-        SetInputMode(InputMode);
+        EnsureDefaultInputContexts();
+        ApplyGameplayInputState();
 
-        SetShowMouseCursor(false);
-        bEnableClickEvents = false;
-        bEnableMouseOverEvents = false;
+        LogDebugEvent(TEXT("ClientEnsureGameInputComplete"), FString::Printf(TEXT("After %s"), *DescribeInputState(*this)));
 }
 
 void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
@@ -577,6 +689,8 @@ void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
         {
                 return;
         }
+
+        LogDebugEvent(TEXT("HandleNewGameOnServer"), FString::Printf(TEXT("Level=%s"), *LevelName));
 
         if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
         {
@@ -591,6 +705,8 @@ void AMO56PlayerController::HandleSaveGameOnServer(bool bAlsoExit)
         {
                 return;
         }
+
+        LogDebugEvent(TEXT("HandleSaveGameOnServer"), FString::Printf(TEXT("bAlsoExit=%s"), bAlsoExit ? TEXT("true") : TEXT("false")));
 
         if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
         {
@@ -609,6 +725,8 @@ bool AMO56PlayerController::HandleLoadGameOnServer(const FString& SlotName, int3
         {
                 return false;
         }
+
+        LogDebugEvent(TEXT("HandleLoadGameOnServer"), FString::Printf(TEXT("Slot=%s User=%d"), *SlotName, UserIndex));
 
         bool bLoaded = false;
 
@@ -645,6 +763,8 @@ bool AMO56PlayerController::HandleLoadGameOnServer(const FString& SlotName, int3
                 }
         }
 
+        LogDebugEvent(TEXT("HandleLoadGameOnServerComplete"), FString::Printf(TEXT("bLoaded=%s"), bLoaded ? TEXT("true") : TEXT("false")));
+
         return bLoaded;
 }
 
@@ -654,6 +774,8 @@ bool AMO56PlayerController::HandleLoadGameByIdOnServer(const FGuid& SaveId)
         {
                 return false;
         }
+
+        LogDebugEvent(TEXT("HandleLoadGameByIdOnServer"), FString::Printf(TEXT("SaveId=%s"), *SaveId.ToString(EGuidFormats::DigitsWithHyphens)));
 
         bool bLoaded = false;
 
@@ -680,6 +802,8 @@ bool AMO56PlayerController::HandleLoadGameByIdOnServer(const FGuid& SaveId)
                 }
         }
 
+        LogDebugEvent(TEXT("HandleLoadGameByIdOnServerComplete"), FString::Printf(TEXT("bLoaded=%s"), bLoaded ? TEXT("true") : TEXT("false")));
+
         return bLoaded;
 }
 
@@ -690,12 +814,16 @@ bool AMO56PlayerController::HandleCreateNewSaveSlot()
                 return false;
         }
 
+        LogDebugEvent(TEXT("HandleCreateNewSaveSlot"), FString(TEXT("Begin")));
+
         if (UMO56SaveSubsystem* SaveSubsystem = GetSaveSubsystem())
         {
                 const FSaveGameSummary Summary = SaveSubsystem->CreateNewSaveSlot();
+                LogDebugEvent(TEXT("HandleCreateNewSaveSlotComplete"), FString::Printf(TEXT("Created=%s"), Summary.SlotName.IsEmpty() ? TEXT("false") : TEXT("true")));
                 return !Summary.SlotName.IsEmpty();
         }
 
+        LogDebugEvent(TEXT("HandleCreateNewSaveSlotFailed"), FString(TEXT("NoSubsystem")));
         return false;
 }
 
@@ -706,9 +834,20 @@ void AMO56PlayerController::HandlePossessPawn(APawn* TargetPawn)
                 return;
         }
 
-        if (TargetPawn == GetPawn())
+        APawn* PreviousPawn = GetPawn();
+        if (TargetPawn == PreviousPawn)
         {
+                LogDebugEvent(TEXT("HandlePossessPawn"), FString::Printf(TEXT("NoOp Target=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
                 return;
+        }
+
+        LogDebugEvent(TEXT("HandlePossessPawn"), FString::Printf(TEXT("From=%s To=%s"),
+                *DescribePawnForDebug(PreviousPawn),
+                *DescribePawnForDebug(TargetPawn)), TargetPawn);
+
+        if (PreviousPawn && PreviousPawn->IsA<ASpectatorPawn>())
+        {
+                UnPossess();
         }
 
         if (AController* ExistingController = TargetPawn->GetController())
@@ -720,6 +859,27 @@ void AMO56PlayerController::HandlePossessPawn(APawn* TargetPawn)
         }
 
         Possess(TargetPawn);
+
+        if (AMO56Character* OldCharacter = Cast<AMO56Character>(PreviousPawn))
+        {
+                OldCharacter->CloseAllPlayerMenus();
+        }
+
+        if (AMO56Character* NewCharacter = Cast<AMO56Character>(TargetPawn))
+        {
+                NewCharacter->CloseAllPlayerMenus();
+                SetLastContainerOwningCharacter(NewCharacter);
+        }
+
+        if (IsLocalController())
+        {
+                EnsureDefaultInputContexts();
+                ApplyGameplayInputState();
+        }
+
+        ClientEnsureGameInput();
+
+        LogDebugEvent(TEXT("HandlePossessPawnComplete"), FString::Printf(TEXT("Now=%s"), *DescribePawnForDebug(GetPawn())));
 }
 
 void AMO56PlayerController::HandleOpenPawnInventory(APawn* TargetPawn)
@@ -729,11 +889,15 @@ void AMO56PlayerController::HandleOpenPawnInventory(APawn* TargetPawn)
                 return;
         }
 
+        LogDebugEvent(TEXT("HandleOpenPawnInventory"), FString::Printf(TEXT("Target=%s"), *DescribePawnForDebug(TargetPawn)), TargetPawn);
+
         AMO56Character* OwningCharacter = Cast<AMO56Character>(GetCharacter());
         if (!OwningCharacter)
         {
                 return;
         }
+
+        SetLastContainerOwningCharacter(OwningCharacter);
 
         if (UInventoryComponent* Inventory = TargetPawn->FindComponentByClass<UInventoryComponent>())
         {
@@ -747,6 +911,8 @@ void AMO56PlayerController::HandlePawnContext(APawn* TargetPawn, bool bHasFocus)
         {
                 return;
         }
+
+        LogDebugEvent(TEXT("HandlePawnContext"), FString::Printf(TEXT("Target=%s Focus=%s"), *DescribePawnForDebug(TargetPawn), bHasFocus ? TEXT("true") : TEXT("false")), TargetPawn);
 
     if (AMO56Character* TargetCharacter = Cast<AMO56Character>(TargetPawn))
     {
@@ -773,4 +939,103 @@ void AMO56PlayerController::SetPlayerSaveId(const FGuid& InId)
 
         PlayerSaveId = InId;
         ForceNetUpdate();
+
+        LogDebugEvent(TEXT("SetPlayerSaveId"), FString::Printf(TEXT("PlayerId=%s"), *InId.ToString(EGuidFormats::DigitsWithHyphens)));
+}
+
+void AMO56PlayerController::EnsureDefaultInputContexts()
+{
+        if (!IsLocalPlayerController())
+        {
+                return;
+        }
+
+        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+        {
+                if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+                {
+                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
+                        {
+                                if (!CurrentContext)
+                                {
+                                        continue;
+                                }
+
+#if UE_VERSION_OLDER_THAN(5, 3, 0)
+                                Subsystem->AddMappingContext(CurrentContext, 0);
+#else
+                                if (!Subsystem->HasMappingContext(CurrentContext))
+                                {
+                                        Subsystem->AddMappingContext(CurrentContext, 0);
+                                }
+#endif
+                        }
+
+                        if (!SVirtualJoystick::ShouldDisplayTouchInterface())
+                        {
+                                for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
+                                {
+                                        if (!CurrentContext)
+                                        {
+                                                continue;
+                                        }
+
+#if UE_VERSION_OLDER_THAN(5, 3, 0)
+                                        Subsystem->AddMappingContext(CurrentContext, 0);
+#else
+                                        if (!Subsystem->HasMappingContext(CurrentContext))
+                                        {
+                                                Subsystem->AddMappingContext(CurrentContext, 0);
+                                        }
+#endif
+                                }
+                        }
+                }
+        }
+}
+
+void AMO56PlayerController::ApplyGameplayInputState()
+{
+        FInputModeGameOnly InputMode;
+        SetInputMode(InputMode);
+
+        SetShowMouseCursor(false);
+        bEnableClickEvents = false;
+        bEnableMouseOverEvents = false;
+        SetIgnoreLookInput(false);
+        SetIgnoreMoveInput(false);
+}
+
+FString AMO56PlayerController::BuildInputStateSnapshot() const
+{
+        return DescribeInputState(*this);
+}
+
+void AMO56PlayerController::LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn) const
+{
+        if (UMO56DebugLogSubsystem* Subsystem = UMO56DebugLogSubsystem::Get(this))
+        {
+                if (Subsystem->IsEnabled())
+                {
+                        const FGuid PlayerGuid = ResolvePlayerGuid();
+                        const APawn* PawnForEvent = ContextPawn ? ContextPawn : GetPawn();
+                        const FGuid PawnGuid = PawnForEvent ? MO56ResolvePawnId(PawnForEvent) : FGuid();
+                        Subsystem->LogEvent(TEXT("PlayerController"), Action, Detail, PlayerGuid, PawnGuid);
+                }
+        }
+}
+
+FGuid AMO56PlayerController::ResolvePlayerGuid() const
+{
+        if (PlayerSaveId.IsValid())
+        {
+                return PlayerSaveId;
+        }
+
+        return FGuid();
+}
+
+void AMO56PlayerController::SetLastContainerOwningCharacter(AMO56Character* InCharacter)
+{
+        LastContainerOwningCharacter = InCharacter;
 }
