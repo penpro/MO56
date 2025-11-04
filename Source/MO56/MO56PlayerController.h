@@ -56,6 +56,7 @@ GENERATED_BODY()
 friend class AInventoryContainer;
 friend class UMO56SaveSubsystem;
 friend class AMO56Character;
+friend class UMO56PossessionMenuManagerSubsystem;
 
 protected:
 
@@ -140,6 +141,8 @@ void NotifyContainerInventoryClosed(AInventoryContainer* ContainerActor);
 
 FGuid GetPlayerSaveId() const { return PlayerSaveId; }
 
+        FString DescribeDebugInputMode() const;
+
 protected:
         UFUNCTION(Server, Reliable)
         void ServerExecuteNewGame(const FString& LevelName);
@@ -177,8 +180,17 @@ void ClientOpenContainerInventory(AInventoryContainer* ContainerActor);
 UFUNCTION(Client, Reliable)
 void ClientCloseContainerInventory(AInventoryContainer* ContainerActor);
 
-UFUNCTION(Client, Reliable)
-void ClientEnsureGameInput();
+        UFUNCTION(Client, Reliable)
+        void ClientEnsureGameInput();
+
+        UFUNCTION(Client, Reliable)
+        void ClientReapplyEnhancedInputContexts();
+
+        UFUNCTION(Client, Reliable)
+        void ClientValidatePostPossess(APawn* TargetPawn);
+
+        UFUNCTION(Server, Reliable)
+        void ServerRequestPostPossessNetUpdate(APawn* TargetPawn);
 
 UFUNCTION(Server, Reliable)
 void ServerRequestContainerInventoryOwnership(AInventoryContainer* ContainerActor);
@@ -200,9 +212,11 @@ private:
         void SetPlayerSaveId(const FGuid& InId);
 
         void EnsureDefaultInputContexts();
+        void ReapplyEnhancedInputContexts();
         void EnsureGameplayInputMode();
         void ApplyGameplayInputState();
         FString BuildInputStateSnapshot() const;
+        void MarkDebugInputMode(FName ModeTag);
         void LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn = nullptr) const;
         FGuid ResolvePlayerGuid() const;
         void SetLastContainerOwningCharacter(AMO56Character* InCharacter);
@@ -219,4 +233,6 @@ private:
         FGuid PlayerSaveId;
 
         TWeakObjectPtr<AMO56Character> LastContainerOwningCharacter;
+
+        FName DebugInputModeTag = NAME_None;
 };

@@ -23,6 +23,12 @@ class APlayerController;
 class UMOPersistentPawnComponent;
 class UWorld;
 
+enum class ERegisterPlayerCharacterContext : uint8
+{
+        FirstAssociation,
+        PossessionSwitch
+};
+
 USTRUCT(BlueprintType)
 struct FSaveGameSummary
 {
@@ -238,6 +244,8 @@ private:
 
         UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<AMO56Character>> RegisteredCharacters;
+
+        TSet<FGuid> PlayersWithEstablishedCharacters;
 
         TMap<UWorld*, FDelegateHandle> WorldSpawnHandles;
         FDelegateHandle WorldCleanupHandle;
