@@ -267,7 +267,8 @@ void UMO56DebugLogSubsystem::AppendEventsToFile(const TArray<FMO56DebugEvent>& E
     {
         const FString Line = BuildLogLine(Event) + LINE_TERMINATOR;
         FTCHARToUTF8 Converter(*Line);
-        FileWriter->Serialize(const_cast<UTF8CHAR*>(Converter.Get()), Converter.Length());
+        void* WriteBuffer = const_cast<ANSICHAR*>(Converter.Get());
+        FileWriter->Serialize(WriteBuffer, Converter.Length());
     }
 
     FileWriter->Close();
