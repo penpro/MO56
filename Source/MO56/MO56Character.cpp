@@ -1214,9 +1214,9 @@ void AMO56Character::OpenContainerInventory(UInventoryComponent* ContainerInvent
         ActiveContainerInventory = ContainerInventory;
         ActiveContainerActor = ContainerActor;
 
-        if (AMO56PlayerController* Controller = Cast<AMO56PlayerController>(GetController()))
+        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(GetController()))
         {
-                Controller->SetLastContainerOwningCharacter(this);
+                MOController->SetLastContainerOwningCharacter(this);
         }
 
         if (IsLocallyControlled())

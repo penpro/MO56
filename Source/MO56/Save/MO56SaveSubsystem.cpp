@@ -1301,11 +1301,14 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         {
                 UWorld* World = GetWorld();
                 AGameModeBase* GameMode = World ? World->GetAuthGameMode() : nullptr;
-                UClass* DesiredControllerClass = (GameMode && GameMode->PlayerControllerClass)
-                        ? GameMode->PlayerControllerClass
-                        : AMO56PlayerController::StaticClass();
+                TSubclassOf<APlayerController> DesiredControllerClass = AMO56PlayerController::StaticClass();
 
-                if (!DesiredControllerClass->IsChildOf(AMO56PlayerController::StaticClass()))
+                if (GameMode && GameMode->PlayerControllerClass)
+                {
+                        DesiredControllerClass = GameMode->PlayerControllerClass;
+                }
+
+                if (!DesiredControllerClass || !DesiredControllerClass->IsChildOf(AMO56PlayerController::StaticClass()))
                 {
                         DesiredControllerClass = AMO56PlayerController::StaticClass();
                 }
@@ -2435,10 +2438,10 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 {
                         if (*OwnerTypePtr == EMO56InventoryOwner::Character)
                         {
-                                const FGuid OwnerId = InventoryOwnerIds.FindRef(Inventory);
-                                if (OwnerId.IsValid())
+                                const FGuid CharacterOwnerId = InventoryOwnerIds.FindRef(Inventory);
+                                if (CharacterOwnerId.IsValid())
                                 {
-                                        RefreshCharacterSaveData(OwnerId);
+                                        RefreshCharacterSaveData(CharacterOwnerId);
                                 }
                         }
                 }

@@ -256,8 +256,8 @@ void UMO56DebugLogSubsystem::AppendEventsToFile(const TArray<FMO56DebugEvent>& E
         return;
     }
 
-    TUniquePtr<IFileHandle> FileHandle(IFileManager::Get().CreateFileWriter(*FilePath, FILEWRITE_Append | FILEWRITE_AllowRead));
-    if (!FileHandle)
+    TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(*FilePath, FILEWRITE_Append | FILEWRITE_AllowRead));
+    if (!FileWriter)
     {
         UE_LOG(LogMO56Debug, Warning, TEXT("Failed to open debug log file %s for append."), *FilePath);
         return;
@@ -267,8 +267,10 @@ void UMO56DebugLogSubsystem::AppendEventsToFile(const TArray<FMO56DebugEvent>& E
     {
         const FString Line = BuildLogLine(Event) + LINE_TERMINATOR;
         FTCHARToUTF8 Converter(*Line);
-        FileHandle->Write(reinterpret_cast<const uint8*>(Converter.Get()), Converter.Length());
+        FileWriter->Serialize(const_cast<UTF8CHAR*>(Converter.Get()), Converter.Length());
     }
+
+    FileWriter->Close();
 }
 
 FString UMO56DebugLogSubsystem::ResolveSessionFilePath() const

@@ -55,6 +55,7 @@ GENERATED_BODY()
 
 friend class AInventoryContainer;
 friend class UMO56SaveSubsystem;
+friend class AMO56Character;
 
 protected:
 
@@ -202,7 +203,7 @@ private:
         FString BuildInputStateSnapshot() const;
         void LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn = nullptr) const;
         FGuid ResolvePlayerGuid() const;
-        void SetLastContainerOwningCharacter(AMO56Character* Character);
+        void SetLastContainerOwningCharacter(AMO56Character* InCharacter);
 
         UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
         TSubclassOf<UMO56PossessMenuWidget> PossessMenuClass;

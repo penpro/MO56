@@ -1035,7 +1035,7 @@ FGuid AMO56PlayerController::ResolvePlayerGuid() const
         return FGuid();
 }
 
-void AMO56PlayerController::SetLastContainerOwningCharacter(AMO56Character* Character)
+void AMO56PlayerController::SetLastContainerOwningCharacter(AMO56Character* InCharacter)
 {
-        LastContainerOwningCharacter = Character;
+        LastContainerOwningCharacter = InCharacter;
 }
