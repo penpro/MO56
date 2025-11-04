@@ -17,6 +17,7 @@
 #include "Math/UnrealMathUtility.h"
 
 #include "MO56.h"
+#include "MO56DebugLogSubsystem.h"
 
 #include "Interactable.h"
 #include "InventoryContainer.h"
@@ -44,6 +45,43 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "MO56PlayerController.h"
+
+namespace
+{
+        FString DescribeCharacter(const AMO56Character* Character)
+        {
+                if (!Character)
+                {
+                        return TEXT("Character=None");
+                }
+
+                const FGuid CharacterId = Character->GetCharacterId();
+                const FString IdString = CharacterId.IsValid() ? CharacterId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                return FString::Printf(TEXT("%s(Id=%s)"), *GetNameSafe(Character), *IdString);
+        }
+
+        void LogCharacterDebug(const AMO56Character* Character, FName Action, const FString& Detail)
+        {
+                if (!Character)
+                {
+                        return;
+                }
+
+                if (UMO56DebugLogSubsystem* Subsystem = UMO56DebugLogSubsystem::Get(Character))
+                {
+                        if (Subsystem->IsEnabled())
+                        {
+                                FGuid PlayerId;
+                                if (const AMO56PlayerController* Controller = Cast<AMO56PlayerController>(Character->GetController()))
+                                {
+                                        PlayerId = Controller->GetPlayerSaveId();
+                                }
+
+                                Subsystem->LogEvent(TEXT("Character"), Action, Detail, PlayerId, Character->GetCharacterId());
+                        }
+                }
+        }
+}
 
 AMO56Character::AMO56Character()
 {
@@ -102,6 +140,11 @@ AMO56Character::AMO56Character()
 void AMO56Character::BeginPlay()
 {
         Super::BeginPlay();
+
+        LogCharacterDebug(this, TEXT("BeginPlay"), FString::Printf(TEXT("Location=%s Inventory=%s Skill=%s"),
+                *GetActorLocation().ToCompactString(),
+                Inventory ? *Inventory->GetName() : TEXT("None"),
+                SkillSystem ? *SkillSystem->GetName() : TEXT("None")));
 
         if (HasAuthority())
         {
@@ -197,6 +240,8 @@ void AMO56Character::BeginPlay()
                                         HUDWidgetInstance->AddLeftInventoryWidget(InventoryWidgetInstance);
                                         InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 
+                                        LogCharacterDebug(this, TEXT("InventoryWidgetInitialized"), FString::Printf(TEXT("Widget=%s"), *GetNameSafe(InventoryWidgetInstance)));
+
                                         if (!ContainerInventoryWidgetInstance)
                                         {
                                                 UInventoryWidget* NewContainerWidget = nullptr;
@@ -218,10 +263,11 @@ void AMO56Character::BeginPlay()
                                                         ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);
                                                         ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
                                                         HUDWidgetInstance->AddRightInventoryWidget(ContainerInventoryWidgetInstance);
+
+                                                        LogCharacterDebug(this, TEXT("ContainerInventoryWidgetCreated"), FString::Printf(TEXT("Widget=%s"), *GetNameSafe(ContainerInventoryWidgetInstance)));
                                                 }
                                         }
                                 }
-                                UE_LOG(LogTemp, Display, TEXT("Inventory Widget Created??"));
                         }
 
                         if (GameMenuWidgetClass)
@@ -280,6 +326,8 @@ void AMO56Character::BeginPlay()
 
 void AMO56Character::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+        LogCharacterDebug(this, TEXT("EndPlay"), FString::Printf(TEXT("Reason=%d"), static_cast<int32>(EndPlayReason)));
+
         if (UGameInstance* GameInstance = GetGameInstance())
         {
                 if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
@@ -356,6 +404,8 @@ void AMO56Character::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 
 void AMO56Character::PossessedBy(AController* NewController)
 {
+        LogCharacterDebug(this, TEXT("PossessedBy"), FString::Printf(TEXT("Controller=%s"), *GetNameSafe(NewController)));
+
         Super::PossessedBy(NewController);
         bIsPossessed = true;
         OnRep_IsPossessed();
@@ -377,6 +427,8 @@ void AMO56Character::PossessedBy(AController* NewController)
 
 void AMO56Character::UnPossessed()
 {
+        LogCharacterDebug(this, TEXT("UnPossessed"), FString(TEXT("ControllerLost")));
+
         Super::UnPossessed();
         bIsPossessed = false;
         OnRep_IsPossessed();
@@ -549,8 +601,7 @@ void AMO56Character::OnInteract(const FInputActionValue& /*Value*/)
 
 void AMO56Character::OnToggleInventory(const FInputActionValue& /*Value*/)
 {
-
-        UE_LOG(LogTemp, Display, TEXT("Trying to toggle the inventory widget"));
+        LogCharacterDebug(this, TEXT("ToggleInventory"), FString(TEXT("Requested")));
         if (!InventoryWidgetInstance)
         {
                 return;
@@ -568,11 +619,11 @@ void AMO56Character::OnToggleCharacterStatus(const FInputActionValue& /*Value*/)
 {
         if (!CharacterStatusWidgetInstance)
         {
-                UE_LOG(LogTemp, Display, TEXT("No valid status widget"));
+                LogCharacterDebug(this, TEXT("ToggleCharacterStatus"), FString(TEXT("NoWidget")));
                 return;
         }
 
-        UE_LOG(LogTemp, Display, TEXT("Toggling status widget"));
+        LogCharacterDebug(this, TEXT("ToggleCharacterStatus"), FString(TEXT("Requested")));
         const ESlateVisibility CurrentVisibility = CharacterStatusWidgetInstance->GetVisibility();
         const bool bCurrentlyVisible = CurrentVisibility != ESlateVisibility::Collapsed && CurrentVisibility != ESlateVisibility::Hidden;
         if (!bCurrentlyVisible)
@@ -589,6 +640,8 @@ void AMO56Character::OnToggleGameMenu(const FInputActionValue& /*Value*/)
                 return;
         }
 
+        LogCharacterDebug(this, TEXT("ToggleGameMenu"), FString(TEXT("Requested")));
+
         const ESlateVisibility CurrentVisibility = GameMenuWidgetInstance->GetVisibility();
         const bool bCurrentlyVisible = CurrentVisibility != ESlateVisibility::Collapsed && CurrentVisibility != ESlateVisibility::Hidden;
 
@@ -601,6 +654,8 @@ void AMO56Character::OnToggleSkillMenu(const FInputActionValue& /*Value*/)
         {
                 return;
         }
+
+        LogCharacterDebug(this, TEXT("ToggleSkillMenu"), FString(TEXT("Requested")));
 
         const bool bCurrentlyVisible = HUDWidgetInstance->IsSkillMenuVisible();
 
@@ -767,6 +822,8 @@ void AMO56Character::Tick(float DeltaSeconds)
 
 void AMO56Character::SetInventoryVisible(bool bVisible)
 {
+        LogCharacterDebug(this, TEXT("SetInventoryVisible"), FString::Printf(TEXT("Visible=%s"), bVisible ? TEXT("true") : TEXT("false")));
+
         if (bVisible)
         {
                 SetGameMenuVisible(false);
@@ -808,6 +865,8 @@ bool AMO56Character::IsAnyInventoryPanelVisible() const
 
 void AMO56Character::SetCharacterStatusVisible(bool bVisible)
 {
+        LogCharacterDebug(this, TEXT("SetCharacterStatusVisible"), FString::Printf(TEXT("Visible=%s"), bVisible ? TEXT("true") : TEXT("false")));
+
         if (!CharacterStatusWidgetInstance)
         {
                 return;
@@ -829,6 +888,8 @@ void AMO56Character::SetCharacterStatusVisible(bool bVisible)
 
 void AMO56Character::SetGameMenuVisible(bool bVisible)
 {
+        LogCharacterDebug(this, TEXT("SetGameMenuVisible"), FString::Printf(TEXT("Visible=%s"), bVisible ? TEXT("true") : TEXT("false")));
+
         if (!GameMenuWidgetInstance)
         {
                 return;
@@ -863,6 +924,8 @@ void AMO56Character::SetGameMenuVisible(bool bVisible)
 
 void AMO56Character::SetSkillMenuVisible(bool bVisible)
 {
+        LogCharacterDebug(this, TEXT("SetSkillMenuVisible"), FString::Printf(TEXT("Visible=%s"), bVisible ? TEXT("true") : TEXT("false")));
+
         if (!HUDWidgetInstance)
         {
                 return;
@@ -1082,6 +1145,8 @@ void AMO56Character::UpdateInventoryInputState(bool bInventoryVisible)
                 return;
         }
 
+        LogCharacterDebug(this, TEXT("UpdateInventoryInputState"), FString::Printf(TEXT("InventoryVisible=%s"), bInventoryVisible ? TEXT("true") : TEXT("false")));
+
         const bool bMenuVisible = GameMenuWidgetInstance &&
                 GameMenuWidgetInstance->GetVisibility() != ESlateVisibility::Collapsed &&
                 GameMenuWidgetInstance->GetVisibility() != ESlateVisibility::Hidden;
@@ -1142,8 +1207,17 @@ void AMO56Character::OpenContainerInventory(UInventoryComponent* ContainerInvent
                 return;
         }
 
+        LogCharacterDebug(this, TEXT("OpenContainerInventory"), FString::Printf(TEXT("Container=%s InventoryComp=%s"),
+                *GetNameSafe(ContainerActor),
+                ContainerInventory ? *ContainerInventory->GetName() : TEXT("None")));
+
         ActiveContainerInventory = ContainerInventory;
         ActiveContainerActor = ContainerActor;
+
+        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(GetController()))
+        {
+                MOController->SetLastContainerOwningCharacter(this);
+        }
 
         if (IsLocallyControlled())
         {
@@ -1175,6 +1249,8 @@ void AMO56Character::OpenContainerInventory(UInventoryComponent* ContainerInvent
                         ContainerInventoryWidgetInstance->SetAutoBindToOwningPawn(false);
                         ContainerInventoryWidgetInstance->SetInventoryComponent(ContainerInventory);
                         ContainerInventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+                        LogCharacterDebug(this, TEXT("ContainerInventoryVisible"), FString::Printf(TEXT("Widget=%s"), *GetNameSafe(ContainerInventoryWidgetInstance)));
                 }
 
                 SetInventoryVisible(true);
@@ -1187,6 +1263,8 @@ void AMO56Character::CloseContainerInventoryForActor(AActor* ContainerActor, boo
         {
                 return;
         }
+
+        LogCharacterDebug(this, TEXT("CloseContainerInventory"), FString::Printf(TEXT("Container=%s ClosePlayerInventory=%s"), *GetNameSafe(ContainerActor), bClosePlayerInventory ? TEXT("true") : TEXT("false")));
 
         CloseActiveContainerInventory(false);
 
@@ -1202,6 +1280,8 @@ void AMO56Character::CloseContainerInventoryForActor(AActor* ContainerActor, boo
 
 void AMO56Character::CloseAllPlayerMenus()
 {
+        LogCharacterDebug(this, TEXT("CloseAllPlayerMenus"), FString(TEXT("Closing all menus")));
+
         SetInventoryVisible(false);
         SetSkillMenuVisible(false);
         SetCharacterStatusVisible(false);
@@ -1211,6 +1291,8 @@ void AMO56Character::CloseAllPlayerMenus()
 
 void AMO56Character::CloseActiveContainerInventory(bool bNotifyContainer)
 {
+        LogCharacterDebug(this, TEXT("CloseActiveContainerInventory"), FString::Printf(TEXT("Notify=%s"), bNotifyContainer ? TEXT("true") : TEXT("false")));
+
         if (ContainerInventoryWidgetInstance)
         {
                 ContainerInventoryWidgetInstance->SetInventoryComponent(nullptr);

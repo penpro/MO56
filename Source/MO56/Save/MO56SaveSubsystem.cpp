@@ -5,6 +5,7 @@
 
 #include "Algo/RemoveIf.h"
 #include "MO56PlayerController.h"
+#include "MO56DebugLogSubsystem.h"
 #include "Menu/MO56MenuGameMode.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -15,6 +16,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "GameFramework/SpectatorPawn.h"
 #include "Components/MOPersistentPawnComponent.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
@@ -63,6 +65,48 @@ static FGuid StableGuidForActor(const AActor& Actor)
         return GuidFromString(Key);
 }
 
+static void LogSaveEvent(const UObject* Context, FName Action, const FString& Detail, const AMO56PlayerController* Controller = nullptr, const APawn* Pawn = nullptr, FGuid PlayerOverride = FGuid(), FGuid PawnOverride = FGuid())
+{
+        if (UMO56DebugLogSubsystem* Subsystem = UMO56DebugLogSubsystem::Get(Context))
+        {
+                if (Subsystem->IsEnabled())
+                {
+                        FGuid PlayerId = PlayerOverride;
+                        if (!PlayerId.IsValid() && Controller)
+                        {
+                                PlayerId = Controller->GetPlayerSaveId();
+                        }
+
+                        FGuid PawnId = PawnOverride;
+                        if (!PawnId.IsValid() && Pawn)
+                        {
+                                PawnId = MO56ResolvePawnId(Pawn);
+                        }
+
+                        Subsystem->LogEvent(TEXT("SaveSubsystem"), Action, Detail, PlayerId, PawnId);
+                }
+        }
+}
+
+static void EnsureInventoryOwnerMetadata(FInventorySaveData& InventoryData, const FGuid& OwnerId)
+{
+        if (!OwnerId.IsValid())
+        {
+                InventoryData.OwnerCharacterId.Invalidate();
+                return;
+        }
+
+        if (InventoryData.OwnerCharacterId.IsValid())
+        {
+                ensureMsgf(InventoryData.OwnerCharacterId == OwnerId,
+                        TEXT("Inventory owner drift detected. SaveOwner=%s Expected=%s"),
+                        *InventoryData.OwnerCharacterId.ToString(),
+                        *OwnerId.ToString());
+        }
+
+        InventoryData.OwnerCharacterId = OwnerId;
+}
+
 UMO56SaveSubsystem::UMO56SaveSubsystem()
 {
         ActiveSaveSlotName = SaveSlotName;
@@ -98,6 +142,8 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         LoadOrCreateSaveGame();
 
         UpdateOrRebuildSaveIndex(true);
+
+        LogSaveEvent(this, TEXT("Initialize"), TEXT("Save subsystem initialized"));
 }
 
 void UMO56SaveSubsystem::Deinitialize()
@@ -142,6 +188,8 @@ void UMO56SaveSubsystem::Deinitialize()
         bPendingApplyOnNextLevel = false;
         bPendingCreateNewSaveAfterTravel = false;
         PendingLoadedSave = nullptr;
+
+        LogSaveEvent(this, TEXT("Deinitialize"), TEXT("Save subsystem shutdown"));
 }
 
 TArray<FSaveIndexEntry> UMO56SaveSubsystem::ListSaves(bool bRebuildFromDiskIfMissing)
@@ -647,6 +695,8 @@ void UMO56SaveSubsystem::RegisterInventoryComponent(UInventoryComponent* Invento
                 return;
         }
 
+        LogSaveEvent(this, TEXT("RegisterInventory"), FString::Printf(TEXT("Inventory=%s OwnerType=%d OwnerId=%s"), *GetNameSafe(InventoryComponent), static_cast<int32>(OwnerType), OwningId.IsValid() ? *OwningId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None")));
+
         HandleInventoryRegistered(InventoryComponent, OwnerType, OwningId);
 }
 
@@ -665,6 +715,8 @@ void UMO56SaveSubsystem::UnregisterInventoryComponent(UInventoryComponent* Inven
         const FGuid InventoryId = InventoryComponent->GetPersistentId();
         const EMO56InventoryOwner* OwnerTypePtr = InventoryOwnerTypes.Find(InventoryComponent);
         const FGuid OwnerId = InventoryOwnerIds.FindRef(InventoryComponent);
+
+        LogSaveEvent(this, TEXT("UnregisterInventory"), FString::Printf(TEXT("InventoryId=%s OwnerType=%d OwnerId=%s"), InventoryId.IsValid() ? *InventoryId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None"), OwnerTypePtr ? static_cast<int32>(*OwnerTypePtr) : -1, OwnerId.IsValid() ? *OwnerId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None")));
 
         if (CurrentSaveGame)
         {
@@ -805,6 +857,8 @@ void UMO56SaveSubsystem::RegisterCharacter(AMO56Character* Character)
                 return;
         }
 
+        LogSaveEvent(this, TEXT("RegisterCharacter"), FString::Printf(TEXT("Character=%s CharacterId=%s"), *GetNameSafe(Character), *CharacterId.ToString(EGuidFormats::DigitsWithHyphens)), Cast<AMO56PlayerController>(Character->GetController()), Character);
+
         RegisteredCharacters.FindOrAdd(CharacterId) = Character;
 
         if (!CurrentSaveGame)
@@ -846,6 +900,8 @@ void UMO56SaveSubsystem::UnregisterCharacter(AMO56Character* Character)
                 return;
         }
 
+        LogSaveEvent(this, TEXT("UnregisterCharacter"), FString::Printf(TEXT("Character=%s CharacterId=%s"), *GetNameSafe(Character), *CharacterId.ToString(EGuidFormats::DigitsWithHyphens)), Cast<AMO56PlayerController>(Character->GetController()), Character);
+
         if (CurrentSaveGame)
         {
                 RefreshCharacterSaveData(CharacterId);
@@ -868,6 +924,8 @@ void UMO56SaveSubsystem::RegisterPlayerCharacter(AMO56Character* Character, AMO5
         {
                 return;
         }
+
+        LogSaveEvent(this, TEXT("RegisterPlayerCharacter"), FString::Printf(TEXT("Character=%s PlayerId=%s"), *GetNameSafe(Character), *PlayerId.ToString(EGuidFormats::DigitsWithHyphens)), Controller, Character);
 
         PlayerControllers.FindOrAdd(PlayerId) = Controller;
 
@@ -1092,6 +1150,8 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                 return;
         }
 
+        LogSaveEvent(this, TEXT("AssignPersistentPawn"), FString::Printf(TEXT("Controller=%s"), *GetNameSafe(PlayerController)), Cast<AMO56PlayerController>(PlayerController));
+
         if (!CurrentSaveGame)
         {
                 LoadOrCreateSaveGame();
@@ -1100,6 +1160,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
         if (!CurrentSaveGame)
         {
                 PlayerController->StartSpectatingOnly();
+                LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), TEXT("No save game available"), Cast<AMO56PlayerController>(PlayerController));
                 return;
         }
 
@@ -1113,6 +1174,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
         if (!PlayerSaveId.IsValid())
         {
                 PlayerController->StartSpectatingOnly();
+                LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), TEXT("No PlayerSaveId"), MOController);
                 return;
         }
 
@@ -1128,30 +1190,37 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                         FString Reason;
                         if (TryAssignAndPossess(PlayerController, Assignment->PawnId, Reason))
                         {
+                                LogSaveEvent(this, TEXT("AssignPersistentPawnSuccess"), FString::Printf(TEXT("Reclaimed PawnId=%s"), *Assignment->PawnId.ToString(EGuidFormats::DigitsWithHyphens)), Cast<AMO56PlayerController>(PlayerController));
                                 return;
                         }
 
                         UE_LOG(LogMO56SaveSubsystem, Warning,
                                 TEXT("AssignAndPossessPersistentPawn: Failed to reclaim pawn %s for player %s (%s)"),
                                 *Assignment->PawnId.ToString(), *PlayerSaveId.ToString(), *Reason);
+                        LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), FString::Printf(TEXT("Reason=%s"), *Reason), MOController);
                 }
         }
 
         FGuid CandidatePawnId;
         if (FindUnassignedPlayerCandidate(CandidatePawnId))
         {
+                LogSaveEvent(this, TEXT("AssignPersistentPawnCandidate"), FString::Printf(TEXT("CandidatePawnId=%s"), *CandidatePawnId.ToString(EGuidFormats::DigitsWithHyphens)), MOController);
+
                 FString Reason;
                 if (TryAssignAndPossess(PlayerController, CandidatePawnId, Reason))
                 {
+                        LogSaveEvent(this, TEXT("AssignPersistentPawnSuccess"), FString::Printf(TEXT("Claimed PawnId=%s"), *CandidatePawnId.ToString(EGuidFormats::DigitsWithHyphens)), Cast<AMO56PlayerController>(PlayerController));
                         return;
                 }
 
                 UE_LOG(LogMO56SaveSubsystem, Warning,
                         TEXT("AssignAndPossessPersistentPawn: Candidate pawn %s rejected for player %s (%s)"),
                         *CandidatePawnId.ToString(), *PlayerSaveId.ToString(), *Reason);
+                LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), FString::Printf(TEXT("FallbackReason=%s"), *Reason), MOController);
         }
 
         PlayerController->StartSpectatingOnly();
+        LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), TEXT("No candidate pawn found"), MOController);
 }
 
 bool UMO56SaveSubsystem::BuildPossessablePawnList(APlayerController* ForPC, TArray<FMOPossessablePawnInfo>& Out) const
@@ -1223,14 +1292,58 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         if (!IsAuthoritative() || !PC || !CurrentSaveGame)
         {
                 OutReason = TEXT("Server unavailable");
+                LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)));
                 return false;
         }
 
         AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PC);
+        if (!MOController)
+        {
+                UWorld* World = GetWorld();
+                AGameModeBase* GameMode = World ? World->GetAuthGameMode() : nullptr;
+                TSubclassOf<APlayerController> DesiredControllerClass = AMO56PlayerController::StaticClass();
+
+                if (GameMode && GameMode->PlayerControllerClass)
+                {
+                        DesiredControllerClass = GameMode->PlayerControllerClass;
+                }
+
+                if (!DesiredControllerClass || !DesiredControllerClass->IsChildOf(AMO56PlayerController::StaticClass()))
+                {
+                        DesiredControllerClass = AMO56PlayerController::StaticClass();
+                }
+
+                if (!World || !GameMode)
+                {
+                        OutReason = TEXT("Controller swap unavailable");
+                        LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)));
+                        return false;
+                }
+
+                FActorSpawnParameters SpawnParams;
+                SpawnParams.Owner = GameMode;
+                SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+                AMO56PlayerController* NewController = World->SpawnActor<AMO56PlayerController>(DesiredControllerClass, SpawnParams);
+                if (!NewController)
+                {
+                        OutReason = TEXT("Controller spawn failed");
+                        LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)));
+                        return false;
+                }
+
+                GameMode->SwapPlayerControllers(PC, NewController);
+                NotifyPlayerControllerReady(NewController);
+                PC = NewController;
+                MOController = NewController;
+                LogSaveEvent(this, TEXT("ControllerSwapped"), FString::Printf(TEXT("NewController=%s"), *GetNameSafe(NewController)), NewController);
+        }
+
         const FGuid PlayerSaveId = MOController ? MOController->GetPlayerSaveId() : FGuid();
         if (!PlayerSaveId.IsValid())
         {
                 OutReason = TEXT("No PlayerSaveId");
+                LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)), MOController);
                 return false;
         }
 
@@ -1238,6 +1351,7 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         if (!PawnData || !PawnData->bPlayerCandidate)
         {
                 OutReason = TEXT("Pawn not possessable");
+                LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)), MOController);
                 return false;
         }
 
@@ -1247,6 +1361,7 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
                 if (Assignment.PawnId == PawnId && Assignment.PlayerSaveId != PlayerSaveId)
                 {
                         OutReason = TEXT("Pawn in use");
+                        LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)), MOController);
                         return false;
                 }
         }
@@ -1255,12 +1370,28 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         if (!TargetPawn)
         {
                 OutReason = TEXT("Pawn not present in world");
+                LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)), MOController);
                 return false;
         }
 
         CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, PawnId };
 
+        if (APawn* ExistingPawn = PC->GetPawn())
+        {
+                if (ExistingPawn->IsA<ASpectatorPawn>() && ExistingPawn != TargetPawn)
+                {
+                        PC->UnPossess();
+                }
+        }
+
+        LogSaveEvent(this, TEXT("TryAssignAndPossess"), FString::Printf(TEXT("PlayerId=%s Pawn=%s"), *PlayerSaveId.ToString(EGuidFormats::DigitsWithHyphens), *GetNameSafe(TargetPawn)), MOController, TargetPawn);
+
         PC->Possess(TargetPawn);
+
+        if (MOController)
+        {
+                MOController->ClientEnsureGameInput();
+        }
 
         if (UInventoryComponent* Inventory = TargetPawn->FindComponentByClass<UInventoryComponent>())
         {
@@ -1277,6 +1408,8 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         {
                 PlayerControllers.FindOrAdd(PlayerSaveId) = MOController;
         }
+
+        LogSaveEvent(this, TEXT("TryAssignAndPossessSuccess"), FString::Printf(TEXT("PlayerId=%s Pawn=%s"), *PlayerSaveId.ToString(EGuidFormats::DigitsWithHyphens), *GetNameSafe(TargetPawn)), MOController, TargetPawn);
 
         return true;
 }
@@ -1386,15 +1519,23 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                                         const FGuid NewId = PawnData.PawnId;
                                         if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
                                         {
-                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                                FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewId);
+                                                ClonedData = *ExistingData;
+                                                EnsureInventoryOwnerMetadata(ClonedData, PawnData.PawnId);
                                         }
                                         TargetInventoryId = NewId;
                                 }
 
                                 Inventory->OverridePersistentId(TargetInventoryId);
 
-                                if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
+                                if (FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
                                 {
+                                        EnsureInventoryOwnerMetadata(*SavedInventory, PawnData.PawnId);
+                                        ensureMsgf(!SavedInventory->OwnerCharacterId.IsValid() || SavedInventory->OwnerCharacterId == PawnData.PawnId,
+                                                TEXT("Pawn inventory owner mismatch. PawnId=%s SaveOwner=%s"),
+                                                *PawnData.PawnId.ToString(),
+                                                *SavedInventory->OwnerCharacterId.ToString());
+
                                         TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
                                         Inventory->ReadFromSaveData(*SavedInventory);
                                 }
@@ -1451,7 +1592,9 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                                 const FGuid NewId = PawnData.PawnId;
                                 if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
                                 {
-                                        CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                        FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewId);
+                                        ClonedData = *ExistingData;
+                                        EnsureInventoryOwnerMetadata(ClonedData, PawnData.PawnId);
                                 }
                                 TargetInventoryId = NewId;
                         }
@@ -1459,8 +1602,14 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                         Inventory->OverridePersistentId(TargetInventoryId);
                         RegisteredInventories.Add(TargetInventoryId, Inventory);
 
-                        if (const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
+                        if (FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(TargetInventoryId))
                         {
+                                EnsureInventoryOwnerMetadata(*SavedInventory, PawnData.PawnId);
+                                ensureMsgf(!SavedInventory->OwnerCharacterId.IsValid() || SavedInventory->OwnerCharacterId == PawnData.PawnId,
+                                        TEXT("Spawned pawn inventory owner mismatch. PawnId=%s SaveOwner=%s"),
+                                        *PawnData.PawnId.ToString(),
+                                        *SavedInventory->OwnerCharacterId.ToString());
+
                                 TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
                                 Inventory->ReadFromSaveData(*SavedInventory);
                         }
@@ -1654,7 +1803,9 @@ void UMO56SaveSubsystem::GatherPersistentPawnsForSave()
                                         const FGuid NewId = PersistentComp->PawnId;
                                         if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(InventoryId))
                                         {
-                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                                FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewId);
+                                                ClonedData = *ExistingData;
+                                                EnsureInventoryOwnerMetadata(ClonedData, PersistentComp->PawnId);
                                         }
                                         InventoryId = NewId;
                                         Inventory->OverridePersistentId(InventoryId);
@@ -1664,6 +1815,7 @@ void UMO56SaveSubsystem::GatherPersistentPawnsForSave()
 
                                 FInventorySaveData& InventoryData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
                                 Inventory->WriteToSaveData(InventoryData);
+                                EnsureInventoryOwnerMetadata(InventoryData, PersistentComp->PawnId);
                         }
                         else
                         {
@@ -2104,8 +2256,9 @@ void UMO56SaveSubsystem::ApplySaveToInventories()
                                 continue;
                         }
 
-                        if (const FInventorySaveData* Data = CurrentSaveGame->InventoryStates.Find(InventoryId))
+                        if (FInventorySaveData* Data = CurrentSaveGame->InventoryStates.Find(InventoryId))
                         {
+                                EnsureInventoryOwnerMetadata(*Data, FGuid());
                                 Inventory->ReadFromSaveData(*Data);
                                 ++AppliedCount;
                         }
@@ -2278,14 +2431,17 @@ void UMO56SaveSubsystem::RefreshInventorySaveData()
                 FInventorySaveData& SaveData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
                 Inventory->WriteToSaveData(SaveData);
 
+                const FGuid OwnerId = InventoryOwnerIds.FindRef(Inventory);
+                EnsureInventoryOwnerMetadata(SaveData, OwnerId);
+
                 if (const EMO56InventoryOwner* OwnerTypePtr = InventoryOwnerTypes.Find(Inventory))
                 {
                         if (*OwnerTypePtr == EMO56InventoryOwner::Character)
                         {
-                                const FGuid OwnerId = InventoryOwnerIds.FindRef(Inventory);
-                                if (OwnerId.IsValid())
+                                const FGuid CharacterOwnerId = InventoryOwnerIds.FindRef(Inventory);
+                                if (CharacterOwnerId.IsValid())
                                 {
-                                        RefreshCharacterSaveData(OwnerId);
+                                        RefreshCharacterSaveData(CharacterOwnerId);
                                 }
                         }
                 }
@@ -2752,7 +2908,9 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                         {
                                 if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(InventoryId))
                                 {
-                                        CurrentSaveGame->InventoryStates.FindOrAdd(NewId) = *ExistingData;
+                                        FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewId);
+                                        ClonedData = *ExistingData;
+                                        EnsureInventoryOwnerMetadata(ClonedData, OwnerType == EMO56InventoryOwner::Character ? OwnerId : FGuid());
                                 }
                         }
 
@@ -2783,7 +2941,9 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                                         const FGuid NewInvId = InventoryComponent->GetPersistentId();
                                         if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(CharacterData.InventoryId))
                                         {
-                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewInvId) = *ExistingData;
+                                                FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewInvId);
+                                                ClonedData = *ExistingData;
+                                                EnsureInventoryOwnerMetadata(ClonedData, OwnerId);
                                         }
                                         CharacterData.InventoryId = NewInvId;
                                 }
@@ -2826,6 +2986,13 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
         InventoryOwnerTypes.FindOrAdd(InventoryComponent) = OwnerType;
 
         RegisteredInventories.Add(InventoryId, InventoryComponent);
+
+        if (CurrentSaveGame)
+        {
+                FInventorySaveData& OwnerMetadata = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
+                const FGuid MetadataOwnerId = (OwnerType == EMO56InventoryOwner::Character) ? OwnerId : FGuid();
+                EnsureInventoryOwnerMetadata(OwnerMetadata, MetadataOwnerId);
+        }
 
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("RegisterInventoryComponent: InventoryId=%s OwnerType=%d OwnerId=%s"), *InventoryId.ToString(), static_cast<int32>(OwnerType), OwnerId.IsValid() ? *OwnerId.ToString() : TEXT("None"));
 
@@ -3280,7 +3447,9 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                                         const FGuid NewInvId = CurrentId;
                                                         if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId))
                                                         {
-                                                                CurrentSaveGame->InventoryStates.FindOrAdd(NewInvId) = *ExistingData;
+                                                                FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewInvId);
+                                                                ClonedData = *ExistingData;
+                                                                EnsureInventoryOwnerMetadata(ClonedData, CharacterId);
                                                         }
                                                         CharacterData->InventoryId = NewInvId;
                                                 }
@@ -3292,9 +3461,14 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                                                 }
                                         }
 
-                                        const FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId);
-                                        if (SavedInventory)
+                                        if (FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId))
                                         {
+                                                EnsureInventoryOwnerMetadata(*SavedInventory, CharacterId);
+                                                ensureMsgf(!SavedInventory->OwnerCharacterId.IsValid() || SavedInventory->OwnerCharacterId == CharacterId,
+                                                        TEXT("Inventory save owner mismatch. Character=%s SaveOwner=%s"),
+                                                        *CharacterId.ToString(),
+                                                        *SavedInventory->OwnerCharacterId.ToString());
+
                                                 TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
                                                 Inventory->ReadFromSaveData(*SavedInventory);
                                         }
@@ -3359,6 +3533,7 @@ void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
 
                         FInventorySaveData& InventoryData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
                         Inventory->WriteToSaveData(InventoryData);
+                        EnsureInventoryOwnerMetadata(InventoryData, CharacterId);
 
                         if (APawn* PawnOwner = Cast<APawn>(Inventory->GetOwner()))
                         {
