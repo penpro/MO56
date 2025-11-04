@@ -30,6 +30,7 @@
 #include "GameFramework/PawnMovementComponent.h"
 #include "TimerManager.h"
 #include "UObject/EnumProperty.h"
+#include "EnhancedPlayerInput.h"
 
 namespace
 {
@@ -70,10 +71,12 @@ namespace
                 {
                         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                         {
+                                FString Names;
+
+#if UE_VERSION_OLDER_THAN(5, 6, 0)
                                 TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> ActiveContexts;
                                 Subsystem->GetAllActiveMappingContexts(ActiveContexts);
 
-                                FString Names;
                                 for (const IEnhancedInputSubsystemInterface::FMappingContextAndPriority& ContextAndPriority : ActiveContexts)
                                 {
                                         if (const UInputMappingContext* Context = ContextAndPriority.MappingContext)
@@ -87,6 +90,28 @@ namespace
 
                                         Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Priority);
                                 }
+#else
+                                if (const UEnhancedPlayerInput* EnhancedPlayerInput = Cast<UEnhancedPlayerInput>(Controller->PlayerInput))
+                                {
+                                        const TMap<TObjectPtr<const UInputMappingContext>, int32>& ActiveContexts = EnhancedPlayerInput->GetAppliedInputContexts();
+
+                                        for (const TPair<TObjectPtr<const UInputMappingContext>, int32>& ContextAndPriority : ActiveContexts)
+                                        {
+                                                if (const UInputMappingContext* Context = ContextAndPriority.Key.Get())
+                                                {
+                                                        Names += Context->GetName();
+                                                }
+                                                else
+                                                {
+                                                        Names += TEXT("<null>");
+                                                }
+
+                                                Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Value);
+                                        }
+                                }
+#endif // UE_VERSION_OLDER_THAN(5, 6, 0)
+
+                                Names.TrimEndInline();
 
                                 if (Names.IsEmpty())
                                 {
