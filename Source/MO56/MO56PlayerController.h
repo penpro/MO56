@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Containers/Set.h"
 #include "MO56PlayerController.generated.h"
 
 class UInputMappingContext;
@@ -143,6 +144,8 @@ FGuid GetPlayerSaveId() const { return PlayerSaveId; }
 
         FString DescribeDebugInputMode() const;
 
+        const TSet<TObjectPtr<const UInputMappingContext>>& GetTrackedActiveContexts() const { return TrackedActiveContexts; }
+
 protected:
         UFUNCTION(Server, Reliable)
         void ServerExecuteNewGame(const FString& LevelName);
@@ -195,6 +198,9 @@ void ClientCloseContainerInventory(AInventoryContainer* ContainerActor);
         UFUNCTION(Server, Reliable)
         void ServerRequestPostPossessNetUpdate(APawn* TargetPawn);
 
+        UFUNCTION(Client, Reliable)
+        void ClientForceOpenPossessMenu();
+
 UFUNCTION(Server, Reliable)
 void ServerRequestContainerInventoryOwnership(AInventoryContainer* ContainerActor);
 
@@ -218,6 +224,7 @@ private:
         void ReapplyEnhancedInputContexts();
         void EnsureGameplayInputMode();
         void ApplyGameplayInputState();
+        void ApplyMenuInputState();
         FString BuildInputStateSnapshot() const;
         void MarkDebugInputMode(FName ModeTag);
         void LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn = nullptr) const;
@@ -238,4 +245,7 @@ private:
         TWeakObjectPtr<AMO56Character> LastContainerOwningCharacter;
 
         FName DebugInputModeTag = NAME_None;
+
+        UPROPERTY(Transient)
+        TSet<TObjectPtr<const UInputMappingContext>> TrackedActiveContexts;
 };
