@@ -79,6 +79,7 @@ virtual void BeginPlay() override;
 
 virtual void OnPossess(APawn* InPawn) override;
 virtual void OnUnPossess() override;
+virtual void ClientRestart_Implementation(APawn* NewPawn) override;
 
 /** Input mapping context setup */
 virtual void SetupInputComponent() override;
@@ -199,6 +200,7 @@ private:
         void SetPlayerSaveId(const FGuid& InId);
 
         void EnsureDefaultInputContexts();
+        void EnsureGameplayInputMode();
         void ApplyGameplayInputState();
         FString BuildInputStateSnapshot() const;
         void LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn = nullptr) const;
