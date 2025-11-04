@@ -137,6 +137,10 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory")
     const TArray<FItemStack>& GetSlots() const { return Slots; }
 
+    /** Returns true if all slots are empty. */
+    UFUNCTION(BlueprintPure, Category = "Inventory")
+    bool IsEmpty() const;
+
     /** Returns the slot contents at the provided index. */
     UFUNCTION(BlueprintPure, Category = "Inventory")
     void GetSlotAtIndex(int32 SlotIndex, FItemStack& OutSlot) const;
