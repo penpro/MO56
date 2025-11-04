@@ -150,10 +150,10 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
         Super::OnPossess(InPawn);
 
         const ENetRole LocalRole = InPawn ? InPawn->GetLocalRole() : ROLE_None;
-        const ENetRole RemoteRole = InPawn ? InPawn->GetRemoteRole() : ROLE_None;
+        const ENetRole ObservedRemoteRole = InPawn ? InPawn->GetRemoteRole() : ROLE_None;
         const FString RoleDetail = FString::Printf(TEXT("Roles(Local=%s Remote=%s ControllerIsLocal=%s)"),
                 *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), RemoteRole),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), ObservedRemoteRole),
                 IsLocalPlayerController() ? TEXT("true") : TEXT("false"));
 
         LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s %s"),
@@ -706,7 +706,7 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
         Super::ClientRestart_Implementation(NewPawn);
 
         const ENetRole LocalRole = NewPawn ? NewPawn->GetLocalRole() : ROLE_None;
-        const ENetRole RemoteRole = NewPawn ? NewPawn->GetRemoteRole() : ROLE_None;
+        const ENetRole ObservedRemoteRole = NewPawn ? NewPawn->GetRemoteRole() : ROLE_None;
         FString MovementNetModeString = TEXT("Unknown");
         if (UPawnMovementComponent* MovementComponent = NewPawn ? NewPawn->GetMovementComponent() : nullptr)
         {
@@ -716,7 +716,7 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
         LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
                 *DescribePawnForDebug(NewPawn),
                 *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), RemoteRole),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), ObservedRemoteRole),
                 *MovementNetModeString), NewPawn);
 
         ReapplyEnhancedInputContexts();
@@ -754,7 +754,7 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
 {
         const FString PawnDescription = DescribePawnForDebug(TargetPawn);
         const ENetRole LocalRole = TargetPawn ? TargetPawn->GetLocalRole() : ROLE_None;
-        const ENetRole RemoteRole = TargetPawn ? TargetPawn->GetRemoteRole() : ROLE_None;
+        const ENetRole ObservedRemoteRole = TargetPawn ? TargetPawn->GetRemoteRole() : ROLE_None;
         FString MovementNetModeString = TEXT("Unknown");
         if (UPawnMovementComponent* MovementComponent = TargetPawn ? TargetPawn->GetMovementComponent() : nullptr)
         {
@@ -764,7 +764,7 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
         LogDebugEvent(TEXT("ClientValidatePostPossess"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
                 *PawnDescription,
                 *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), RemoteRole),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), ObservedRemoteRole),
                 *MovementNetModeString), TargetPawn);
 
         if (TargetPawn && LocalRole != ROLE_AutonomousProxy)
