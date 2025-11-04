@@ -93,12 +93,11 @@ namespace
 #else
                                 if (const UEnhancedPlayerInput* EnhancedPlayerInput = Cast<UEnhancedPlayerInput>(Controller->PlayerInput))
                                 {
-                                        TArray<TObjectPtr<const UInputMappingContext>> ActiveContexts;
-                                        EnhancedPlayerInput->GetAppliedInputContexts(ActiveContexts);
+                                        const TMap<TObjectPtr<const UInputMappingContext>, int32>& ActiveContexts = EnhancedPlayerInput->GetAppliedInputContexts();
 
-                                        for (const TObjectPtr<const UInputMappingContext>& ContextPtr : ActiveContexts)
+                                        for (const TPair<TObjectPtr<const UInputMappingContext>, int32>& ContextAndPriority : ActiveContexts)
                                         {
-                                                if (const UInputMappingContext* Context = ContextPtr.Get())
+                                                if (const UInputMappingContext* Context = ContextAndPriority.Key.Get())
                                                 {
                                                         Names += Context->GetName();
                                                 }
@@ -107,7 +106,7 @@ namespace
                                                         Names += TEXT("<null>");
                                                 }
 
-                                                Names += TEXT(" ");
+                                                Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Value);
                                         }
                                 }
 #endif // UE_VERSION_OLDER_THAN(5, 6, 0)
