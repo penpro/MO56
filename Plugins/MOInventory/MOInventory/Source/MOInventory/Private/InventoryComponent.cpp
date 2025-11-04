@@ -204,6 +204,19 @@ int32 UInventoryComponent::CountItem(UItemData* Item) const
     return Total;
 }
 
+bool UInventoryComponent::IsEmpty() const
+{
+    for (const FItemStack& Slot : Slots)
+    {
+        if (!Slot.IsEmpty())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void UInventoryComponent::GetSlotAtIndex(int32 SlotIndex, FItemStack& OutSlot) const
 {
     if (Slots.IsValidIndex(SlotIndex))
