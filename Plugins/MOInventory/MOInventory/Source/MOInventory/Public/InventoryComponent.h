@@ -7,6 +7,13 @@
 #include "UObject/SoftObjectPath.h"
 #include "InventoryComponent.generated.h"
 
+enum class EInventoryUpdateSource : uint8
+{
+    PlayerAction,
+    SaveApply,
+    PossessionSwitch
+};
+
 class UItemData;
 class UInventoryComponent;
 struct FPropertyChangedEvent;
@@ -183,6 +190,8 @@ private:
     void OnRep_Slots();
 
     void BroadcastInventoryChanged();
+    void MarkInventoryUpdateSource(EInventoryUpdateSource Source);
+    const TCHAR* DescribeInventoryUpdateSource(EInventoryUpdateSource Source) const;
 
     UFUNCTION(Server, Reliable)
     void ServerSplitStackAtIndex(int32 SlotIndex);
@@ -210,4 +219,6 @@ private:
 #endif
 
     virtual void PostInitProperties() override;
+
+    EInventoryUpdateSource PendingUpdateSource = EInventoryUpdateSource::PlayerAction;
 };

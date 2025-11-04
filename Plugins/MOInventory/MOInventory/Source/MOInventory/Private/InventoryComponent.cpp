@@ -21,6 +21,8 @@
 #include "UObject/UnrealType.h"
 #endif
 
+DEFINE_LOG_CATEGORY_STATIC(LogMOInventoryComponent, Log, All);
+
 UInventoryComponent::UInventoryComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -40,6 +42,7 @@ void UInventoryComponent::PostInitProperties()
 
 void UInventoryComponent::OnRep_Slots()
 {
+    MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
     BroadcastInventoryChanged();
 }
 
@@ -112,6 +115,7 @@ int32 UInventoryComponent::AddItem(UItemData* Item, int32 Count)
     const int32 Added = Count - Remaining;
     if (Added > 0)
     {
+        MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
         BroadcastInventoryChanged();
     }
     return Added;
@@ -183,6 +187,7 @@ int32 UInventoryComponent::RemoveItem(UItemData* Item, int32 Count)
     }
     if (Removed > 0)
     {
+        MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
         BroadcastInventoryChanged();
     }
     return Removed;
@@ -237,6 +242,7 @@ bool UInventoryComponent::DebugSetSlot(int32 SlotIndex, UItemData* Item, int32 Q
         Slot.Item = nullptr;
     }
 
+    MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
     BroadcastInventoryChanged();
     return true;
 }
@@ -281,6 +287,7 @@ bool UInventoryComponent::SplitStackAtIndex(int32 SlotIndex)
         return false;
     }
 
+    MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
     BroadcastInventoryChanged();
     return true;
 }
@@ -312,6 +319,7 @@ bool UInventoryComponent::DestroyItemAtIndex(int32 SlotIndex)
     Slot.Item = nullptr;
     Slot.Quantity = 0;
 
+    MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
     BroadcastInventoryChanged();
     return true;
 }
@@ -477,11 +485,13 @@ bool UInventoryComponent::TransferItemToInventory(UInventoryComponent* TargetInv
 
     if (bChangedSource)
     {
+        MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
         BroadcastInventoryChanged();
     }
 
     if (bChangedTarget)
     {
+        TargetInventory->MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
         TargetInventory->BroadcastInventoryChanged();
     }
 
@@ -638,6 +648,11 @@ void UInventoryComponent::OverridePersistentId(const FGuid& InPersistentId)
 {
     if (InPersistentId.IsValid())
     {
+        const FGuid PreviousId = PersistentId;
+        UE_LOG(LogMOInventoryComponent, Log, TEXT("OverridePersistentId: Owner=%s %s -> %s"),
+            *GetNameSafe(GetOwner()),
+            PreviousId.IsValid() ? *PreviousId.ToString() : TEXT("None"),
+            *InPersistentId.ToString());
         PersistentId = InPersistentId;
     }
 }
@@ -672,6 +687,11 @@ void UInventoryComponent::ReadFromSaveData(const FInventorySaveData& InData)
 
     EnsureSlotCapacity();
 
+    UE_LOG(LogMOInventoryComponent, Log, TEXT("ReadFromSaveData: Owner=%s SaveOwner=%s SlotCount=%d"),
+        *GetNameSafe(GetOwner()),
+        InData.OwnerCharacterId.IsValid() ? *InData.OwnerCharacterId.ToString() : TEXT("None"),
+        InData.Slots.Num());
+
     const int32 SlotCount = Slots.Num();
     for (int32 Index = 0; Index < SlotCount; ++Index)
     {
@@ -687,6 +707,7 @@ void UInventoryComponent::ReadFromSaveData(const FInventorySaveData& InData)
         }
     }
 
+    MarkInventoryUpdateSource(EInventoryUpdateSource::SaveApply);
     BroadcastInventoryChanged();
 }
 
@@ -802,6 +823,7 @@ bool UInventoryComponent::DropSingleItemInternal(int32 SlotIndex)
         Slot.Item = nullptr;
     }
 
+    MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
     BroadcastInventoryChanged();
     return true;
 }
@@ -903,6 +925,7 @@ bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 
     const bool bResult = bInventoryChanged;
     if (bResult)
     {
+        MarkInventoryUpdateSource(EInventoryUpdateSource::PlayerAction);
         BroadcastInventoryChanged();
     }
 
@@ -911,6 +934,14 @@ bool UInventoryComponent::TransferItemBetweenSlots(int32 SourceSlotIndex, int32 
 
 void UInventoryComponent::BroadcastInventoryChanged()
 {
+    const TCHAR* SourceString = DescribeInventoryUpdateSource(PendingUpdateSource);
+    const FGuid PersistentIdCopy = PersistentId;
+    UE_LOG(LogMOInventoryComponent, Log, TEXT("InventoryUpdate: Owner=%s InventoryId=%s Source=%s Slots=%d"),
+        *GetNameSafe(GetOwner()),
+        PersistentIdCopy.IsValid() ? *PersistentIdCopy.ToString() : TEXT("None"),
+        SourceString,
+        Slots.Num());
+
     OnInventoryUpdated.Broadcast();
 
     if (AActor* OwnerActor = GetOwner())
@@ -919,6 +950,28 @@ void UInventoryComponent::BroadcastInventoryChanged()
         {
             OwnerActor->ForceNetUpdate();
         }
+    }
+
+    PendingUpdateSource = EInventoryUpdateSource::PlayerAction;
+}
+
+void UInventoryComponent::MarkInventoryUpdateSource(EInventoryUpdateSource Source)
+{
+    PendingUpdateSource = Source;
+}
+
+const TCHAR* UInventoryComponent::DescribeInventoryUpdateSource(EInventoryUpdateSource Source) const
+{
+    switch (Source)
+    {
+    case EInventoryUpdateSource::PlayerAction:
+        return TEXT("PlayerAction");
+    case EInventoryUpdateSource::SaveApply:
+        return TEXT("SaveApply");
+    case EInventoryUpdateSource::PossessionSwitch:
+        return TEXT("PossessionSwitch");
+    default:
+        return TEXT("Unknown");
     }
 }
 
