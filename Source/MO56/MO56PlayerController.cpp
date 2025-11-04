@@ -30,7 +30,6 @@
 #include "GameFramework/PawnMovementComponent.h"
 #include "TimerManager.h"
 #include "UObject/EnumProperty.h"
-#include "EnhancedPlayerInput.h"
 
 namespace
 {
@@ -67,45 +66,24 @@ namespace
                         return;
                 }
 
-                if (ULocalPlayer* LP = Controller->GetLocalPlayer())
+                const TSet<TObjectPtr<const UInputMappingContext>>& Active = Controller->GetTrackedActiveContexts();
+
+                FString Names;
+                for (const TObjectPtr<const UInputMappingContext>& CtxPtr : Active)
                 {
-                        if (auto* Subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
+                        if (!Names.IsEmpty())
                         {
-                                TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> Active;
-                                Subsys->GetAllActiveMappingContexts(Active);
-
-                                FString Names;
-                                for (const auto& Item : Active)
-                                {
-                                        if (!Names.IsEmpty())
-                                        {
-                                                Names += TEXT(" ");
-                                        }
-                                        const UInputMappingContext* Ctx = Item.MappingContext;
-                                        Names += Ctx ? FString::Printf(TEXT("%s(P=%d)"), *Ctx->GetName(), Item.Priority)
-                                                     : TEXT("<null>(P=?)");
-                                }
-
-                                if (Names.IsEmpty())
-                                {
-                                        const TSet<TObjectPtr<const UInputMappingContext>>& FallbackSet = Controller->GetTrackedActiveContexts();
-                                        for (const TObjectPtr<const UInputMappingContext>& ContextPtr : FallbackSet)
-                                        {
-                                                if (!Names.IsEmpty())
-                                                {
-                                                        Names += TEXT(" ");
-                                                }
-                                                Names += ContextPtr ? ContextPtr->GetName() : TEXT("<null>");
-                                        }
-                                }
-
-                                if (Names.IsEmpty())
-                                {
-                                        Names = TEXT("<none>");
-                                }
-                                UE_LOG(LogTemp, Log, TEXT("[Input] Contexts: %s"), *Names);
+                                Names += TEXT(" ");
                         }
+                        Names += CtxPtr ? CtxPtr->GetName() : TEXT("<null>");
                 }
+
+                if (Names.IsEmpty())
+                {
+                        Names = TEXT("<none>");
+                }
+
+                UE_LOG(LogTemp, Log, TEXT("[Input] Contexts(tracked): %s"), *Names);
         }
 }
 
