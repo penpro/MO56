@@ -2070,6 +2070,8 @@ void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr
                 return;
         }
 
+        TGuardValue<bool> RestoreGuard(bIsRestoringWorld, true);
+
         if (!World->HasBegunPlay() || !World->GetAuthGameMode())
         {
                 UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("BeginPlay: World %s not ready (HasBegunPlay=%s GM=%s), retrying next tick."),
@@ -2154,11 +2156,8 @@ void UMO56SaveSubsystem::HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr
         if (IsAuthoritative())
         {
                 SpawnPersistentPawnsFromSave();
-
-                for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-                {
-                        AssignAndPossessPersistentPawn(It->Get());
-                }
+                RunServerPossessionPass(*World);
+                SchedulePostPossessionValidation(*World);
         }
 }
 
@@ -2173,6 +2172,188 @@ void UMO56SaveSubsystem::HandleWorldCleanup(UWorld* World, bool bSessionEnded, b
         {
                 World->RemoveOnActorSpawnedHandler(*Handle);
                 WorldSpawnHandles.Remove(World);
+        }
+
+        World->GetTimerManager().ClearTimer(PostLoadValidationTimerHandle);
+}
+
+void UMO56SaveSubsystem::RunServerPossessionPass(UWorld& World)
+{
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
+        if (!CurrentSaveGame)
+        {
+                LoadOrCreateSaveGame();
+        }
+
+        if (!CurrentSaveGame)
+        {
+                return;
+        }
+
+        TMap<FGuid, AMO56PlayerController*> ControllerById;
+
+        for (FConstPlayerControllerIterator It = World.GetPlayerControllerIterator(); It; ++It)
+        {
+                if (AMO56PlayerController* Controller = Cast<AMO56PlayerController>(It->Get()))
+                {
+                        const FGuid PlayerId = Controller->GetPlayerSaveId();
+                        if (PlayerId.IsValid())
+                        {
+                                ControllerById.FindOrAdd(PlayerId) = Controller;
+                                PlayerControllers.FindOrAdd(PlayerId) = Controller;
+                        }
+                }
+        }
+
+        for (const auto& Pair : CurrentSaveGame->Assignments)
+        {
+                const FGuid PlayerId = Pair.Key;
+                const FPlayerAssignment& Assignment = Pair.Value;
+
+                AMO56PlayerController* Controller = nullptr;
+                if (PlayerId.IsValid())
+                {
+                        if (AMO56PlayerController** Direct = ControllerById.Find(PlayerId))
+                        {
+                                Controller = *Direct;
+                        }
+                        else if (const TWeakObjectPtr<AMO56PlayerController>* Stored = PlayerControllers.Find(PlayerId))
+                        {
+                                Controller = Stored->Get();
+                                if (Controller)
+                                {
+                                        ControllerById.Add(PlayerId, Controller);
+                                }
+                        }
+                }
+
+                FString PlayerName = TEXT("None");
+                if (Controller && Controller->PlayerState)
+                {
+                        PlayerName = Controller->PlayerState->GetPlayerName();
+                }
+
+                const FString ControllerId = PlayerId.IsValid() ? PlayerId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                const FString PawnIdStr = Assignment.PawnId.IsValid() ? Assignment.PawnId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("[Assign] %s -> %s Pawn=%s"), *ControllerId, *PlayerName, *PawnIdStr);
+
+                if (!Controller)
+                {
+                        continue;
+                }
+
+                APawn* Pawn = Assignment.PawnId.IsValid() ? FindPersistentPawnById(Assignment.PawnId) : nullptr;
+                if (!Pawn)
+                {
+                        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("[Assign] Pawn missing for PlayerId=%s Pawn=%s"), *ControllerId, *PawnIdStr);
+                        Controller->UnPossess();
+                        continue;
+                }
+
+                if (Controller->GetPawn() != Pawn)
+                {
+                        if (Controller->GetPawn())
+                        {
+                                Controller->UnPossess();
+                        }
+                        Controller->Possess(Pawn);
+                }
+
+                Controller->ClientRestart(Pawn);
+                Controller->ClientReapplyEnhancedInputContexts();
+                Controller->ClientEnsureGameInput();
+                Controller->ClientPostRestartValidate();
+                Controller->ClientValidatePostPossess(Pawn);
+
+                if (PlayerId.IsValid())
+                {
+                        PlayersWithEstablishedCharacters.Add(PlayerId);
+                }
+        }
+
+        for (FConstPlayerControllerIterator It = World.GetPlayerControllerIterator(); It; ++It)
+        {
+                AMO56PlayerController* Controller = Cast<AMO56PlayerController>(It->Get());
+                if (!Controller)
+                {
+                        continue;
+                }
+
+                const FGuid PlayerId = Controller->GetPlayerSaveId();
+                const bool bHasAssignment = PlayerId.IsValid() && CurrentSaveGame->Assignments.Contains(PlayerId);
+                if (!bHasAssignment)
+                {
+                        AssignAndPossessPersistentPawn(Controller);
+                }
+
+                if (!Controller->GetPawn())
+                {
+                        if (Controller->IsLocalController())
+                        {
+                                Controller->OpenPossessMenu();
+                        }
+                        else
+                        {
+                                Controller->ClientForceOpenPossessMenu();
+                        }
+                }
+        }
+}
+
+void UMO56SaveSubsystem::SchedulePostPossessionValidation(UWorld& World)
+{
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
+        World.GetTimerManager().ClearTimer(PostLoadValidationTimerHandle);
+        TWeakObjectPtr<UWorld> WorldPtr(&World);
+        FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandlePostLoadValidation, WorldPtr);
+        World.GetTimerManager().SetTimer(PostLoadValidationTimerHandle, Delegate, 0.5f, false);
+}
+
+void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPtr)
+{
+        if (!IsAuthoritative() || !WorldPtr.IsValid())
+        {
+                return;
+        }
+
+        UWorld* World = WorldPtr.Get();
+        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+                AMO56PlayerController* Controller = Cast<AMO56PlayerController>(It->Get());
+                if (!Controller)
+                {
+                        continue;
+                }
+
+                APawn* Pawn = Controller->GetPawn();
+                if (!Pawn)
+                {
+                        continue;
+                }
+
+                if (Pawn->GetLocalRole() != ROLE_AutonomousProxy)
+                {
+                        const FString PlayerIdString = Controller->GetPlayerSaveId().IsValid()
+                                ? Controller->GetPlayerSaveId().ToString(EGuidFormats::DigitsWithHyphens)
+                                : TEXT("None");
+                        const FString PawnIdString = MO56ResolvePawnId(Pawn).IsValid()
+                                ? MO56ResolvePawnId(Pawn).ToString(EGuidFormats::DigitsWithHyphens)
+                                : TEXT("None");
+                        UE_LOG(LogMO56SaveSubsystem, Error,
+                                TEXT("[Assign] Post-load role mismatch PlayerId=%s Pawn=%s LocalRole=%s RemoteRole=%s"),
+                                *PlayerIdString,
+                                *PawnIdString,
+                                *UEnum::GetValueAsString(TEXT("ENetRole"), Pawn->GetLocalRole()),
+                                *UEnum::GetValueAsString(TEXT("ENetRole"), Pawn->GetRemoteRole()));
+                }
         }
 }
 

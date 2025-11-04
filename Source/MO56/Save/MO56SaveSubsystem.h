@@ -214,6 +214,7 @@ private:
         bool bPendingApplyOnNextLevel = false;
         bool bPendingCreateNewSaveAfterTravel = false;
         bool bAppliedPendingSaveThisLevel = false;
+        bool bIsRestoringWorld = false;
 
         UPROPERTY()
         TMap<FGuid, TWeakObjectPtr<UInventoryComponent>> RegisteredInventories;
@@ -254,6 +255,7 @@ private:
         bool bIsApplyingSave = false;
         bool bAutosavePending = false;
         FTimerHandle AutosaveTimerHandle;
+        FTimerHandle PostLoadValidationTimerHandle;
         float AutosaveDelaySeconds = 0.2f;
 
         /** Map names that allow gameplay autosaves. */
@@ -270,6 +272,8 @@ private:
         void HandleActorSpawned(AActor* Actor);
         void HandlePostLoadMapWithWorld(UWorld* World);
         void HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr);
+        void RunServerPossessionPass(UWorld& World);
+        void HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPtr);
 
         void SpawnPersistentPawnsFromSave();
         APawn* FindPersistentPawnById(const FGuid& PawnId) const;
@@ -313,11 +317,14 @@ private:
         void ApplyCharacterStateFromSave(const FGuid& CharacterId);
         void RefreshCharacterSaveData(const FGuid& CharacterId);
         void HandleAutosaveTimerElapsed();
+        void SchedulePostPossessionValidation(UWorld& World);
 
         FString MakeSlotName(const FGuid& SaveId) const;
         FString GetSaveDir() const;
         bool IsSaveFileName(const FString& Name) const;
         bool WriteSave(const UMO56SaveGame* Data);
+
+        bool IsRestoringWorld() const { return bIsRestoringWorld; }
         UMO56SaveGame* ReadSave(const FGuid& SaveId, bool bUpdateMetadata = true);
         void UpdateOrRebuildSaveIndex(bool bForceRebuild = false);
         void CacheSaveMetadata(UMO56SaveGame& SaveGame);

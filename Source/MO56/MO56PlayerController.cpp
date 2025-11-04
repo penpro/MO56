@@ -67,63 +67,42 @@ namespace
                         return;
                 }
 
-                if (ULocalPlayer* LocalPlayer = Controller->GetLocalPlayer())
+                if (ULocalPlayer* LP = Controller->GetLocalPlayer())
                 {
-                        if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+                        if (auto* Subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
                         {
+                                TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> Active;
+                                Subsys->GetAllActiveMappingContexts(Active);
+
                                 FString Names;
-
-#if UE_VERSION_OLDER_THAN(5, 6, 0)
-                                TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> ActiveContexts;
-                                Subsystem->GetAllActiveMappingContexts(ActiveContexts);
-
-                                for (const IEnhancedInputSubsystemInterface::FMappingContextAndPriority& ContextAndPriority : ActiveContexts)
+                                for (const auto& Item : Active)
                                 {
-                                        if (const UInputMappingContext* Context = ContextAndPriority.MappingContext)
+                                        if (!Names.IsEmpty())
                                         {
-                                                Names += Context->GetName();
+                                                Names += TEXT(" ");
                                         }
-                                        else
-                                        {
-                                                Names += TEXT("<null>");
-                                        }
-
-                                        Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Priority);
+                                        const UInputMappingContext* Ctx = Item.MappingContext;
+                                        Names += Ctx ? FString::Printf(TEXT("%s(P=%d)"), *Ctx->GetName(), Item.Priority)
+                                                     : TEXT("<null>(P=?)");
                                 }
-#else
-                                if (const UEnhancedPlayerInput* EnhancedPlayerInput = Cast<UEnhancedPlayerInput>(Controller->PlayerInput))
+
+                                if (Names.IsEmpty())
                                 {
-                                        const auto& ActiveContexts = EnhancedPlayerInput->GetAppliedInputContextData();
-
-                                        // The UE 5.6+ API exposes richer per-context metadata, but only the mapping pointer
-                                        // is required for our debug logging. Priorities are no longer surfaced publicly.
-
-                                        for (const auto& ContextAndData : ActiveContexts)
+                                        const TSet<TObjectPtr<const UInputMappingContext>>& FallbackSet = Controller->GetTrackedActiveContexts();
+                                        for (const TObjectPtr<const UInputMappingContext>& ContextPtr : FallbackSet)
                                         {
                                                 if (!Names.IsEmpty())
                                                 {
                                                         Names += TEXT(" ");
                                                 }
-
-                                                if (const UInputMappingContext* Context = ContextAndData.Key.Get())
-                                                {
-                                                        Names += Context->GetName();
-                                                }
-                                                else
-                                                {
-                                                        Names += TEXT("<null>");
-                                                }
+                                                Names += ContextPtr ? ContextPtr->GetName() : TEXT("<null>");
                                         }
                                 }
-#endif // UE_VERSION_OLDER_THAN(5, 6, 0)
-
-                                Names.TrimEndInline();
 
                                 if (Names.IsEmpty())
                                 {
                                         Names = TEXT("<none>");
                                 }
-
                                 UE_LOG(LogTemp, Log, TEXT("[Input] Contexts: %s"), *Names);
                         }
                 }
@@ -245,6 +224,10 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
                                 }
                         }
                 }
+
+                ReapplyEnhancedInputContexts();
+                ApplyGameplayInputState();
+                LogActiveContexts(this);
         }
 
         SetIgnoreLookInput(false);
@@ -503,6 +486,8 @@ void AMO56PlayerController::OpenPossessMenu()
                         }
                 }
         }
+
+        ApplyMenuInputState();
 }
 
 void AMO56PlayerController::ClosePossessMenu()
@@ -839,6 +824,11 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
                 LogDebugEvent(TEXT("ClientValidatePostPossessRequestFix"), FString::Printf(TEXT("Pawn=%s"), *PawnDescription), TargetPawn);
                 ServerRequestPostPossessNetUpdate(TargetPawn);
         }
+}
+
+void AMO56PlayerController::ClientForceOpenPossessMenu_Implementation()
+{
+        OpenPossessMenu();
 }
 
 void AMO56PlayerController::ClientPostRestartValidate_Implementation()
@@ -1183,40 +1173,35 @@ void AMO56PlayerController::EnsureDefaultInputContexts()
         {
                 if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                 {
-                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
+                        auto RegisterContext = [this, Subsystem](UInputMappingContext* CurrentContext)
                         {
                                 if (!CurrentContext)
                                 {
-                                        continue;
+                                        return;
                                 }
 
 #if UE_VERSION_OLDER_THAN(5, 3, 0)
                                 Subsystem->AddMappingContext(CurrentContext, 0);
+                                TrackedActiveContexts.Add(CurrentContext);
 #else
                                 if (!Subsystem->HasMappingContext(CurrentContext))
                                 {
                                         Subsystem->AddMappingContext(CurrentContext, 0);
                                 }
+                                TrackedActiveContexts.Add(CurrentContext);
 #endif
+                        };
+
+                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
+                        {
+                                RegisterContext(CurrentContext);
                         }
 
                         if (!SVirtualJoystick::ShouldDisplayTouchInterface())
                         {
                                 for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
                                 {
-                                        if (!CurrentContext)
-                                        {
-                                                continue;
-                                        }
-
-#if UE_VERSION_OLDER_THAN(5, 3, 0)
-                                        Subsystem->AddMappingContext(CurrentContext, 0);
-#else
-                                        if (!Subsystem->HasMappingContext(CurrentContext))
-                                        {
-                                                Subsystem->AddMappingContext(CurrentContext, 0);
-                                        }
-#endif
+                                        RegisterContext(CurrentContext);
                                 }
                         }
                 }
@@ -1235,8 +1220,9 @@ void AMO56PlayerController::ReapplyEnhancedInputContexts()
                 if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                 {
                         Subsystem->ClearAllMappings();
+                        TrackedActiveContexts.Empty();
 
-                        auto AddContext = [Subsystem](UInputMappingContext* CurrentContext)
+                        auto AddContext = [this, Subsystem](UInputMappingContext* CurrentContext)
                         {
                                 if (!CurrentContext)
                                 {
@@ -1244,6 +1230,7 @@ void AMO56PlayerController::ReapplyEnhancedInputContexts()
                                 }
 
                                 Subsystem->AddMappingContext(CurrentContext, 0);
+                                TrackedActiveContexts.Add(CurrentContext);
                         };
 
                         for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
@@ -1281,6 +1268,33 @@ void AMO56PlayerController::ApplyGameplayInputState()
         SetIgnoreMoveInput(false);
 
         MarkDebugInputMode(TEXT("GameOnly"));
+        UE_LOG(LogTemp, Log, TEXT("[InputMode] Gameplay Cursor=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s"),
+                bShowMouseCursor ? TEXT("true") : TEXT("false"),
+                bEnableClickEvents ? TEXT("true") : TEXT("false"),
+                bEnableMouseOverEvents ? TEXT("true") : TEXT("false"),
+                IsLookInputIgnored() ? TEXT("true") : TEXT("false"),
+                IsMoveInputIgnored() ? TEXT("true") : TEXT("false"));
+}
+
+void AMO56PlayerController::ApplyMenuInputState()
+{
+        FInputModeGameAndUI InputMode;
+        InputMode.SetHideCursorDuringCapture(false);
+        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        SetInputMode(InputMode);
+        bShowMouseCursor = true;
+        SetShowMouseCursor(true);
+        bEnableClickEvents = true;
+        bEnableMouseOverEvents = true;
+        SetIgnoreLookInput(true);
+        SetIgnoreMoveInput(true);
+        MarkDebugInputMode(TEXT("Menu"));
+        UE_LOG(LogTemp, Log, TEXT("[InputMode] Menu Cursor=%s Click=%s Over=%s IgnoreLook=%s IgnoreMove=%s"),
+                bShowMouseCursor ? TEXT("true") : TEXT("false"),
+                bEnableClickEvents ? TEXT("true") : TEXT("false"),
+                bEnableMouseOverEvents ? TEXT("true") : TEXT("false"),
+                IsLookInputIgnored() ? TEXT("true") : TEXT("false"),
+                IsMoveInputIgnored() ? TEXT("true") : TEXT("false"));
 }
 
 FString AMO56PlayerController::BuildInputStateSnapshot() const
