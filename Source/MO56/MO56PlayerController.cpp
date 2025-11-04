@@ -70,12 +70,13 @@ namespace
                 {
                         if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                         {
-                                const IEnhancedInputSubsystemInterface::FSubsystemInfo& Info = Subsystem->GetSubsystemInfo();
+                                TArray<IEnhancedInputSubsystemInterface::FMappingContextAndPriority> ActiveContexts;
+                                Subsystem->GetAllActiveMappingContexts(ActiveContexts);
 
                                 FString Names;
-                                for (const FEnhancedInputContextHandle& Handle : Info.AppliedInputContexts)
+                                for (const IEnhancedInputSubsystemInterface::FMappingContextAndPriority& ContextAndPriority : ActiveContexts)
                                 {
-                                        if (const UInputMappingContext* Context = Handle.Get())
+                                        if (const UInputMappingContext* Context = ContextAndPriority.MappingContext)
                                         {
                                                 Names += Context->GetName();
                                         }
@@ -84,7 +85,12 @@ namespace
                                                 Names += TEXT("<null>");
                                         }
 
-                                        Names += TEXT(" ");
+                                        Names += FString::Printf(TEXT("(Priority=%d) "), ContextAndPriority.Priority);
+                                }
+
+                                if (Names.IsEmpty())
+                                {
+                                        Names = TEXT("<none>");
                                 }
 
                                 UE_LOG(LogTemp, Log, TEXT("[Input] Contexts: %s"), *Names);
