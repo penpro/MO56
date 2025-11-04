@@ -12,6 +12,7 @@ class UUserWidget;
 class UMO56SaveSubsystem;
 class AInventoryContainer;
 class UMO56PossessMenuWidget;
+class UMO56PossessionMenuManagerSubsystem;
 
 USTRUCT(BlueprintType)
 struct FMOPossessablePawnInfo
@@ -118,6 +119,9 @@ public:
         void OpenPossessMenu();
         void ClosePossessMenu();
 
+        TSubclassOf<UMO56PossessMenuWidget> GetPossessMenuClass() const { return PossessMenuClass; }
+        const TArray<FMOPossessablePawnInfo>& GetCachedPossessablePawns() const { return CachedPossessablePawns; }
+
 UFUNCTION(BlueprintCallable, Category = "Control")
 void RequestOpenPawnInventory(APawn* TargetPawn);
 
@@ -195,10 +199,9 @@ private:
         TSubclassOf<UMO56PossessMenuWidget> PossessMenuClass;
 
         UPROPERTY()
-        TObjectPtr<UMO56PossessMenuWidget> PossessMenu = nullptr;
-
-        UPROPERTY()
         TArray<FMOPossessablePawnInfo> CachedPossessablePawns;
+
+        void OnIA_Possession();
 
         UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Save", meta = (AllowPrivateAccess = "true"))
         FGuid PlayerSaveId;

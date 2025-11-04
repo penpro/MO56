@@ -16,9 +16,12 @@
 #include "InventoryComponent.h"
 #include "InventoryContainer.h"
 #include "MO56Character.h"
+#include "MO56PossessionMenuManagerSubsystem.h"
 #include "Save/MO56SaveSubsystem.h"
 #include "Net/UnrealNetwork.h"
 #include "UI/MO56PossessMenuWidget.h"
+#include "EnhancedInputComponent.h"
+#include "InputAction.h"
 
 void AMO56PlayerController::BeginPlay()
 {
@@ -59,10 +62,44 @@ void AMO56PlayerController::BeginPlay()
                 }
         }
 
-        if (IsLocalPlayerController() && (GetPawn() == nullptr || PlayerState == nullptr))
+        if (IsLocalPlayerController())
         {
-                OpenPossessMenu();
-                ServerQueryPossessablePawns();
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                        {
+                                MenuSubsystem->EnsureBindingsForAllLocalPlayers();
+                                if (GetPawn() == nullptr || PlayerState == nullptr)
+                                {
+                                        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                                        {
+                                                MenuSubsystem->EnsureMenuOpenForLocalPlayer(LocalPlayer);
+                                        }
+                                }
+                        }
+                }
+
+                if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(InputComponent))
+                {
+                        static const TCHAR* PossessionActionPath = TEXT("/Game/Input/Actions/IA_Possession.IA_Possession");
+                        static const TCHAR* PossessionActionFallbackPath = TEXT("/Game/Input/IA_Possession.IA_Possession");
+
+                        UInputAction* PossessionAction = LoadObject<UInputAction>(nullptr, PossessionActionPath);
+                        if (!PossessionAction)
+                        {
+                                PossessionAction = LoadObject<UInputAction>(nullptr, PossessionActionFallbackPath);
+                        }
+
+                        if (PossessionAction)
+                        {
+                                EnhancedInput->BindAction(PossessionAction, ETriggerEvent::Started, this, &AMO56PlayerController::OnIA_Possession);
+                        }
+                }
+
+                if (GetPawn() == nullptr || PlayerState == nullptr)
+                {
+                        ServerQueryPossessablePawns();
+                }
         }
 }
 
@@ -70,7 +107,19 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
 {
         Super::OnPossess(InPawn);
 
-        ClosePossessMenu();
+        if (IsLocalPlayerController())
+        {
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                        {
+                                if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                                {
+                                        MenuSubsystem->EnsureMenuClosedForLocalPlayer(LocalPlayer);
+                                }
+                        }
+                }
+        }
 }
 
 void AMO56PlayerController::OnUnPossess()
@@ -79,7 +128,16 @@ void AMO56PlayerController::OnUnPossess()
 
         if (IsLocalPlayerController())
         {
-                OpenPossessMenu();
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                        {
+                                if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                                {
+                                        MenuSubsystem->EnsureMenuOpenForLocalPlayer(LocalPlayer);
+                                }
+                        }
+                }
                 ServerQueryPossessablePawns();
         }
 }
@@ -236,9 +294,18 @@ void AMO56PlayerController::ClientReceivePossessablePawns_Implementation(const T
 {
         CachedPossessablePawns = List;
 
-        if (PossessMenu)
+        if (IsLocalPlayerController())
         {
-                PossessMenu->SetList(CachedPossessablePawns);
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                        if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                        {
+                                if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                                {
+                                        MenuSubsystem->RefreshMenuForLocalPlayer(LocalPlayer, CachedPossessablePawns);
+                                }
+                        }
+                }
         }
 }
 
@@ -272,46 +339,16 @@ void AMO56PlayerController::OpenPossessMenu()
                 return;
         }
 
-        if (PossessMenu)
+        if (UGameInstance* GameInstance = GetGameInstance())
         {
-                UE_LOG(LogMO56, Verbose, TEXT("OpenPossessMenu skipped; widget already active for %s"), *GetNameSafe(this));
-                return;
+                if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                {
+                        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                        {
+                                MenuSubsystem->EnsureMenuOpenForLocalPlayer(LocalPlayer);
+                        }
+                }
         }
-
-        if (!PossessMenuClass)
-        {
-                UE_LOG(LogMO56, Warning, TEXT("OpenPossessMenu aborted; PossessMenuClass not set on %s"), *GetNameSafe(this));
-                return;
-        }
-
-        PossessMenu = CreateWidget<UMO56PossessMenuWidget>(this, PossessMenuClass);
-        if (!PossessMenu)
-        {
-                UE_LOG(LogMO56, Warning, TEXT("OpenPossessMenu failed; widget creation returned null for %s"), *GetNameSafe(this));
-                return;
-        }
-
-        PossessMenu->AddToViewport(10000);
-
-        if (CachedPossessablePawns.Num() > 0)
-        {
-                PossessMenu->SetList(CachedPossessablePawns);
-        }
-
-        FInputModeGameAndUI Mode;
-        Mode.SetWidgetToFocus(PossessMenu->TakeWidget());
-        Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-        Mode.SetHideCursorDuringCapture(false);
-        SetInputMode(Mode);
-
-        bShowMouseCursor = true;
-        bEnableClickEvents = true;
-        bEnableMouseOverEvents = true;
-
-        SetIgnoreLookInput(true);
-        SetIgnoreMoveInput(true);
-
-        UE_LOG(LogMO56, Display, TEXT("OpenPossessMenu: Controller=%s CachedEntries=%d"), *GetNameSafe(this), CachedPossessablePawns.Num());
 }
 
 void AMO56PlayerController::ClosePossessMenu()
@@ -321,25 +358,30 @@ void AMO56PlayerController::ClosePossessMenu()
                 return;
         }
 
-        if (!PossessMenu)
+        if (UGameInstance* GameInstance = GetGameInstance())
         {
-                return;
+                if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                {
+                        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                        {
+                                MenuSubsystem->EnsureMenuClosedForLocalPlayer(LocalPlayer);
+                        }
+                }
         }
+}
 
-        PossessMenu->RemoveFromParent();
-        PossessMenu = nullptr;
-
-        SetIgnoreLookInput(false);
-        SetIgnoreMoveInput(false);
-
-        bShowMouseCursor = false;
-        bEnableClickEvents = false;
-        bEnableMouseOverEvents = false;
-
-        FInputModeGameOnly Mode;
-        SetInputMode(Mode);
-
-        UE_LOG(LogMO56, Display, TEXT("ClosePossessMenu: Controller=%s"), *GetNameSafe(this));
+void AMO56PlayerController::OnIA_Possession()
+{
+        if (UGameInstance* GameInstance = GetGameInstance())
+        {
+                if (UMO56PossessionMenuManagerSubsystem* MenuSubsystem = GameInstance->GetSubsystem<UMO56PossessionMenuManagerSubsystem>())
+                {
+                        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+                        {
+                                MenuSubsystem->ToggleMenuForLocalPlayer(LocalPlayer);
+                        }
+                }
+        }
 }
 
 void AMO56PlayerController::RequestOpenPawnInventory(APawn* TargetPawn)
