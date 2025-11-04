@@ -119,6 +119,9 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
         Super::Initialize(Collection);
 
+        static const TCHAR* BuildStamp = TEXT(__FILE__ " " __DATE__ " " __TIME__);
+        UE_LOG(LogTemp, Log, TEXT("[SaveSubsystem] BuildStamp=%s"), BuildStamp);
+
         if (NonGameplayMapPrefixes.Num() == 0)
         {
                 NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_") };
@@ -1460,24 +1463,24 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         LogSaveEvent(this, TEXT("TryAssignAndPossess"), FString::Printf(TEXT("PlayerId=%s Pawn=%s"), *PlayerSaveId.ToString(EGuidFormats::DigitsWithHyphens), *GetNameSafe(TargetPawn)), MOController, TargetPawn);
 
         PC->Possess(TargetPawn);
+        check(TargetPawn->GetController() == PC);
 
         AMO56PlayerController* ControllerForLog = MOController ? MOController : Cast<AMO56PlayerController>(PC);
         LogSaveEvent(this, TEXT("ServerPossessionComplete"),
                 FString::Printf(TEXT("ControllerClass=%s IsLocal=%s"), *GetNameSafe(PC->GetClass()), PC->IsLocalController() ? TEXT("true") : TEXT("false")),
                 ControllerForLog, TargetPawn);
 
-        if (AMO56PlayerController* EnforcedController = ControllerForLog)
-        {
-                EnforcedController->EnsureGameplayInputMode();
-        }
-
-        PC->ClientRestart(TargetPawn);
-
         if (AMO56PlayerController* ClientController = ControllerForLog)
         {
+                ClientController->ClientRestart(TargetPawn);
                 ClientController->ClientReapplyEnhancedInputContexts();
                 ClientController->ClientEnsureGameInput();
+                ClientController->ClientPostRestartValidate();
                 ClientController->ClientValidatePostPossess(TargetPawn);
+        }
+        else
+        {
+                PC->ClientRestart(TargetPawn);
         }
 
         if (UInventoryComponent* Inventory = TargetPawn->FindComponentByClass<UInventoryComponent>())
@@ -3001,10 +3004,11 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
         {
                 if (Existing->Get() && Existing->Get() != InventoryComponent)
                 {
+                        const FGuid OldInventoryId = InventoryId;
                         const FGuid NewId = FGuid::NewGuid();
                         if (CurrentSaveGame)
                         {
-                                if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(InventoryId))
+                                if (const FInventorySaveData* ExistingData = CurrentSaveGame->InventoryStates.Find(OldInventoryId))
                                 {
                                         FInventorySaveData& ClonedData = CurrentSaveGame->InventoryStates.FindOrAdd(NewId);
                                         ClonedData = *ExistingData;
@@ -3014,6 +3018,7 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
 
                         InventoryComponent->OverridePersistentId(NewId);
                         InventoryId = InventoryComponent->GetPersistentId();
+                        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("[Save] InventoryId collision. Reassigned to %s"), *InventoryId.ToString());
                         bInventoryRemapped = true;
                 }
         }
@@ -3067,8 +3072,12 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                                 }
                         }
 
-                        CharacterData.InventoryId = InventoryComponent->GetPersistentId();
-                        InventoryId = CharacterData.InventoryId;
+                        if (!CharacterData.InventoryId.IsValid())
+                        {
+                                CharacterData.InventoryId = InventoryComponent->GetPersistentId();
+                        }
+
+                        InventoryId = CharacterData.InventoryId.IsValid() ? CharacterData.InventoryId : InventoryComponent->GetPersistentId();
 
                         UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("Inv map [register]: Character %s -> InvId %s"),
                                 *OwnerId.ToString(), *CharacterData.InventoryId.ToString());
@@ -3533,6 +3542,8 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
                 return;
         }
 
+        TGuardValue<bool> Guard(bIsApplyingSave, true);
+
         if (FCharacterSaveData* CharacterData = CurrentSaveGame->CharacterStates.Find(CharacterId))
         {
                 if (CharacterData->InventoryId.IsValid())
@@ -3707,6 +3718,12 @@ void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
                 return;
         }
 
+        if (bIsApplyingSave)
+        {
+                UE_LOG(LogMO56SaveSubsystem, Verbose, TEXT("[Save] Skip refresh during apply Character=%s"), *CharacterId.ToString());
+                return;
+        }
+
         FCharacterSaveData& CharacterData = CurrentSaveGame->CharacterStates.FindOrAdd(CharacterId);
         CharacterData.CharacterId = CharacterId;
 
@@ -3714,10 +3731,34 @@ void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
         {
                 if (UInventoryComponent* Inventory = InventoryPtr->Get())
                 {
-                        const FGuid InventoryId = Inventory->GetPersistentId();
-                        CharacterData.InventoryId = InventoryId;
+                        Inventory->EnsurePersistentId();
+                        FGuid TargetInventoryId = Inventory->GetPersistentId();
 
-                        FInventorySaveData& InventoryData = CurrentSaveGame->InventoryStates.FindOrAdd(InventoryId);
+                        if (!TargetInventoryId.IsValid())
+                        {
+                                TargetInventoryId = FGuid::NewGuid();
+                                Inventory->OverridePersistentId(TargetInventoryId);
+                        }
+
+                        FGuid& RecordedInventoryId = CharacterData.InventoryId;
+                        if (!RecordedInventoryId.IsValid())
+                        {
+                                RecordedInventoryId = TargetInventoryId;
+                        }
+
+                        InventoryOwnerIds.FindOrAdd(Inventory) = CharacterId;
+
+                        FInventorySaveData* Existing = CurrentSaveGame->InventoryStates.Find(TargetInventoryId);
+                        const bool bHasExisting = (Existing != nullptr);
+                        const bool bInventoryEmpty = Inventory->IsEmpty();
+
+                        if (!bHasExisting && bInventoryEmpty)
+                        {
+                                UE_LOG(LogMO56SaveSubsystem, Log, TEXT("[Save] First sighting of Inventory %s is empty. Deferring write."), *TargetInventoryId.ToString());
+                                return;
+                        }
+
+                        FInventorySaveData& InventoryData = CurrentSaveGame->InventoryStates.FindOrAdd(TargetInventoryId);
                         Inventory->WriteToSaveData(InventoryData);
                         EnsureInventoryOwnerMetadata(InventoryData, CharacterId);
 

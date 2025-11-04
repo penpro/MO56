@@ -2,6 +2,7 @@
 // Menu widgets call the BlueprintCallable helpers, which forward to the server and manage
 // save/load as well as pawn possession for multiplayer.
 #include "MO56PlayerController.h"
+#include "EnhancedInputSubsystemInterface.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "InputMappingContext.h"
@@ -27,6 +28,7 @@
 #include "InputAction.h"
 #include "InputCoreTypes.h"
 #include "GameFramework/PawnMovementComponent.h"
+#include "TimerManager.h"
 #include "UObject/EnumProperty.h"
 
 namespace
@@ -55,6 +57,39 @@ namespace
                         Controller.IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
                         bLeftMouseDown ? TEXT("true") : TEXT("false"),
                         *Controller.DescribeDebugInputMode());
+        }
+
+        void LogActiveContexts(AMO56PlayerController* Controller)
+        {
+                if (!Controller)
+                {
+                        return;
+                }
+
+                if (ULocalPlayer* LocalPlayer = Controller->GetLocalPlayer())
+                {
+                        if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+                        {
+                                const IEnhancedInputSubsystemInterface::FSubsystemInfo& Info = Subsystem->GetSubsystemInfo();
+
+                                FString Names;
+                                for (const FEnhancedInputContextHandle& Handle : Info.AppliedInputContexts)
+                                {
+                                        if (const UInputMappingContext* Context = Handle.Get())
+                                        {
+                                                Names += Context->GetName();
+                                        }
+                                        else
+                                        {
+                                                Names += TEXT("<null>");
+                                        }
+
+                                        Names += TEXT(" ");
+                                }
+
+                                UE_LOG(LogTemp, Log, TEXT("[Input] Contexts: %s"), *Names);
+                        }
+                }
         }
 }
 
@@ -173,15 +208,6 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
                                 }
                         }
                 }
-
-                ReapplyEnhancedInputContexts();
-                EnsureGameplayInputMode();
-
-                FInputModeGameOnly ForcedGameMode;
-                SetInputMode(ForcedGameMode);
-                bShowMouseCursor = false;
-                SetShowMouseCursor(false);
-                MarkDebugInputMode(TEXT("GameOnly"));
         }
 
         SetIgnoreLookInput(false);
@@ -189,9 +215,10 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
 
         if (HasAuthority())
         {
-                ClientEnsureGameInput();
                 ClientReapplyEnhancedInputContexts();
+                ClientEnsureGameInput();
                 ClientValidatePostPossess(InPawn);
+                ClientPostRestartValidate();
         }
 }
 
@@ -720,9 +747,14 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
                 *MovementNetModeString), NewPawn);
 
         ReapplyEnhancedInputContexts();
-        EnsureGameplayInputMode();
-        SetIgnoreLookInput(false);
-        SetIgnoreMoveInput(false);
+        ApplyGameplayInputState();
+
+        UE_LOG(LogTemp, Log, TEXT("[Input] ClientRestart PawnRole=%s Cursor=%s MoveIgnored=%s LookIgnored=%s"),
+                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
+                bShowMouseCursor ? TEXT("true") : TEXT("false"),
+                IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
+                IsLookInputIgnored() ? TEXT("true") : TEXT("false"));
+        LogActiveContexts(this);
 }
 
 void AMO56PlayerController::ClientEnsureGameInput_Implementation()
@@ -734,9 +766,7 @@ void AMO56PlayerController::ClientEnsureGameInput_Implementation()
                 MOCharacter->CloseAllPlayerMenus();
         }
 
-        EnsureGameplayInputMode();
-        SetIgnoreLookInput(false);
-        SetIgnoreMoveInput(false);
+        ApplyGameplayInputState();
 
         LogDebugEvent(TEXT("ClientEnsureGameInputComplete"), FString::Printf(TEXT("After %s"), *DescribeInputState(*this)));
 }
@@ -774,6 +804,61 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
         }
 }
 
+void AMO56PlayerController::ClientPostRestartValidate_Implementation()
+{
+        TWeakObjectPtr<AMO56PlayerController> WeakThis(this);
+        GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
+        {
+                if (!WeakThis.IsValid())
+                {
+                        return;
+                }
+
+                AMO56PlayerController* Controller = WeakThis.Get();
+                if (!Controller)
+                {
+                        return;
+                }
+
+                APawn* Pawn = Controller->GetPawn();
+                if (!Pawn)
+                {
+                        return;
+                }
+
+                if (Pawn->GetLocalRole() != ROLE_AutonomousProxy)
+                {
+                        UE_LOG(LogTemp, Warning, TEXT("[PC] Pawn not Autonomous after restart. Reissuing ClientRestart."));
+                        Controller->ClientRestart_Implementation(Pawn);
+                        Controller->ClientReapplyEnhancedInputContexts_Implementation();
+                        Controller->ClientEnsureGameInput_Implementation();
+
+                        TWeakObjectPtr<APawn> PawnPtr(Pawn);
+                        Controller->GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis, PawnPtr]()
+                        {
+                                if (!WeakThis.IsValid())
+                                {
+                                        return;
+                                }
+
+                                AMO56PlayerController* InnerController = WeakThis.Get();
+                                if (!InnerController || !PawnPtr.IsValid())
+                                {
+                                        return;
+                                }
+
+                                if (APawn* CheckedPawn = PawnPtr.Get())
+                                {
+                                        if (CheckedPawn->GetLocalRole() != ROLE_AutonomousProxy)
+                                        {
+                                                UE_LOG(LogTemp, Error, TEXT("[PC] Pawn still not Autonomous after restart retry. Inspect replication settings."));
+                                        }
+                                }
+                        }));
+                }
+        }));
+}
+
 void AMO56PlayerController::ServerRequestPostPossessNetUpdate_Implementation(APawn* TargetPawn)
 {
         if (!HasAuthority() || !TargetPawn || TargetPawn->GetController() != this)
@@ -785,8 +870,9 @@ void AMO56PlayerController::ServerRequestPostPossessNetUpdate_Implementation(APa
 
         TargetPawn->ForceNetUpdate();
         ClientRestart(TargetPawn);
-        ClientEnsureGameInput();
         ClientReapplyEnhancedInputContexts();
+        ClientEnsureGameInput();
+        ClientPostRestartValidate();
 }
 
 void AMO56PlayerController::HandleNewGameOnServer(const FString& LevelName)
@@ -1111,35 +1197,28 @@ void AMO56PlayerController::ReapplyEnhancedInputContexts()
         {
                 if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                 {
-                        auto ReapplyContext = [Subsystem](UInputMappingContext* CurrentContext)
+                        Subsystem->ClearAllMappings();
+
+                        auto AddContext = [Subsystem](UInputMappingContext* CurrentContext)
                         {
                                 if (!CurrentContext)
                                 {
                                         return;
                                 }
 
-#if UE_VERSION_OLDER_THAN(5, 3, 0)
-                                Subsystem->RemoveMappingContext(CurrentContext);
                                 Subsystem->AddMappingContext(CurrentContext, 0);
-#else
-                                if (Subsystem->HasMappingContext(CurrentContext))
-                                {
-                                        Subsystem->RemoveMappingContext(CurrentContext);
-                                }
-                                Subsystem->AddMappingContext(CurrentContext, 0);
-#endif
                         };
 
                         for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
                         {
-                                ReapplyContext(CurrentContext);
+                                AddContext(CurrentContext);
                         }
 
                         if (!SVirtualJoystick::ShouldDisplayTouchInterface())
                         {
                                 for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
                                 {
-                                        ReapplyContext(CurrentContext);
+                                        AddContext(CurrentContext);
                                 }
                         }
                 }
@@ -1157,6 +1236,7 @@ void AMO56PlayerController::ApplyGameplayInputState()
         FInputModeGameOnly InputMode;
         SetInputMode(InputMode);
 
+        bShowMouseCursor = false;
         SetShowMouseCursor(false);
         bEnableClickEvents = false;
         bEnableMouseOverEvents = false;
