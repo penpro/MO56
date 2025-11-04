@@ -1378,8 +1378,17 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
 
         if (APawn* ExistingPawn = PC->GetPawn())
         {
-                if (ExistingPawn->IsA<ASpectatorPawn>() && ExistingPawn != TargetPawn)
+                if (ExistingPawn != TargetPawn)
                 {
+                        if (UMOPersistentPawnComponent* ExistingPersistentComp = ExistingPawn->FindComponentByClass<UMOPersistentPawnComponent>())
+                        {
+                                const FGuid ExistingPawnId = ExistingPersistentComp->PawnId;
+                                if (ExistingPawnId.IsValid())
+                                {
+                                        RefreshCharacterSaveData(ExistingPawnId);
+                                }
+                        }
+
                         PC->UnPossess();
                 }
         }
@@ -1388,9 +1397,21 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
 
         PC->Possess(TargetPawn);
 
-        if (MOController)
+        AMO56PlayerController* ControllerForLog = MOController ? MOController : Cast<AMO56PlayerController>(PC);
+        LogSaveEvent(this, TEXT("ServerPossessionComplete"),
+                FString::Printf(TEXT("ControllerClass=%s IsLocal=%s"), *GetNameSafe(PC->GetClass()), PC->IsLocalController() ? TEXT("true") : TEXT("false")),
+                ControllerForLog, TargetPawn);
+
+        if (AMO56PlayerController* EnforcedController = ControllerForLog)
         {
-                MOController->ClientEnsureGameInput();
+                EnforcedController->EnsureGameplayInputMode();
+        }
+
+        PC->ClientRestart(TargetPawn);
+
+        if (AMO56PlayerController* ClientController = ControllerForLog)
+        {
+                ClientController->ClientEnsureGameInput();
         }
 
         if (UInventoryComponent* Inventory = TargetPawn->FindComponentByClass<UInventoryComponent>())
@@ -2899,6 +2920,7 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                 InventoryId = InventoryComponent->GetPersistentId();
         }
 
+        bool bInventoryRemapped = false;
         if (const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(InventoryId))
         {
                 if (Existing->Get() && Existing->Get() != InventoryComponent)
@@ -2916,6 +2938,7 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
 
                         InventoryComponent->OverridePersistentId(NewId);
                         InventoryId = InventoryComponent->GetPersistentId();
+                        bInventoryRemapped = true;
                 }
         }
 
@@ -2931,7 +2954,7 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
                         FCharacterSaveData& CharacterData = CurrentSaveGame->CharacterStates.FindOrAdd(OwnerId);
                         CharacterData.CharacterId = OwnerId;
 
-                        if (CharacterData.InventoryId.IsValid() && CharacterData.InventoryId != InventoryId)
+                        if (CharacterData.InventoryId.IsValid() && CharacterData.InventoryId != InventoryId && !bInventoryRemapped)
                         {
                                 const TWeakObjectPtr<UInventoryComponent>* Existing = RegisteredInventories.Find(CharacterData.InventoryId);
                                 const bool bIdCollidesWithDifferentComp = Existing && Existing->Get() && Existing->Get() != InventoryComponent;
@@ -3007,6 +3030,12 @@ void UMO56SaveSubsystem::HandleInventoryRegistered(UInventoryComponent* Inventor
         {
                 if (OwnerType != EMO56InventoryOwner::Character)
                 {
+                        const FString OwnerString = OwnerId.IsValid() ? OwnerId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                        const FString InventoryString = InventoryId.IsValid() ? InventoryId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                        const FString SaveOwnerString = SavedData->OwnerCharacterId.IsValid() ? SavedData->OwnerCharacterId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                        LogSaveEvent(this, TEXT("AboutToApplyInventory"),
+                                FString::Printf(TEXT("CharacterId=%s InventoryId=%s SaveOwner=%s"), *OwnerString, *InventoryString, *SaveOwnerString));
+
                         TGuardValue<bool> ApplyingGuard(bIsApplyingSave, true);
                         InventoryComponent->ReadFromSaveData(*SavedData);
                 }
@@ -3463,6 +3492,20 @@ void UMO56SaveSubsystem::ApplyCharacterStateFromSave(const FGuid& CharacterId)
 
                                         if (FInventorySaveData* SavedInventory = CurrentSaveGame->InventoryStates.Find(CharacterData->InventoryId))
                                         {
+                                                const FString CharacterString = CharacterId.ToString(EGuidFormats::DigitsWithHyphens);
+                                                const FString InventoryString = CharacterData->InventoryId.IsValid() ? CharacterData->InventoryId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+                                                const FString SaveOwnerString = SavedInventory->OwnerCharacterId.IsValid() ? SavedInventory->OwnerCharacterId.ToString(EGuidFormats::DigitsWithHyphens) : TEXT("None");
+
+                                                LogSaveEvent(this, TEXT("AboutToApplyInventory"),
+                                                        FString::Printf(TEXT("CharacterId=%s InventoryId=%s SaveOwner=%s"), *CharacterString, *InventoryString, *SaveOwnerString));
+
+                                                if (SavedInventory->OwnerCharacterId.IsValid() && SavedInventory->OwnerCharacterId != CharacterId)
+                                                {
+                                                        LogSaveEvent(this, TEXT("InventoryApplyOwnerMismatch"),
+                                                                FString::Printf(TEXT("CharacterId=%s InventoryId=%s SaveOwner=%s"), *CharacterString, *InventoryString, *SaveOwnerString));
+                                                        return;
+                                                }
+
                                                 EnsureInventoryOwnerMetadata(*SavedInventory, CharacterId);
                                                 ensureMsgf(!SavedInventory->OwnerCharacterId.IsValid() || SavedInventory->OwnerCharacterId == CharacterId,
                                                         TEXT("Inventory save owner mismatch. Character=%s SaveOwner=%s"),

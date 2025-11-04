@@ -159,8 +159,7 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
                         }
                 }
 
-                EnsureDefaultInputContexts();
-                ApplyGameplayInputState();
+                EnsureGameplayInputMode();
         }
 }
 
@@ -429,6 +428,8 @@ void AMO56PlayerController::ClosePossessMenu()
                         }
                 }
         }
+
+        EnsureGameplayInputMode();
 }
 
 void AMO56PlayerController::OnIA_Possession()
@@ -668,6 +669,15 @@ void AMO56PlayerController::ClientCloseContainerInventory_Implementation(AInvent
         }
 }
 
+void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
+{
+        Super::ClientRestart_Implementation(NewPawn);
+
+        LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s"), *DescribePawnForDebug(NewPawn)), NewPawn);
+
+        EnsureGameplayInputMode();
+}
+
 void AMO56PlayerController::ClientEnsureGameInput_Implementation()
 {
         LogDebugEvent(TEXT("ClientEnsureGameInput"), FString::Printf(TEXT("Before %s"), *DescribeInputState(*this)));
@@ -677,8 +687,7 @@ void AMO56PlayerController::ClientEnsureGameInput_Implementation()
                 MOCharacter->CloseAllPlayerMenus();
         }
 
-        EnsureDefaultInputContexts();
-        ApplyGameplayInputState();
+        EnsureGameplayInputMode();
 
         LogDebugEvent(TEXT("ClientEnsureGameInputComplete"), FString::Printf(TEXT("After %s"), *DescribeInputState(*this)));
 }
@@ -992,6 +1001,12 @@ void AMO56PlayerController::EnsureDefaultInputContexts()
                         }
                 }
         }
+}
+
+void AMO56PlayerController::EnsureGameplayInputMode()
+{
+        EnsureDefaultInputContexts();
+        ApplyGameplayInputState();
 }
 
 void AMO56PlayerController::ApplyGameplayInputState()
