@@ -5,30 +5,33 @@ using UnrealBuildTool;
 
 public class MO56 : ModuleRules
 {
-        public MO56(ReadOnlyTargetRules Target) : base(Target)
-        {
-                PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	public MO56(ReadOnlyTargetRules Target) : base(Target)
+	{
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		bEnforceIWYU = true;
 
-                PublicDependencyModuleNames.AddRange(new string[] {
-                        "Core",
-                        "CoreUObject",
-                        "Engine",
-                        "InputCore",
-                        "EnhancedInput",
-                        "AIModule",
-                        "StateTreeModule",
-                        "GameplayStateTreeModule",
-                        "UMG",
-                        "MOInventory",
-                        "MOItems",
-                        "Slate",
-                        "SlateCore",
-                        "PhysicsCore"
-                });
+		PublicDependencyModuleNames.AddRange(new string[]
+		{
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"InputCore",
+			"EnhancedInput",
+			"AIModule",
+			"StateTreeModule",
+			"GameplayStateTreeModule",
+			"UMG",
+			"MOInventory",
+			"MOItems",
+			"Slate",
+			"SlateCore",
+			"PhysicsCore"
+		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 
-		PublicIncludePaths.AddRange(new string[] {
+		PublicIncludePaths.AddRange(new string[]
+		{
 			"MO56"
 		});
 
