@@ -10,6 +10,7 @@
 #include "DesktopPlatformModule.h"
 #include "Editor.h"
 #include "EditorAssetLibrary.h"
+#include "InputCoreTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IContentBrowserSingleton.h"
 #include "IDesktopPlatform.h"
