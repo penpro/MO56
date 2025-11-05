@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 public class MO56EditorTarget : TargetRules
 {
@@ -15,7 +14,6 @@ public class MO56EditorTarget : TargetRules
 
 		bUseUnityBuild = true;
 		bUsePCHFiles = true;
-		bIWYU = true;
 
 		ExtraModuleNames.Add("MO56");
 	}
