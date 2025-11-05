@@ -22,20 +22,19 @@ public class MO56Editor : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
-                "UnrealEd",
-                "AssetTools",
-                "AssetRegistry",
-                "EditorScriptingUtilities",
-                "EditorSubsystem",
-                "Projects",
                 "Slate",
                 "SlateCore",
                 "UMG",
                 "Blutility",
+                "UnrealEd",
+                "AssetRegistry",
+                "AssetTools",
+                "EditorScriptingUtilities",
+                "Projects",
                 "PropertyEditor",
+                "ToolMenus",
                 "ContentBrowser",
-                "DesktopPlatform",
-                "ToolMenus"
+                "DesktopPlatform"
             });
     }
 }
