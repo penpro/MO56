@@ -4,21 +4,19 @@ using UnrealBuildTool;
 
 public class MO56EditorTarget : TargetRules
 {
-	public MO56EditorTarget(TargetInfo Target) : base(Target)
-	{
-		Type = TargetType.Editor;
+    public MO56EditorTarget(TargetInfo Target) : base(Target)
+    {
+        Type = TargetType.Editor;
 
-		DefaultBuildSettings = BuildSettingsVersion.V5;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_6;
-		CppStandard = CppStandardVersion.Cpp20;
+        DefaultBuildSettings = BuildSettingsVersion.V5;
+        IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_6;
+        CppStandard = CppStandardVersion.Cpp20;
 
-		bUseUnityBuild = true;
-		bUsePCHFiles = true;
+        bUseUnityBuild = true;
+        bUsePCHFiles = true;
 
-        ExtraModuleNames.AddRange(new string[]
-        {
-                "MO56",
-                "MO56Editor"
-        });
-	}
+        // Only the runtime game module here
+        ExtraModuleNames.Clear();
+        ExtraModuleNames.Add("MO56");
+    }
 }
