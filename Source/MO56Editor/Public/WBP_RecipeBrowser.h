@@ -2,9 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "EditorUtilityWidget.h"
+#include "Widgets/SWidget.h"
 #include "WBP_RecipeBrowser.generated.h"
-
-class SRecipeBrowserPanel;
 
 UCLASS()
 class MO56EDITOR_API UWBP_RecipeBrowser : public UEditorUtilityWidget
@@ -20,5 +19,5 @@ public:
     void RefreshRecipes();
 
 private:
-    TSharedPtr<SRecipeBrowserPanel> RecipeBrowserPanel;
+    TSharedPtr<SWidget> RecipeBrowserPanel;
 };

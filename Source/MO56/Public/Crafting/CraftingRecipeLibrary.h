@@ -1,13 +1,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
+#include "Engine/PrimaryDataAsset.h"
 #include "CraftingRecipeLibrary.generated.h"
 
 class UCraftingRecipe;
 
 UCLASS(BlueprintType)
-class MO56_API UCraftingRecipeLibrary : public UDataAsset
+class MO56_API UCraftingRecipeLibrary : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
