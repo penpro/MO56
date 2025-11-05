@@ -6,6 +6,7 @@
 #include "Algo/RemoveIf.h"
 #include "MO56PlayerController.h"
 #include "MO56DebugLogSubsystem.h"
+#include "Util/MO56NetDebug.h"
 #include "Menu/MO56MenuGameMode.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -41,18 +42,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
 namespace
 {
 static const TCHAR* const GameplayGameModeOption = TEXT("?game=/Game/MyStuff/BP_MO56GameMode.BP_MO56GameMode_C");
-
-static const TCHAR* RoleToString(ENetRole Role)
-{
-        switch (Role)
-        {
-        case ROLE_None:             return TEXT("ROLE_None");
-        case ROLE_SimulatedProxy:   return TEXT("ROLE_SimulatedProxy");
-        case ROLE_AutonomousProxy:  return TEXT("ROLE_AutonomousProxy");
-        case ROLE_Authority:        return TEXT("ROLE_Authority");
-        default:                    return TEXT("ROLE_Unknown");
-        }
-}
 }
 
 static FGuid GuidFromString(const FString& S)
@@ -1453,6 +1442,18 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
                 return false;
         }
 
+        if (!TargetPawn->GetIsReplicated())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("TryAssignAndPossess: Target pawn %s was not replicating. Enabling replication."), *GetNameSafe(TargetPawn));
+                TargetPawn->SetReplicates(true);
+        }
+
+        if (!TargetPawn->GetReplicateMovement())
+        {
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("TryAssignAndPossess: Target pawn %s replicate movement disabled. Enabling."), *GetNameSafe(TargetPawn));
+                TargetPawn->SetReplicateMovement(true);
+        }
+
         CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, PawnId };
 
         if (APawn* ExistingPawn = PC->GetPawn())
@@ -2363,8 +2364,8 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
                                 TEXT("[Assign] Post-load role mismatch PlayerId=%s Pawn=%s LocalRole=%s RemoteRole=%s"),
                                 *PlayerIdString,
                                 *PawnIdString,
-                                RoleToString(Pawn->GetLocalRole()),
-                                RoleToString(Pawn->GetRemoteRole()));
+                                MO56RoleToString(Pawn->GetLocalRole()),
+                                MO56RoleToString(Pawn->GetRemoteRole()));
                 }
         }
 }
