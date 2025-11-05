@@ -3,7 +3,7 @@
 #if WITH_EDITOR
 
 #include "Algo/Sort.h"
-#include "AssetEditorSubsystem.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ContentBrowserModule.h"
 #include "Crafting/CraftingRecipe.h"
