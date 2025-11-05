@@ -9,7 +9,7 @@
 #include "Blueprint/UserWidget.h"
 #include "MO56.h"
 #include "MO56DebugLogSubsystem.h"
-#include "Engine/EngineTypes.h"
+#include "Util/MO56NetDebug.h"
 #include "Widgets/Input/SVirtualJoystick.h"
 #include "Misc/EngineVersionComparison.h"
 #include "Kismet/GameplayStatics.h"
@@ -29,7 +29,6 @@
 #include "InputCoreTypes.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "TimerManager.h"
-#include "UObject/EnumProperty.h"
 
 namespace
 {
@@ -57,30 +56,6 @@ namespace
                         Controller.IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
                         bLeftMouseDown ? TEXT("true") : TEXT("false"),
                         *Controller.DescribeDebugInputMode());
-        }
-
-        static const TCHAR* RoleToString(ENetRole Role)
-        {
-                switch (Role)
-                {
-                case ROLE_None:             return TEXT("ROLE_None");
-                case ROLE_SimulatedProxy:   return TEXT("ROLE_SimulatedProxy");
-                case ROLE_AutonomousProxy:  return TEXT("ROLE_AutonomousProxy");
-                case ROLE_Authority:        return TEXT("ROLE_Authority");
-                default:                    return TEXT("ROLE_Unknown");
-                }
-        }
-
-        static const TCHAR* NetModeToString(ENetMode Mode)
-        {
-                switch (Mode)
-                {
-                case NM_Standalone:        return TEXT("NM_Standalone");
-                case NM_DedicatedServer:   return TEXT("NM_DedicatedServer");
-                case NM_ListenServer:      return TEXT("NM_ListenServer");
-                case NM_Client:            return TEXT("NM_Client");
-                default:                   return TEXT("NM_Unknown");
-                }
         }
 
         void LogActiveContexts(AMO56PlayerController* Controller)
@@ -212,8 +187,8 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
         const ENetRole LocalRole = InPawn ? InPawn->GetLocalRole() : ROLE_None;
         const ENetRole ObservedRemoteRole = InPawn ? InPawn->GetRemoteRole() : ROLE_None;
         const FString RoleDetail = FString::Printf(TEXT("Roles(Local=%s Remote=%s ControllerIsLocal=%s)"),
-                RoleToString(LocalRole),
-                RoleToString(ObservedRemoteRole),
+                MO56RoleToString(LocalRole),
+                MO56RoleToString(ObservedRemoteRole),
                 IsLocalPlayerController() ? TEXT("true") : TEXT("false"));
 
         LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s %s"),
@@ -772,29 +747,29 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
         const TCHAR* MovementNetModeString = TEXT("NM_Unknown");
         if (UPawnMovementComponent* MovementComponent = NewPawn ? NewPawn->GetMovementComponent() : nullptr)
         {
-                MovementNetModeString = NetModeToString(MovementComponent->GetNetMode());
+                MovementNetModeString = MO56NetModeToString(MovementComponent->GetNetMode());
         }
 
         LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) PawnLocal=%s ControllerLocal=%s ControllerNetMode=%s WorldNetMode=%s PawnNetMode=%s MovementNetMode=%s"),
                 *DescribePawnForDebug(NewPawn),
-                RoleToString(LocalRole),
-                RoleToString(ObservedRemoteRole),
+                MO56RoleToString(LocalRole),
+                MO56RoleToString(ObservedRemoteRole),
                 bPawnLocallyControlled ? TEXT("true") : TEXT("false"),
                 IsLocalPlayerController() ? TEXT("true") : TEXT("false"),
-                NetModeToString(ControllerNetMode),
-                NetModeToString(WorldNetMode),
-                NetModeToString(PawnNetMode),
+                MO56NetModeToString(ControllerNetMode),
+                MO56NetModeToString(WorldNetMode),
+                MO56NetModeToString(PawnNetMode),
                 MovementNetModeString), NewPawn);
 
         ReapplyEnhancedInputContexts();
         ApplyGameplayInputState();
 
         UE_LOG(LogTemp, Log, TEXT("[Input] ClientRestart PawnRole=%s PawnLocal=%s ControllerLocal=%s ControllerNetMode=%s WorldNetMode=%s Cursor=%s MoveIgnored=%s LookIgnored=%s"),
-                RoleToString(LocalRole),
+                MO56RoleToString(LocalRole),
                 bPawnLocallyControlled ? TEXT("true") : TEXT("false"),
                 IsLocalPlayerController() ? TEXT("true") : TEXT("false"),
-                NetModeToString(ControllerNetMode),
-                NetModeToString(WorldNetMode),
+                MO56NetModeToString(ControllerNetMode),
+                MO56NetModeToString(WorldNetMode),
                 bShowMouseCursor ? TEXT("true") : TEXT("false"),
                 IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
                 IsLookInputIgnored() ? TEXT("true") : TEXT("false"));
@@ -831,7 +806,7 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
         const TCHAR* MovementNetModeString = TEXT("NM_Unknown");
         if (UPawnMovementComponent* MovementComponent = TargetPawn ? TargetPawn->GetMovementComponent() : nullptr)
         {
-                MovementNetModeString = NetModeToString(MovementComponent->GetNetMode());
+                MovementNetModeString = MO56NetModeToString(MovementComponent->GetNetMode());
         }
 
         const bool bClientContext = (ControllerNetMode == NM_Client);
@@ -841,21 +816,21 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
 
         LogDebugEvent(TEXT("ClientValidatePostPossess"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) PawnLocal=%s ControllerNetMode=%s WorldNetMode=%s PawnNetMode=%s MovementNetMode=%s bClientContext=%s"),
                 *PawnDescription,
-                RoleToString(LocalRole),
-                RoleToString(ObservedRemoteRole),
+                MO56RoleToString(LocalRole),
+                MO56RoleToString(ObservedRemoteRole),
                 bLocallyControlled ? TEXT("true") : TEXT("false"),
-                NetModeToString(ControllerNetMode),
-                NetModeToString(WorldNetMode),
-                NetModeToString(PawnNetMode),
+                MO56NetModeToString(ControllerNetMode),
+                MO56NetModeToString(WorldNetMode),
+                MO56NetModeToString(PawnNetMode),
                 MovementNetModeString,
                 bClientContext ? TEXT("true") : TEXT("false")), TargetPawn);
 
         if (TargetPawn && !bGood)
         {
                 UE_LOG(LogTemp, Warning, TEXT("[PC] ClientValidatePostPossess role unexpected. PawnRole=%s PawnLocal=%s ControllerNetMode=%s"),
-                        RoleToString(LocalRole),
+                        MO56RoleToString(LocalRole),
                         bLocallyControlled ? TEXT("true") : TEXT("false"),
-                        NetModeToString(ControllerNetMode));
+                        MO56NetModeToString(ControllerNetMode));
                 LogDebugEvent(TEXT("ClientValidatePostPossessRequestFix"), FString::Printf(TEXT("Pawn=%s"), *PawnDescription), TargetPawn);
                 ServerRequestPostPossessNetUpdate(TargetPawn);
         }
@@ -870,30 +845,41 @@ void AMO56PlayerController::ClientPostRestartValidate_Implementation()
 {
         PostRestartRetryCount = 0;
 
+        if (GetNetMode() != NM_Client)
+        {
+                return;
+        }
+
         TWeakObjectPtr<AMO56PlayerController> WeakThis(this);
         GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
         {
                 if (AMO56PlayerController* Controller = WeakThis.Get())
                 {
-                        Controller->EvaluatePostRestartState();
+                        Controller->GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
+                        {
+                                if (AMO56PlayerController* InnerController = WeakThis.Get())
+                                {
+                                        InnerController->EvaluatePostRestartState();
+                                }
+                        }));
                 }
         }));
 }
 
 void AMO56PlayerController::EvaluatePostRestartState()
 {
-        APawn* Pawn = GetPawn();
-        if (!Pawn)
+        APawn* LocalPawn = GetPawn();
+        if (!LocalPawn)
         {
                 UE_LOG(LogTemp, Warning, TEXT("[PC] PostRestart validation skipped - no pawn."));
                 return;
         }
 
-        const ENetRole LocalRole = Pawn->GetLocalRole();
-        const bool bLocallyControlled = Pawn->IsLocallyControlled();
+        const ENetRole LocalRole = LocalPawn->GetLocalRole();
+        const bool bLocallyControlled = LocalPawn->IsLocallyControlled();
         const ENetMode ControllerNetMode = GetNetMode();
         const ENetMode WorldNetMode = GetWorld() ? GetWorld()->GetNetMode() : NM_Standalone;
-        const ENetMode PawnNetMode = Pawn->GetNetMode();
+        const ENetMode PawnNetMode = LocalPawn->GetNetMode();
         const bool bClientContext = (ControllerNetMode == NM_Client);
 
         const bool bGood = (bClientContext && LocalRole == ROLE_AutonomousProxy)
@@ -901,11 +887,11 @@ void AMO56PlayerController::EvaluatePostRestartState()
                 || bLocallyControlled;
 
         UE_LOG(LogTemp, Log, TEXT("[PC] PostRestart check PawnRole=%s PawnLocal=%s ControllerNetMode=%s WorldNetMode=%s PawnNetMode=%s Retry=%d"),
-                RoleToString(LocalRole),
+                MO56RoleToString(LocalRole),
                 bLocallyControlled ? TEXT("true") : TEXT("false"),
-                NetModeToString(ControllerNetMode),
-                NetModeToString(WorldNetMode),
-                NetModeToString(PawnNetMode),
+                MO56NetModeToString(ControllerNetMode),
+                MO56NetModeToString(WorldNetMode),
+                MO56NetModeToString(PawnNetMode),
                 PostRestartRetryCount);
 
         if (!bGood)
@@ -914,34 +900,35 @@ void AMO56PlayerController::EvaluatePostRestartState()
                 {
                         ++PostRestartRetryCount;
                         UE_LOG(LogTemp, Warning, TEXT("[PC] PostRestart not in expected role. Reissuing ClientRestart."));
-                        ClientRestart(Pawn);
+                        ClientRestart(LocalPawn);
                         ReapplyEnhancedInputContexts();
                         EnsureGameInputLocal();
 
                         TWeakObjectPtr<AMO56PlayerController> WeakThis(this);
-                        GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
+                        FTimerHandle RetryHandle;
+                        GetWorldTimerManager().SetTimer(RetryHandle, FTimerDelegate::CreateLambda([WeakThis]()
                         {
                                 if (AMO56PlayerController* Controller = WeakThis.Get())
                                 {
                                         Controller->EvaluatePostRestartState();
                                 }
-                        }));
+                        }), 0.1f, false);
                 }
                 else
                 {
                         UE_LOG(LogTemp, Error, TEXT("[PC] PostRestart role still unexpected after retries. PawnRole=%s PawnLocal=%s ControllerNetMode=%s"),
-                                RoleToString(LocalRole),
+                                MO56RoleToString(LocalRole),
                                 bLocallyControlled ? TEXT("true") : TEXT("false"),
-                                NetModeToString(ControllerNetMode));
+                                MO56NetModeToString(ControllerNetMode));
                 }
 
                 return;
         }
 
         UE_LOG(LogTemp, Log, TEXT("[PC] PostRestart validation succeeded. PawnRole=%s PawnLocal=%s ControllerNetMode=%s"),
-                RoleToString(LocalRole),
+                MO56RoleToString(LocalRole),
                 bLocallyControlled ? TEXT("true") : TEXT("false"),
-                NetModeToString(ControllerNetMode));
+                MO56NetModeToString(ControllerNetMode));
         PostRestartRetryCount = 0;
 }
 

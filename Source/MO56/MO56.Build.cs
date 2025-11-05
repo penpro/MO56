@@ -5,9 +5,11 @@ using UnrealBuildTool;
 
 public class MO56 : ModuleRules
 {
-	public MO56(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        public MO56(ReadOnlyTargetRules Target) : base(Target)
+        {
+                PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+                bUseUnityBuild = false;
+                bUsePCHFiles = true;
 
                 PublicDependencyModuleNames.AddRange(new string[] {
                         "Core",
