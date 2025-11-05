@@ -6,6 +6,7 @@
 #include "Internationalization/Text.h"
 #include "Kismet/GameplayStatics.h"
 #include "Menu/MO56SaveListItemWidget.h"
+#include "MO56PlayerController.h"
 #include "Save/MO56MenuSettingsSave.h"
 #include "Save/MO56SaveSubsystem.h"
 
@@ -113,10 +114,20 @@ void UMO56MainMenuWidget::HandleSaveEntryClicked(const FGuid& SaveId) const
                 return;
         }
 
-        if (UMO56SaveSubsystem* SaveSubsystem = ResolveSubsystem())
+        APlayerController* PlayerController = GetOwningPlayer();
+        if (!PlayerController)
         {
-                SaveSubsystem->LoadSave(SaveId);
+                PlayerController = UGameplayStatics::GetPlayerController(this, 0);
         }
+
+        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+        {
+                MOController->RequestLoadGameById(SaveId);
+                return;
+        }
+
+        UE_LOG(LogTemp, Error,
+                TEXT("MO56MainMenuWidget: No valid MO56 PlayerController available to load saves. Configure BP_MO56PlayerController in menu world settings."));
 }
 
 UMO56SaveSubsystem* UMO56MainMenuWidget::ResolveSubsystem() const
