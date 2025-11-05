@@ -8,8 +8,15 @@ public class MO56EditorTarget : TargetRules
 	public MO56EditorTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
+
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_6;
+		CppStandard = CppStandardVersion.Cpp20;
+
+		bUseUnityBuild = true;
+		bUsePCHFiles = true;
+		bIWYU = true;
+
 		ExtraModuleNames.Add("MO56");
 	}
 }
