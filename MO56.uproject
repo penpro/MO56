@@ -3,18 +3,23 @@
 	"EngineAssociation": "5.6",
 	"Category": "",
 	"Description": "",
-	"Modules": [
-		{
-			"Name": "MO56",
-			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"AdditionalDependencies": [
-				"Engine",
-				"AIModule",
-				"UMG"
-			]
-		}
-	],
+        "Modules": [
+                {
+                        "Name": "MO56",
+                        "Type": "Runtime",
+                        "LoadingPhase": "Default",
+                        "AdditionalDependencies": [
+                                "Engine",
+                                "AIModule",
+                                "UMG"
+                        ]
+                },
+                {
+                        "Name": "MO56Editor",
+                        "Type": "Editor",
+                        "LoadingPhase": "Default"
+                }
+        ],
 	"Plugins": [
 		{
 			"Name": "ModelingToolsEditorMode",

@@ -15,6 +15,10 @@ public class MO56EditorTarget : TargetRules
 		bUseUnityBuild = true;
 		bUsePCHFiles = true;
 
-		ExtraModuleNames.Add("MO56");
+        ExtraModuleNames.AddRange(new string[]
+        {
+                "MO56",
+                "MO56Editor"
+        });
 	}
 }
