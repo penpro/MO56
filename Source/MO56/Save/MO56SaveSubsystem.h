@@ -22,6 +22,7 @@ class APawn;
 class APlayerController;
 class UMOPersistentPawnComponent;
 class UWorld;
+class ULocalPlayer;
 
 enum class ERegisterPlayerCharacterContext : uint8
 {
@@ -252,6 +253,9 @@ private:
         FDelegateHandle WorldCleanupHandle;
         FDelegateHandle PostLoadMapHandle;
 
+        /** Stable identifiers assigned to each local player slot across level loads. */
+        TMap<int32, FGuid> LocalPlayerPersistentIds;
+
         bool bIsApplyingSave = false;
         bool bAutosavePending = false;
         FTimerHandle AutosaveTimerHandle;
@@ -332,5 +336,9 @@ private:
         bool CanAutosaveInWorld(const UWorld& World) const;
         bool IsGameplayMapName(const FName& MapName) const;
         bool IsMenuOrNonGameplayMapName(const FString& MapName) const;
+
+        FGuid GetStoredPersistentPlayerId(AMO56PlayerController* Controller) const;
+        void RememberPersistentPlayerId(AMO56PlayerController* Controller, const FGuid& PlayerId);
+        int32 ResolveLocalPlayerIndex(const ULocalPlayer* LocalPlayer) const;
 };
 

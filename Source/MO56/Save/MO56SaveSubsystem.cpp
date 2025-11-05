@@ -12,12 +12,14 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "GameFramework/SpectatorPawn.h"
+#include "AIController.h"
 #include "Components/MOPersistentPawnComponent.h"
 #include "InventoryComponent.h"
 #include "ItemPickup.h"
@@ -182,6 +184,7 @@ void UMO56SaveSubsystem::Deinitialize()
         TrackedPickups.Empty();
         PickupToLevelMap.Empty();
         CurrentSaveGame = nullptr;
+        LocalPlayerPersistentIds.Empty();
 
         if (UWorld* World = GetWorld())
         {
@@ -793,6 +796,11 @@ void UMO56SaveSubsystem::NotifyPlayerControllerReady(AMO56PlayerController* Cont
         APlayerState* PlayerState = Controller->GetPlayerState<APlayerState>();
         const int32 ControllerId = PlayerState ? PlayerState->GetPlayerId() : INDEX_NONE;
 
+        if (!PlayerId.IsValid())
+        {
+                PlayerId = GetStoredPersistentPlayerId(Controller);
+        }
+
         if (!PlayerId.IsValid() && CurrentSaveGame)
         {
                         for (auto& Pair : CurrentSaveGame->PlayerStates)
@@ -811,6 +819,7 @@ void UMO56SaveSubsystem::NotifyPlayerControllerReady(AMO56PlayerController* Cont
         }
 
         Controller->SetPlayerSaveId(PlayerId);
+        RememberPersistentPlayerId(Controller, PlayerId);
         PlayerControllers.FindOrAdd(PlayerId) = Controller;
 
         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("NotifyPlayerControllerReady: PlayerId=%s ControllerId=%d"), *PlayerId.ToString(), ControllerId);
@@ -1227,6 +1236,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
         if (MOController)
         {
                 PlayerControllers.FindOrAdd(PlayerSaveId) = MOController;
+                RememberPersistentPlayerId(MOController, PlayerSaveId);
         }
 
         if (const FPlayerAssignment* Assignment = CurrentSaveGame->Assignments.Find(PlayerSaveId))
@@ -1452,6 +1462,35 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
         {
                 UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("TryAssignAndPossess: Target pawn %s replicate movement disabled. Enabling."), *GetNameSafe(TargetPawn));
                 TargetPawn->SetReplicatingMovement(true);
+        }
+
+        if (AController* ExistingController = TargetPawn->GetController())
+        {
+                if (ExistingController != PC)
+                {
+                        bool bReclaimedFromExisting = false;
+
+                        if (AAIController* ExistingAI = Cast<AAIController>(ExistingController))
+                        {
+                                ExistingAI->UnPossess();
+                                bReclaimedFromExisting = true;
+                        }
+                        else if (AMO56PlayerController* ExistingPlayerController = Cast<AMO56PlayerController>(ExistingController))
+                        {
+                                if (ExistingPlayerController->GetPlayerSaveId() == PlayerSaveId)
+                                {
+                                        ExistingPlayerController->UnPossess();
+                                        bReclaimedFromExisting = true;
+                                }
+                        }
+
+                        if (!bReclaimedFromExisting)
+                        {
+                                OutReason = TEXT("Pawn in use");
+                                LogSaveEvent(this, TEXT("TryAssignAndPossessFail"), FString::Printf(TEXT("Reason=%s PawnId=%s"), *OutReason, *PawnId.ToString(EGuidFormats::DigitsWithHyphens)), MOController);
+                                return false;
+                        }
+                }
         }
 
         CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, PawnId };
@@ -4014,5 +4053,101 @@ void UMO56SaveSubsystem::RefreshCharacterSaveData(const FGuid& CharacterId)
         }
 
         CharacterData.OwningPlayerId = OwningPlayerId;
+}
+
+FGuid UMO56SaveSubsystem::GetStoredPersistentPlayerId(AMO56PlayerController* Controller) const
+{
+        if (!Controller)
+        {
+                return FGuid();
+        }
+
+        if (Controller->GetPlayerSaveId().IsValid())
+        {
+                return Controller->GetPlayerSaveId();
+        }
+
+        if (ULocalPlayer* LocalPlayer = Controller->GetLocalPlayer())
+        {
+                const int32 LocalIndex = ResolveLocalPlayerIndex(LocalPlayer);
+                if (const FGuid* StoredId = LocalPlayerPersistentIds.Find(LocalIndex))
+                {
+                        return *StoredId;
+                }
+
+                if (LocalIndex != INDEX_NONE)
+                {
+                        if (const FGuid* FallbackId = LocalPlayerPersistentIds.Find(INDEX_NONE))
+                        {
+                                return *FallbackId;
+                        }
+                }
+        }
+
+        if (Controller->IsLocalController())
+        {
+                if (const FGuid* FallbackId = LocalPlayerPersistentIds.Find(INDEX_NONE))
+                {
+                        return *FallbackId;
+                }
+        }
+
+        return FGuid();
+}
+
+void UMO56SaveSubsystem::RememberPersistentPlayerId(AMO56PlayerController* Controller, const FGuid& PlayerId)
+{
+        if (!Controller || !PlayerId.IsValid())
+        {
+                return;
+        }
+
+        bool bStoredSpecific = false;
+
+        if (ULocalPlayer* LocalPlayer = Controller->GetLocalPlayer())
+        {
+                const int32 LocalIndex = ResolveLocalPlayerIndex(LocalPlayer);
+                if (LocalIndex != INDEX_NONE)
+                {
+                        LocalPlayerPersistentIds.FindOrAdd(LocalIndex) = PlayerId;
+                        bStoredSpecific = true;
+                }
+        }
+
+        const bool bIsLocalController = Controller->IsLocalController();
+
+        if (bStoredSpecific)
+        {
+                if (bIsLocalController)
+                {
+                        LocalPlayerPersistentIds.Remove(INDEX_NONE);
+                }
+        }
+        else if (bIsLocalController)
+        {
+                LocalPlayerPersistentIds.FindOrAdd(INDEX_NONE) = PlayerId;
+        }
+}
+
+int32 UMO56SaveSubsystem::ResolveLocalPlayerIndex(const ULocalPlayer* LocalPlayer) const
+{
+        if (!LocalPlayer)
+        {
+                return INDEX_NONE;
+        }
+
+        if (const UGameInstance* GameInstance = GetGameInstance())
+        {
+                const TArray<ULocalPlayer*>& LocalPlayers = GameInstance->GetLocalPlayers();
+                for (int32 Index = 0; Index < LocalPlayers.Num(); ++Index)
+                {
+                        if (LocalPlayers[Index] == LocalPlayer)
+                        {
+                                return Index;
+                        }
+                }
+        }
+
+        return INDEX_NONE;
 }
 

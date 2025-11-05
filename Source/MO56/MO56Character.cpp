@@ -130,6 +130,9 @@ AMO56Character::AMO56Character()
         bReplicates = true;
         SetReplicateMovement(true);
 
+        // Prevent AI controllers from automatically grabbing persistent player pawns on load.
+        AutoPossessAI = EAutoPossessAI::Disabled;
+
         if (USkeletalMeshComponent* MeshComponent = GetMesh())
         {
                 MeshComponent->SetIsReplicated(true);
