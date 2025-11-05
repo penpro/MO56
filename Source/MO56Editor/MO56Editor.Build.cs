@@ -34,7 +34,9 @@ public class MO56Editor : ModuleRules
                 "PropertyEditor",
                 "ToolMenus",
                 "ContentBrowser",
-                "DesktopPlatform"
+                "DesktopPlatform",
+                "InputCore",
+                "ApplicationCore"
             });
     }
 }
