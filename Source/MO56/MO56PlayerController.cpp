@@ -85,6 +85,28 @@ namespace
 
                 UE_LOG(LogTemp, Log, TEXT("[Input] Contexts(tracked): %s"), *Names);
         }
+
+        static const TCHAR* ToNetModeString(ENetMode Mode)
+        {
+                switch (Mode)
+                {
+                case NM_Standalone:      return TEXT("Standalone");
+                case NM_DedicatedServer: return TEXT("DedicatedServer");
+                case NM_ListenServer:    return TEXT("ListenServer");
+                case NM_Client:          return TEXT("Client");
+                default:                 return TEXT("Unknown");
+                }
+        }
+
+        static FString ToNetRoleString(ENetRole Role)
+        {
+                if (const UEnum* Enum = StaticEnum<ENetRole>())
+                {
+                        return Enum->GetValueAsString(Role);
+                }
+
+                return FString(TEXT("ENetRole::<unknown>"));
+        }
 }
 
 void AMO56PlayerController::BeginPlay()
@@ -181,8 +203,8 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
         const ENetRole LocalRole = InPawn ? InPawn->GetLocalRole() : ROLE_None;
         const ENetRole ObservedRemoteRole = InPawn ? InPawn->GetRemoteRole() : ROLE_None;
         const FString RoleDetail = FString::Printf(TEXT("Roles(Local=%s Remote=%s ControllerIsLocal=%s)"),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), ObservedRemoteRole),
+                *ToNetRoleString(LocalRole),
+                *ToNetRoleString(ObservedRemoteRole),
                 IsLocalPlayerController() ? TEXT("true") : TEXT("false"));
 
         LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s %s"),
@@ -737,20 +759,20 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
         FString MovementNetModeString = TEXT("Unknown");
         if (UPawnMovementComponent* MovementComponent = NewPawn ? NewPawn->GetMovementComponent() : nullptr)
         {
-                MovementNetModeString = UEnum::GetValueAsString(TEXT("ENetMode"), MovementComponent->GetNetMode());
+                MovementNetModeString = ToNetModeString(MovementComponent->GetNetMode());
         }
 
         LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
                 *DescribePawnForDebug(NewPawn),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), ObservedRemoteRole),
+                *ToNetRoleString(LocalRole),
+                *ToNetRoleString(ObservedRemoteRole),
                 *MovementNetModeString), NewPawn);
 
         ReapplyEnhancedInputContexts();
         ApplyGameplayInputState();
 
         UE_LOG(LogTemp, Log, TEXT("[Input] ClientRestart PawnRole=%s Cursor=%s MoveIgnored=%s LookIgnored=%s"),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
+                *ToNetRoleString(LocalRole),
                 bShowMouseCursor ? TEXT("true") : TEXT("false"),
                 IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
                 IsLookInputIgnored() ? TEXT("true") : TEXT("false"));
@@ -788,13 +810,13 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
         FString MovementNetModeString = TEXT("Unknown");
         if (UPawnMovementComponent* MovementComponent = TargetPawn ? TargetPawn->GetMovementComponent() : nullptr)
         {
-                MovementNetModeString = UEnum::GetValueAsString(TEXT("ENetMode"), MovementComponent->GetNetMode());
+                MovementNetModeString = ToNetModeString(MovementComponent->GetNetMode());
         }
 
         LogDebugEvent(TEXT("ClientValidatePostPossess"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
                 *PawnDescription,
-                *UEnum::GetValueAsString(TEXT("ENetRole"), LocalRole),
-                *UEnum::GetValueAsString(TEXT("ENetRole"), ObservedRemoteRole),
+                *ToNetRoleString(LocalRole),
+                *ToNetRoleString(ObservedRemoteRole),
                 *MovementNetModeString), TargetPawn);
 
         if (TargetPawn && LocalRole != ROLE_AutonomousProxy)
