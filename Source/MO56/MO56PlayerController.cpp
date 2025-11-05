@@ -90,12 +90,12 @@ namespace
                         return;
                 }
 
-                const TArray<TPair<TWeakObjectPtr<const UInputMappingContext>, int32>>& Active = Controller->GetTrackedActiveContexts();
+                const TArray<FTrackedInputContext>& Active = Controller->GetTrackedActiveContexts();
 
                 FString Names;
-                for (const TPair<TWeakObjectPtr<const UInputMappingContext>, int32>& Entry : Active)
+                for (const FTrackedInputContext& Entry : Active)
                 {
-                        const UInputMappingContext* Context = Entry.Key.Get();
+                        const UInputMappingContext* Context = Entry.Context.Get();
                         if (!Context)
                         {
                                 continue;
@@ -106,7 +106,7 @@ namespace
                                 Names += TEXT(" ");
                         }
 
-                        Names += FString::Printf(TEXT("%s@%d"), *Context->GetName(), Entry.Value);
+                        Names += FString::Printf(TEXT("%s@%d"), *Context->GetName(), Entry.Priority);
                 }
 
                 if (Names.IsEmpty())
@@ -1262,8 +1262,8 @@ void AMO56PlayerController::ReapplyEnhancedInputContexts()
 
                         for (int32 Index = TrackedInputContexts.Num() - 1; Index >= 0; --Index)
                         {
-                                const UInputMappingContext* Context = TrackedInputContexts[Index].Key.Get();
-                                const int32 Priority = TrackedInputContexts[Index].Value;
+                                const UInputMappingContext* Context = TrackedInputContexts[Index].Context.Get();
+                                const int32 Priority = TrackedInputContexts[Index].Priority;
 
                                 if (!Context)
                                 {
@@ -1285,12 +1285,12 @@ void AMO56PlayerController::ApplyMappingContext(const UInputMappingContext* Cont
         }
 
         bool bUpdated = false;
-        for (TPair<TWeakObjectPtr<const UInputMappingContext>, int32>& Entry : TrackedInputContexts)
+        for (FTrackedInputContext& Entry : TrackedInputContexts)
         {
-                if (Entry.Key.Get() == Context)
+                if (Entry.Context.Get() == Context)
                 {
-                        Entry.Key = Context;
-                        Entry.Value = Priority;
+                        Entry.Context = Context;
+                        Entry.Priority = Priority;
                         bUpdated = true;
                         break;
                 }
@@ -1298,7 +1298,10 @@ void AMO56PlayerController::ApplyMappingContext(const UInputMappingContext* Cont
 
         if (!bUpdated)
         {
-                TrackedInputContexts.Emplace(Context, Priority);
+                FTrackedInputContext Add;
+                Add.Context = Context;
+                Add.Priority = Priority;
+                TrackedInputContexts.Add(Add);
         }
 
         if (ULocalPlayer* LocalPlayer = GetLocalPlayer())

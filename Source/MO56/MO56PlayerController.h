@@ -5,7 +5,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "Templates/Pair.h"
 #include "MO56PlayerController.generated.h"
 
 class UInputMappingContext;
@@ -36,6 +35,18 @@ struct FMOPossessablePawnInfo
 
         UPROPERTY(BlueprintReadOnly)
         FGuid AssignedTo;
+};
+
+USTRUCT()
+struct FTrackedInputContext
+{
+        GENERATED_BODY()
+
+        UPROPERTY()
+        TWeakObjectPtr<const UInputMappingContext> Context;
+
+        UPROPERTY()
+        int32 Priority = 0;
 };
 
 /**
@@ -144,7 +155,7 @@ FGuid GetPlayerSaveId() const { return PlayerSaveId; }
 
         FString DescribeDebugInputMode() const;
 
-        const TArray<TPair<TWeakObjectPtr<const UInputMappingContext>, int32>>& GetTrackedActiveContexts() const { return TrackedInputContexts; }
+        const TArray<FTrackedInputContext>& GetTrackedActiveContexts() const { return TrackedInputContexts; }
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -249,7 +260,7 @@ private:
         FName DebugInputModeTag = NAME_None;
 
         UPROPERTY(Transient)
-        TArray<TPair<TWeakObjectPtr<const UInputMappingContext>, int32>> TrackedInputContexts;
+        TArray<FTrackedInputContext> TrackedInputContexts;
 
         uint8 PostRestartRetryCount = 0;
         static constexpr uint8 PostRestartRetryLimit = 2;
