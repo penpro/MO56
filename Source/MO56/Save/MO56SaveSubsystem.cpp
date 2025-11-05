@@ -41,6 +41,18 @@ DEFINE_LOG_CATEGORY_STATIC(LogMO56SaveSubsystem, Log, All);
 namespace
 {
 static const TCHAR* const GameplayGameModeOption = TEXT("?game=/Game/MyStuff/BP_MO56GameMode.BP_MO56GameMode_C");
+
+static const TCHAR* RoleToString(ENetRole Role)
+{
+        switch (Role)
+        {
+        case ROLE_None:             return TEXT("ROLE_None");
+        case ROLE_SimulatedProxy:   return TEXT("ROLE_SimulatedProxy");
+        case ROLE_AutonomousProxy:  return TEXT("ROLE_AutonomousProxy");
+        case ROLE_Authority:        return TEXT("ROLE_Authority");
+        default:                    return TEXT("ROLE_Unknown");
+        }
+}
 }
 
 static FGuid GuidFromString(const FString& S)
@@ -2351,8 +2363,8 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
                                 TEXT("[Assign] Post-load role mismatch PlayerId=%s Pawn=%s LocalRole=%s RemoteRole=%s"),
                                 *PlayerIdString,
                                 *PawnIdString,
-                                *UEnum::GetValueAsString(TEXT("ENetRole"), Pawn->GetLocalRole()),
-                                *UEnum::GetValueAsString(TEXT("ENetRole"), Pawn->GetRemoteRole()));
+                                RoleToString(Pawn->GetLocalRole()),
+                                RoleToString(Pawn->GetRemoteRole()));
                 }
         }
 }

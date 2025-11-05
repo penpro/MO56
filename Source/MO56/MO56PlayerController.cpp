@@ -59,6 +59,30 @@ namespace
                         *Controller.DescribeDebugInputMode());
         }
 
+        static const TCHAR* RoleToString(ENetRole Role)
+        {
+                switch (Role)
+                {
+                case ROLE_None:             return TEXT("ROLE_None");
+                case ROLE_SimulatedProxy:   return TEXT("ROLE_SimulatedProxy");
+                case ROLE_AutonomousProxy:  return TEXT("ROLE_AutonomousProxy");
+                case ROLE_Authority:        return TEXT("ROLE_Authority");
+                default:                    return TEXT("ROLE_Unknown");
+                }
+        }
+
+        static const TCHAR* NetModeToString(ENetMode Mode)
+        {
+                switch (Mode)
+                {
+                case NM_Standalone:        return TEXT("NM_Standalone");
+                case NM_DedicatedServer:   return TEXT("NM_DedicatedServer");
+                case NM_ListenServer:      return TEXT("NM_ListenServer");
+                case NM_Client:            return TEXT("NM_Client");
+                default:                   return TEXT("NM_Unknown");
+                }
+        }
+
         void LogActiveContexts(AMO56PlayerController* Controller)
         {
                 if (!Controller)
@@ -66,16 +90,23 @@ namespace
                         return;
                 }
 
-                const TSet<TObjectPtr<const UInputMappingContext>>& Active = Controller->GetTrackedActiveContexts();
+                const TArray<TPair<TWeakObjectPtr<const UInputMappingContext>, int32>>& Active = Controller->GetTrackedActiveContexts();
 
                 FString Names;
-                for (const TObjectPtr<const UInputMappingContext>& CtxPtr : Active)
+                for (const TPair<TWeakObjectPtr<const UInputMappingContext>, int32>& Entry : Active)
                 {
+                        const UInputMappingContext* Context = Entry.Key.Get();
+                        if (!Context)
+                        {
+                                continue;
+                        }
+
                         if (!Names.IsEmpty())
                         {
                                 Names += TEXT(" ");
                         }
-                        Names += CtxPtr ? CtxPtr->GetName() : TEXT("<null>");
+
+                        Names += FString::Printf(TEXT("%s@%d"), *Context->GetName(), Entry.Value);
                 }
 
                 if (Names.IsEmpty())
@@ -84,28 +115,6 @@ namespace
                 }
 
                 UE_LOG(LogTemp, Log, TEXT("[Input] Contexts(tracked): %s"), *Names);
-        }
-
-        static const TCHAR* ToNetModeString(ENetMode Mode)
-        {
-                switch (Mode)
-                {
-                case NM_Standalone:      return TEXT("Standalone");
-                case NM_DedicatedServer: return TEXT("DedicatedServer");
-                case NM_ListenServer:    return TEXT("ListenServer");
-                case NM_Client:          return TEXT("Client");
-                default:                 return TEXT("Unknown");
-                }
-        }
-
-        static FString ToNetRoleString(ENetRole Role)
-        {
-                if (const UEnum* Enum = StaticEnum<ENetRole>())
-                {
-                        return Enum->GetValueAsString(Role);
-                }
-
-                return FString(TEXT("ENetRole::<unknown>"));
         }
 }
 
@@ -203,8 +212,8 @@ void AMO56PlayerController::OnPossess(APawn* InPawn)
         const ENetRole LocalRole = InPawn ? InPawn->GetLocalRole() : ROLE_None;
         const ENetRole ObservedRemoteRole = InPawn ? InPawn->GetRemoteRole() : ROLE_None;
         const FString RoleDetail = FString::Printf(TEXT("Roles(Local=%s Remote=%s ControllerIsLocal=%s)"),
-                *ToNetRoleString(LocalRole),
-                *ToNetRoleString(ObservedRemoteRole),
+                RoleToString(LocalRole),
+                RoleToString(ObservedRemoteRole),
                 IsLocalPlayerController() ? TEXT("true") : TEXT("false"));
 
         LogDebugEvent(TEXT("OnPossess"), FString::Printf(TEXT("New=%s %s %s"),
@@ -756,23 +765,36 @@ void AMO56PlayerController::ClientRestart_Implementation(APawn* NewPawn)
 
         const ENetRole LocalRole = NewPawn ? NewPawn->GetLocalRole() : ROLE_None;
         const ENetRole ObservedRemoteRole = NewPawn ? NewPawn->GetRemoteRole() : ROLE_None;
-        FString MovementNetModeString = TEXT("Unknown");
+        const bool bPawnLocallyControlled = NewPawn ? NewPawn->IsLocallyControlled() : false;
+        const ENetMode ControllerNetMode = GetNetMode();
+        const ENetMode WorldNetMode = GetWorld() ? GetWorld()->GetNetMode() : NM_Standalone;
+        const ENetMode PawnNetMode = NewPawn ? NewPawn->GetNetMode() : ControllerNetMode;
+        const TCHAR* MovementNetModeString = TEXT("NM_Unknown");
         if (UPawnMovementComponent* MovementComponent = NewPawn ? NewPawn->GetMovementComponent() : nullptr)
         {
-                MovementNetModeString = ToNetModeString(MovementComponent->GetNetMode());
+                MovementNetModeString = NetModeToString(MovementComponent->GetNetMode());
         }
 
-        LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
+        LogDebugEvent(TEXT("ClientRestart"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) PawnLocal=%s ControllerLocal=%s ControllerNetMode=%s WorldNetMode=%s PawnNetMode=%s MovementNetMode=%s"),
                 *DescribePawnForDebug(NewPawn),
-                *ToNetRoleString(LocalRole),
-                *ToNetRoleString(ObservedRemoteRole),
-                *MovementNetModeString), NewPawn);
+                RoleToString(LocalRole),
+                RoleToString(ObservedRemoteRole),
+                bPawnLocallyControlled ? TEXT("true") : TEXT("false"),
+                IsLocalPlayerController() ? TEXT("true") : TEXT("false"),
+                NetModeToString(ControllerNetMode),
+                NetModeToString(WorldNetMode),
+                NetModeToString(PawnNetMode),
+                MovementNetModeString), NewPawn);
 
         ReapplyEnhancedInputContexts();
         ApplyGameplayInputState();
 
-        UE_LOG(LogTemp, Log, TEXT("[Input] ClientRestart PawnRole=%s Cursor=%s MoveIgnored=%s LookIgnored=%s"),
-                *ToNetRoleString(LocalRole),
+        UE_LOG(LogTemp, Log, TEXT("[Input] ClientRestart PawnRole=%s PawnLocal=%s ControllerLocal=%s ControllerNetMode=%s WorldNetMode=%s Cursor=%s MoveIgnored=%s LookIgnored=%s"),
+                RoleToString(LocalRole),
+                bPawnLocallyControlled ? TEXT("true") : TEXT("false"),
+                IsLocalPlayerController() ? TEXT("true") : TEXT("false"),
+                NetModeToString(ControllerNetMode),
+                NetModeToString(WorldNetMode),
                 bShowMouseCursor ? TEXT("true") : TEXT("false"),
                 IsMoveInputIgnored() ? TEXT("true") : TEXT("false"),
                 IsLookInputIgnored() ? TEXT("true") : TEXT("false"));
@@ -807,20 +829,38 @@ void AMO56PlayerController::ClientValidatePostPossess_Implementation(APawn* Targ
         const FString PawnDescription = DescribePawnForDebug(TargetPawn);
         const ENetRole LocalRole = TargetPawn ? TargetPawn->GetLocalRole() : ROLE_None;
         const ENetRole ObservedRemoteRole = TargetPawn ? TargetPawn->GetRemoteRole() : ROLE_None;
-        FString MovementNetModeString = TEXT("Unknown");
+        const bool bLocallyControlled = TargetPawn ? TargetPawn->IsLocallyControlled() : false;
+        const ENetMode ControllerNetMode = GetNetMode();
+        const ENetMode WorldNetMode = GetWorld() ? GetWorld()->GetNetMode() : NM_Standalone;
+        const ENetMode PawnNetMode = TargetPawn ? TargetPawn->GetNetMode() : ControllerNetMode;
+        const TCHAR* MovementNetModeString = TEXT("NM_Unknown");
         if (UPawnMovementComponent* MovementComponent = TargetPawn ? TargetPawn->GetMovementComponent() : nullptr)
         {
-                MovementNetModeString = ToNetModeString(MovementComponent->GetNetMode());
+                MovementNetModeString = NetModeToString(MovementComponent->GetNetMode());
         }
 
-        LogDebugEvent(TEXT("ClientValidatePostPossess"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) MovementNetMode=%s"),
-                *PawnDescription,
-                *ToNetRoleString(LocalRole),
-                *ToNetRoleString(ObservedRemoteRole),
-                *MovementNetModeString), TargetPawn);
+        const bool bClientContext = (ControllerNetMode == NM_Client);
+        const bool bGood = (bClientContext && LocalRole == ROLE_AutonomousProxy)
+                || (!bClientContext && LocalRole == ROLE_Authority)
+                || bLocallyControlled;
 
-        if (TargetPawn && LocalRole != ROLE_AutonomousProxy)
+        LogDebugEvent(TEXT("ClientValidatePostPossess"), FString::Printf(TEXT("Pawn=%s Roles(Local=%s Remote=%s) PawnLocal=%s ControllerNetMode=%s WorldNetMode=%s PawnNetMode=%s MovementNetMode=%s bClientContext=%s"),
+                *PawnDescription,
+                RoleToString(LocalRole),
+                RoleToString(ObservedRemoteRole),
+                bLocallyControlled ? TEXT("true") : TEXT("false"),
+                NetModeToString(ControllerNetMode),
+                NetModeToString(WorldNetMode),
+                NetModeToString(PawnNetMode),
+                MovementNetModeString,
+                bClientContext ? TEXT("true") : TEXT("false")), TargetPawn);
+
+        if (TargetPawn && !bGood)
         {
+                UE_LOG(LogTemp, Warning, TEXT("[PC] ClientValidatePostPossess role unexpected. PawnRole=%s PawnLocal=%s ControllerNetMode=%s"),
+                        RoleToString(LocalRole),
+                        bLocallyControlled ? TEXT("true") : TEXT("false"),
+                        NetModeToString(ControllerNetMode));
                 LogDebugEvent(TEXT("ClientValidatePostPossessRequestFix"), FString::Printf(TEXT("Pawn=%s"), *PawnDescription), TargetPawn);
                 ServerRequestPostPossessNetUpdate(TargetPawn);
         }
@@ -833,57 +873,81 @@ void AMO56PlayerController::ClientForceOpenPossessMenu_Implementation()
 
 void AMO56PlayerController::ClientPostRestartValidate_Implementation()
 {
+        PostRestartRetryCount = 0;
+
         TWeakObjectPtr<AMO56PlayerController> WeakThis(this);
         GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
         {
-                if (!WeakThis.IsValid())
+                if (AMO56PlayerController* Controller = WeakThis.Get())
                 {
-                        return;
+                        Controller->EvaluatePostRestartState();
                 }
+        }));
+}
 
-                AMO56PlayerController* Controller = WeakThis.Get();
-                if (!Controller)
+void AMO56PlayerController::EvaluatePostRestartState()
+{
+        APawn* Pawn = GetPawn();
+        if (!Pawn)
+        {
+                UE_LOG(LogTemp, Warning, TEXT("[PC] PostRestart validation skipped - no pawn."));
+                return;
+        }
+
+        const ENetRole LocalRole = Pawn->GetLocalRole();
+        const bool bLocallyControlled = Pawn->IsLocallyControlled();
+        const ENetMode ControllerNetMode = GetNetMode();
+        const ENetMode WorldNetMode = GetWorld() ? GetWorld()->GetNetMode() : NM_Standalone;
+        const ENetMode PawnNetMode = Pawn->GetNetMode();
+        const bool bClientContext = (ControllerNetMode == NM_Client);
+
+        const bool bGood = (bClientContext && LocalRole == ROLE_AutonomousProxy)
+                || (!bClientContext && LocalRole == ROLE_Authority)
+                || bLocallyControlled;
+
+        UE_LOG(LogTemp, Log, TEXT("[PC] PostRestart check PawnRole=%s PawnLocal=%s ControllerNetMode=%s WorldNetMode=%s PawnNetMode=%s Retry=%d"),
+                RoleToString(LocalRole),
+                bLocallyControlled ? TEXT("true") : TEXT("false"),
+                NetModeToString(ControllerNetMode),
+                NetModeToString(WorldNetMode),
+                NetModeToString(PawnNetMode),
+                PostRestartRetryCount);
+
+        if (!bGood)
+        {
+                if (PostRestartRetryCount < PostRestartRetryLimit)
                 {
-                        return;
-                }
+                        ++PostRestartRetryCount;
+                        UE_LOG(LogTemp, Warning, TEXT("[PC] PostRestart not in expected role. Reissuing ClientRestart."));
+                        ClientRestart(Pawn);
+                        ClientReapplyEnhancedInputContexts_Implementation();
+                        ClientEnsureGameInput_Implementation();
 
-                APawn* Pawn = Controller->GetPawn();
-                if (!Pawn)
-                {
-                        return;
-                }
-
-                if (Pawn->GetLocalRole() != ROLE_AutonomousProxy)
-                {
-                        UE_LOG(LogTemp, Warning, TEXT("[PC] Pawn not Autonomous after restart. Reissuing ClientRestart."));
-                        Controller->ClientRestart_Implementation(Pawn);
-                        Controller->ClientReapplyEnhancedInputContexts_Implementation();
-                        Controller->ClientEnsureGameInput_Implementation();
-
-                        TWeakObjectPtr<APawn> PawnPtr(Pawn);
-                        Controller->GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis, PawnPtr]()
+                        TWeakObjectPtr<AMO56PlayerController> WeakThis(this);
+                        GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
                         {
-                                if (!WeakThis.IsValid())
+                                if (AMO56PlayerController* Controller = WeakThis.Get())
                                 {
-                                        return;
-                                }
-
-                                AMO56PlayerController* InnerController = WeakThis.Get();
-                                if (!InnerController || !PawnPtr.IsValid())
-                                {
-                                        return;
-                                }
-
-                                if (APawn* CheckedPawn = PawnPtr.Get())
-                                {
-                                        if (CheckedPawn->GetLocalRole() != ROLE_AutonomousProxy)
-                                        {
-                                                UE_LOG(LogTemp, Error, TEXT("[PC] Pawn still not Autonomous after restart retry. Inspect replication settings."));
-                                        }
+                                        Controller->EvaluatePostRestartState();
                                 }
                         }));
                 }
-        }));
+                else
+                {
+                        UE_LOG(LogTemp, Error, TEXT("[PC] PostRestart role still unexpected after retries. PawnRole=%s PawnLocal=%s ControllerNetMode=%s"),
+                                RoleToString(LocalRole),
+                                bLocallyControlled ? TEXT("true") : TEXT("false"),
+                                NetModeToString(ControllerNetMode));
+                }
+
+                return;
+        }
+
+        UE_LOG(LogTemp, Log, TEXT("[PC] PostRestart validation succeeded. PawnRole=%s PawnLocal=%s ControllerNetMode=%s"),
+                RoleToString(LocalRole),
+                bLocallyControlled ? TEXT("true") : TEXT("false"),
+                NetModeToString(ControllerNetMode));
+        PostRestartRetryCount = 0;
 }
 
 void AMO56PlayerController::ServerRequestPostPossessNetUpdate_Implementation(APawn* TargetPawn)
@@ -1169,41 +1233,16 @@ void AMO56PlayerController::EnsureDefaultInputContexts()
                 return;
         }
 
-        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
         {
-                if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+                ApplyMappingContext(CurrentContext, 0);
+        }
+
+        if (!SVirtualJoystick::ShouldDisplayTouchInterface())
+        {
+                for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
                 {
-                        auto RegisterContext = [this, Subsystem](UInputMappingContext* CurrentContext)
-                        {
-                                if (!CurrentContext)
-                                {
-                                        return;
-                                }
-
-#if UE_VERSION_OLDER_THAN(5, 3, 0)
-                                Subsystem->AddMappingContext(CurrentContext, 0);
-                                TrackedActiveContexts.Add(CurrentContext);
-#else
-                                if (!Subsystem->HasMappingContext(CurrentContext))
-                                {
-                                        Subsystem->AddMappingContext(CurrentContext, 0);
-                                }
-                                TrackedActiveContexts.Add(CurrentContext);
-#endif
-                        };
-
-                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
-                        {
-                                RegisterContext(CurrentContext);
-                        }
-
-                        if (!SVirtualJoystick::ShouldDisplayTouchInterface())
-                        {
-                                for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
-                                {
-                                        RegisterContext(CurrentContext);
-                                }
-                        }
+                        ApplyMappingContext(CurrentContext, 0);
                 }
         }
 }
@@ -1220,31 +1259,53 @@ void AMO56PlayerController::ReapplyEnhancedInputContexts()
                 if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
                 {
                         Subsystem->ClearAllMappings();
-                        TrackedActiveContexts.Empty();
 
-                        auto AddContext = [this, Subsystem](UInputMappingContext* CurrentContext)
+                        for (int32 Index = TrackedInputContexts.Num() - 1; Index >= 0; --Index)
                         {
-                                if (!CurrentContext)
+                                const UInputMappingContext* Context = TrackedInputContexts[Index].Key.Get();
+                                const int32 Priority = TrackedInputContexts[Index].Value;
+
+                                if (!Context)
                                 {
-                                        return;
+                                        TrackedInputContexts.RemoveAt(Index);
+                                        continue;
                                 }
 
-                                Subsystem->AddMappingContext(CurrentContext, 0);
-                                TrackedActiveContexts.Add(CurrentContext);
-                        };
-
-                        for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
-                        {
-                                AddContext(CurrentContext);
+                                Subsystem->AddMappingContext(Context, Priority);
                         }
+                }
+        }
+}
 
-                        if (!SVirtualJoystick::ShouldDisplayTouchInterface())
-                        {
-                                for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
-                                {
-                                        AddContext(CurrentContext);
-                                }
-                        }
+void AMO56PlayerController::ApplyMappingContext(const UInputMappingContext* Context, int32 Priority)
+{
+        if (!Context)
+        {
+                return;
+        }
+
+        bool bUpdated = false;
+        for (TPair<TWeakObjectPtr<const UInputMappingContext>, int32>& Entry : TrackedInputContexts)
+        {
+                if (Entry.Key.Get() == Context)
+                {
+                        Entry.Key = Context;
+                        Entry.Value = Priority;
+                        bUpdated = true;
+                        break;
+                }
+        }
+
+        if (!bUpdated)
+        {
+                TrackedInputContexts.Emplace(Context, Priority);
+        }
+
+        if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
+        {
+                if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LocalPlayer))
+                {
+                        Subsystem->AddMappingContext(Context, Priority);
                 }
         }
 }

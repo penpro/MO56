@@ -5,7 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "Containers/Set.h"
+#include "Templates/Pair.h"
 #include "MO56PlayerController.generated.h"
 
 class UInputMappingContext;
@@ -144,7 +144,7 @@ FGuid GetPlayerSaveId() const { return PlayerSaveId; }
 
         FString DescribeDebugInputMode() const;
 
-        const TSet<TObjectPtr<const UInputMappingContext>>& GetTrackedActiveContexts() const { return TrackedActiveContexts; }
+        const TArray<TPair<TWeakObjectPtr<const UInputMappingContext>, int32>>& GetTrackedActiveContexts() const { return TrackedInputContexts; }
 
 protected:
         UFUNCTION(Server, Reliable)
@@ -222,6 +222,7 @@ private:
 
         void EnsureDefaultInputContexts();
         void ReapplyEnhancedInputContexts();
+        void ApplyMappingContext(const UInputMappingContext* Context, int32 Priority);
         void EnsureGameplayInputMode();
         void ApplyGameplayInputState();
         void ApplyMenuInputState();
@@ -230,6 +231,7 @@ private:
         void LogDebugEvent(FName Action, const FString& Detail, const APawn* ContextPawn = nullptr) const;
         FGuid ResolvePlayerGuid() const;
         void SetLastContainerOwningCharacter(AMO56Character* InCharacter);
+        void EvaluatePostRestartState();
 
         UPROPERTY(EditDefaultsOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
         TSubclassOf<UMO56PossessMenuWidget> PossessMenuClass;
@@ -247,5 +249,8 @@ private:
         FName DebugInputModeTag = NAME_None;
 
         UPROPERTY(Transient)
-        TSet<TObjectPtr<const UInputMappingContext>> TrackedActiveContexts;
+        TArray<TPair<TWeakObjectPtr<const UInputMappingContext>, int32>> TrackedInputContexts;
+
+        uint8 PostRestartRetryCount = 0;
+        static constexpr uint8 PostRestartRetryLimit = 2;
 };
