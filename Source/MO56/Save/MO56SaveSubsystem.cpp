@@ -1448,10 +1448,10 @@ bool UMO56SaveSubsystem::TryAssignAndPossess(APlayerController* PC, const FGuid&
                 TargetPawn->SetReplicates(true);
         }
 
-        if (!TargetPawn->GetReplicateMovement())
+        if (!TargetPawn->IsReplicatingMovement())
         {
                 UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("TryAssignAndPossess: Target pawn %s replicate movement disabled. Enabling."), *GetNameSafe(TargetPawn));
-                TargetPawn->SetReplicateMovement(true);
+                TargetPawn->SetReplicatingMovement(true);
         }
 
         CurrentSaveGame->Assignments.FindOrAdd(PlayerSaveId) = { PlayerSaveId, PawnId };
