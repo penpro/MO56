@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Blutility/Classes/EditorUtilityWidget.h"
+#include "EditorUtilityWidget.h"
 #include "WBP_RecipeBrowser.generated.h"
 
 class SRecipeBrowserPanel;

@@ -19,6 +19,9 @@ public class MO56Editor : ModuleRules
             new string[]
             {
                 "MO56",
+                "Core",
+                "CoreUObject",
+                "Engine",
                 "UnrealEd",
                 "AssetTools",
                 "AssetRegistry",
@@ -31,7 +34,8 @@ public class MO56Editor : ModuleRules
                 "Blutility",
                 "PropertyEditor",
                 "ContentBrowser",
-                "DesktopPlatform"
+                "DesktopPlatform",
+                "ToolMenus"
             });
     }
 }
