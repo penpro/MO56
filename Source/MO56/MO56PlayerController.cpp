@@ -805,12 +805,7 @@ void AMO56PlayerController::ClientEnsureGameInput_Implementation()
 {
         LogDebugEvent(TEXT("ClientEnsureGameInput"), FString::Printf(TEXT("Before %s"), *DescribeInputState(*this)));
 
-        if (AMO56Character* MOCharacter = Cast<AMO56Character>(GetCharacter()))
-        {
-                MOCharacter->CloseAllPlayerMenus();
-        }
-
-        ApplyGameplayInputState();
+        EnsureGameInputLocal();
 
         LogDebugEvent(TEXT("ClientEnsureGameInputComplete"), FString::Printf(TEXT("After %s"), *DescribeInputState(*this)));
 }
@@ -920,8 +915,8 @@ void AMO56PlayerController::EvaluatePostRestartState()
                         ++PostRestartRetryCount;
                         UE_LOG(LogTemp, Warning, TEXT("[PC] PostRestart not in expected role. Reissuing ClientRestart."));
                         ClientRestart(Pawn);
-                        ClientReapplyEnhancedInputContexts_Implementation();
-                        ClientEnsureGameInput_Implementation();
+                        ReapplyEnhancedInputContexts();
+                        EnsureGameInputLocal();
 
                         TWeakObjectPtr<AMO56PlayerController> WeakThis(this);
                         GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateLambda([WeakThis]()
@@ -1311,6 +1306,16 @@ void AMO56PlayerController::ApplyMappingContext(const UInputMappingContext* Cont
                         Subsystem->AddMappingContext(Context, Priority);
                 }
         }
+}
+
+void AMO56PlayerController::EnsureGameInputLocal()
+{
+        if (AMO56Character* MOCharacter = Cast<AMO56Character>(GetCharacter()))
+        {
+                MOCharacter->CloseAllPlayerMenus();
+        }
+
+        ApplyGameplayInputState();
 }
 
 void AMO56PlayerController::EnsureGameplayInputMode()
