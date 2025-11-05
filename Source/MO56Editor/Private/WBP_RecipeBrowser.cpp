@@ -20,6 +20,7 @@
 #include "PropertyEditorModule.h"
 #include "RecipeEditorLibrary.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "UObject/TopLevelAssetPath.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SButton.h"
@@ -525,7 +526,11 @@ namespace RecipeBrowser
             FSaveAssetDialogConfig Config;
             Config.DefaultPath = DefaultPath;
             Config.DefaultAssetName = TEXT("NewRecipe");
+#if (ENGINE_MAJOR_VERSION >= 5)
+            Config.AssetClassNames.Add(UCraftingRecipe::StaticClass()->GetClassPathName());
+#else
             Config.AssetClassNames.Add(UCraftingRecipe::StaticClass()->GetFName());
+#endif
             Config.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
 
             FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
@@ -551,7 +556,11 @@ namespace RecipeBrowser
             FSaveAssetDialogConfig Config;
             Config.DefaultPath = DefaultPath;
             Config.DefaultAssetName = Source->GetName() + TEXT("_Copy");
+#if (ENGINE_MAJOR_VERSION >= 5)
+            Config.AssetClassNames.Add(UCraftingRecipe::StaticClass()->GetClassPathName());
+#else
             Config.AssetClassNames.Add(UCraftingRecipe::StaticClass()->GetFName());
+#endif
             Config.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
 
             FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
