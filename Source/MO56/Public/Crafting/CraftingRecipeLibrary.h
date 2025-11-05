@@ -7,7 +7,7 @@
 class UCraftingRecipe;
 
 UCLASS(BlueprintType)
-class MO56_API UCraftingRecipeLibrary : public UDataAsset
+class MO56_API UCraftingRecipeLibrary : public UPrimaryDataAsset
 {
     GENERATED_BODY()
 
