@@ -115,7 +115,7 @@ UMO56SaveSubsystem::UMO56SaveSubsystem()
         ActiveSaveSlotName = SaveSlotName;
         ActiveSaveUserIndex = SaveUserIndex;
 
-        NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("Loading"), TEXT("Loading_"), TEXT("UI_") };
+        NonGameplayMapPrefixes = { TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_"), TEXT("Loading") };
 }
 
 void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -127,7 +127,7 @@ void UMO56SaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
         if (NonGameplayMapPrefixes.Num() == 0)
         {
-                NonGameplayMapPrefixes = { TEXT("L_"), TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_") };
+                NonGameplayMapPrefixes = { TEXT("Menu"), TEXT("MainMenu"), TEXT("UI_"), TEXT("Loading") };
         }
 
         if (PostLoadMapHandle.IsValid())
@@ -309,15 +309,37 @@ void UMO56SaveSubsystem::StartNewGame(const FString& LevelName)
         }
 }
 
-void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
+bool UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
 {
-        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("LoadSave: SaveId=%s"), *SaveId.ToString());
-
         if (!SaveId.IsValid())
         {
-                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("LoadSave failed: invalid SaveId."));
-                return;
+                UE_LOG(LogTemp, Error, TEXT("SaveSubsystem::LoadSave called with invalid SaveId"));
+                return false;
         }
+
+        UWorld* World = GetWorld();
+        if (World && !IsAuthoritative())
+        {
+                if (APlayerController* PlayerController = World->GetFirstPlayerController())
+                {
+                        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+                        {
+                                MOController->ServerLoadGameById(SaveId);
+                                return true;
+                        }
+                }
+
+                UE_LOG(LogTemp, Error, TEXT("SaveSubsystem::LoadSave called on client without valid PlayerController. Aborting."));
+                return false;
+        }
+
+        if (!IsAuthoritative())
+        {
+                UE_LOG(LogTemp, Warning, TEXT("SaveSubsystem::LoadSave skipped: no authoritative world."));
+                return false;
+        }
+
+        UE_LOG(LogMO56SaveSubsystem, Display, TEXT("LoadSave: SaveId=%s"), *SaveId.ToString());
 
         if (UMO56SaveGame* Loaded = ReadSave(SaveId))
         {
@@ -336,7 +358,8 @@ void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
                 bAppliedPendingSaveThisLevel = false;
                 CurrentSaveGame = nullptr;
 
-                if (UWorld* World = GetWorld())
+                World = GetWorld();
+                if (World)
                 {
                         const FString URL = MapShortName + GameplayGameModeOption;
                         UE_LOG(LogMO56SaveSubsystem, Log, TEXT("LoadSave travel URL: %s"), *URL);
@@ -348,20 +371,19 @@ void UMO56SaveSubsystem::LoadSave(const FGuid& SaveId)
                         }
 
                         UGameplayStatics::OpenLevel(World, FName(*MapShortName), true, GameplayGameModeOption);
+                        return true;
                 }
-                else
-                {
-                        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("LoadSave failed: no valid world context for travel."));
-                        bPendingApplyOnNextLevel = false;
-                        PendingLoadedSave = nullptr;
-                }
-        }
-        else
-        {
-                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("LoadSave failed: SaveId=%s not found."), *SaveId.ToString());
-                PendingLoadedSave = nullptr;
+
+                UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("LoadSave failed: no valid world context for travel."));
                 bPendingApplyOnNextLevel = false;
+                PendingLoadedSave = nullptr;
+                return false;
         }
+
+        UE_LOG(LogMO56SaveSubsystem, Warning, TEXT("LoadSave failed: SaveId=%s not found."), *SaveId.ToString());
+        PendingLoadedSave = nullptr;
+        bPendingApplyOnNextLevel = false;
+        return false;
 }
 
 bool UMO56SaveSubsystem::SaveCurrentGame()
@@ -1205,6 +1227,10 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                 return;
         }
 
+        const TWeakObjectPtr<APlayerController> ControllerKey(PlayerController);
+        bool bShouldRetry = false;
+        static const TCHAR* PawnNotPresentReason = TEXT("Pawn not present in world");
+
         LogSaveEvent(this, TEXT("AssignPersistentPawn"), FString::Printf(TEXT("Controller=%s"), *GetNameSafe(PlayerController)), Cast<AMO56PlayerController>(PlayerController));
 
         if (!CurrentSaveGame)
@@ -1216,6 +1242,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
         {
                 PlayerController->StartSpectatingOnly();
                 LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), TEXT("No save game available"), Cast<AMO56PlayerController>(PlayerController));
+                PendingPossessionRetries.Remove(ControllerKey);
                 return;
         }
 
@@ -1230,6 +1257,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
         {
                 PlayerController->StartSpectatingOnly();
                 LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), TEXT("No PlayerSaveId"), MOController);
+                PendingPossessionRetries.Remove(ControllerKey);
                 return;
         }
 
@@ -1247,6 +1275,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                         if (TryAssignAndPossess(PlayerController, Assignment->PawnId, Reason))
                         {
                                 LogSaveEvent(this, TEXT("AssignPersistentPawnSuccess"), FString::Printf(TEXT("Reclaimed PawnId=%s"), *Assignment->PawnId.ToString(EGuidFormats::DigitsWithHyphens)), Cast<AMO56PlayerController>(PlayerController));
+                                PendingPossessionRetries.Remove(ControllerKey);
                                 return;
                         }
 
@@ -1254,6 +1283,11 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                                 TEXT("AssignAndPossessPersistentPawn: Failed to reclaim pawn %s for player %s (%s)"),
                                 *Assignment->PawnId.ToString(), *PlayerSaveId.ToString(), *Reason);
                         LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), FString::Printf(TEXT("Reason=%s"), *Reason), MOController);
+
+                        if (Reason.Equals(PawnNotPresentReason))
+                        {
+                                bShouldRetry = true;
+                        }
                 }
         }
 
@@ -1266,6 +1300,7 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                 if (TryAssignAndPossess(PlayerController, CandidatePawnId, Reason))
                 {
                         LogSaveEvent(this, TEXT("AssignPersistentPawnSuccess"), FString::Printf(TEXT("Claimed PawnId=%s"), *CandidatePawnId.ToString(EGuidFormats::DigitsWithHyphens)), Cast<AMO56PlayerController>(PlayerController));
+                        PendingPossessionRetries.Remove(ControllerKey);
                         return;
                 }
 
@@ -1273,10 +1308,28 @@ void UMO56SaveSubsystem::AssignAndPossessPersistentPawn(APlayerController* Playe
                         TEXT("AssignAndPossessPersistentPawn: Candidate pawn %s rejected for player %s (%s)"),
                         *CandidatePawnId.ToString(), *PlayerSaveId.ToString(), *Reason);
                 LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), FString::Printf(TEXT("FallbackReason=%s"), *Reason), MOController);
+
+                if (Reason.Equals(PawnNotPresentReason))
+                {
+                        bShouldRetry = true;
+                }
+        }
+        else
+        {
+                bShouldRetry = true;
         }
 
         PlayerController->StartSpectatingOnly();
         LogSaveEvent(this, TEXT("AssignPersistentPawnFail"), TEXT("No candidate pawn found"), MOController);
+
+        if (bShouldRetry)
+        {
+                QueuePersistentPawnRetry(PlayerController);
+        }
+        else
+        {
+                PendingPossessionRetries.Remove(ControllerKey);
+        }
 }
 
 bool UMO56SaveSubsystem::BuildPossessablePawnList(APlayerController* ForPC, TArray<FMOPossessablePawnInfo>& Out) const
@@ -2407,6 +2460,85 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
                                 MO56RoleToString(Pawn->GetRemoteRole()));
                 }
         }
+}
+
+void UMO56SaveSubsystem::HandlePersistentPawnRetry(TWeakObjectPtr<APlayerController> PlayerControllerPtr)
+{
+        if (!IsAuthoritative())
+        {
+                return;
+        }
+
+        APlayerController* PlayerController = PlayerControllerPtr.Get();
+        if (!PlayerController)
+        {
+                PendingPossessionRetries.Remove(PlayerControllerPtr);
+                return;
+        }
+
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                PendingPossessionRetries.Remove(PlayerControllerPtr);
+                return;
+        }
+
+        FPendingPossessionRetry* RetryState = PendingPossessionRetries.Find(PlayerControllerPtr);
+        if (!RetryState)
+        {
+                return;
+        }
+
+        RetryState->bPending = false;
+
+        AssignAndPossessPersistentPawn(PlayerController);
+
+        if (PlayerController->GetPawn())
+        {
+                PendingPossessionRetries.Remove(PlayerControllerPtr);
+                return;
+        }
+
+        if (RetryState->AttemptCount >= MaxPossessionRetryCount)
+        {
+                PendingPossessionRetries.Remove(PlayerControllerPtr);
+                return;
+        }
+
+        QueuePersistentPawnRetry(PlayerController);
+}
+
+void UMO56SaveSubsystem::QueuePersistentPawnRetry(APlayerController* PlayerController)
+{
+        if (!IsAuthoritative() || !PlayerController)
+        {
+                return;
+        }
+
+        UWorld* World = GetWorld();
+        if (!World)
+        {
+                return;
+        }
+
+        TWeakObjectPtr<APlayerController> ControllerKey(PlayerController);
+        FPendingPossessionRetry& RetryState = PendingPossessionRetries.FindOrAdd(ControllerKey);
+        if (RetryState.bPending)
+        {
+                return;
+        }
+
+        if (RetryState.AttemptCount >= MaxPossessionRetryCount)
+        {
+                PendingPossessionRetries.Remove(ControllerKey);
+                return;
+        }
+
+        ++RetryState.AttemptCount;
+        RetryState.bPending = true;
+
+        FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandlePersistentPawnRetry, ControllerKey);
+        World->GetTimerManager().SetTimerForNextTick(Delegate);
 }
 
 void UMO56SaveSubsystem::HandleActorSpawned(AActor* Actor)

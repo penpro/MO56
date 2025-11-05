@@ -1007,8 +1007,7 @@ bool AMO56PlayerController::HandleLoadGameOnServer(const FString& SlotName, int3
                         {
                                 if (CurrentSave->SaveId.IsValid())
                                 {
-                                        SaveSubsystem->LoadSave(CurrentSave->SaveId);
-                                        bLoaded = true;
+                                        bLoaded = SaveSubsystem->LoadSave(CurrentSave->SaveId);
                                 }
                         }
                 }
@@ -1048,8 +1047,7 @@ bool AMO56PlayerController::HandleLoadGameByIdOnServer(const FGuid& SaveId)
         {
                 if (SaveSubsystem->DoesSaveExist(SaveId))
                 {
-                        SaveSubsystem->LoadSave(SaveId);
-                        bLoaded = true;
+                        bLoaded = SaveSubsystem->LoadSave(SaveId);
                 }
         }
 

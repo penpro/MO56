@@ -30,6 +30,7 @@ class AMO56GameMode : public AGameModeBase
         AMO56GameMode();
 
         virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
+        virtual void PostSeamlessTravel() override;
 };
 
 
