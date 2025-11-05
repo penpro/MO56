@@ -12,7 +12,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="" />
+    <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/L_LoadingScreen.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/L_LoadingScreen.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/M_TestLevel.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/M_TestLevel.umap" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MainMenuMode.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MainMenuMode.uasset" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
