@@ -3,7 +3,6 @@
 #if WITH_EDITOR
 
 #include "Algo/Sort.h"
-#include "Subsystems/AssetEditorSubsystem.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ContentBrowserModule.h"
 #include "Crafting/CraftingRecipe.h"
@@ -12,6 +11,7 @@
 #include "Editor.h"
 #include "EditorAssetLibrary.h"
 #include "Framework/Application/SlateApplication.h"
+#include "IContentBrowserSingleton.h"
 #include "IDesktopPlatform.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/PackageName.h"
@@ -19,6 +19,8 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "RecipeEditorLibrary.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -50,10 +52,10 @@ namespace RecipeBrowser
         }
     };
 
-    class SRecipeBrowserPanel : public SCompoundWidget
+    class SRecipeBrowserPanelImpl : public SCompoundWidget
     {
     public:
-        SLATE_BEGIN_ARGS(SRecipeBrowserPanel) {}
+        SLATE_BEGIN_ARGS(SRecipeBrowserPanelImpl) {}
         SLATE_END_ARGS()
 
         void Construct(const FArguments& InArgs)
@@ -78,7 +80,7 @@ namespace RecipeBrowser
                     [
                         SAssignNew(SearchBox, SSearchBox)
                         .HintText(NSLOCTEXT("RecipeBrowser", "SearchHint", "Search recipes"))
-                        .OnTextChanged(this, &SRecipeBrowserPanel::OnSearchTextChanged)
+                        .OnTextChanged(this, &SRecipeBrowserPanelImpl::OnSearchTextChanged)
                     ]
                     + SVerticalBox::Slot()
                     .AutoHeight()
@@ -96,8 +98,8 @@ namespace RecipeBrowser
                             SAssignNew(RecipeListView, SListView<TSharedPtr<FCraftingRecipeListEntry>>)
                             .ListItemsSource(&RecipeEntries)
                             .SelectionMode(ESelectionMode::Single)
-                            .OnGenerateRow(this, &SRecipeBrowserPanel::GenerateRecipeRow)
-                            .OnSelectionChanged(this, &SRecipeBrowserPanel::OnRecipeSelectionChanged)
+                            .OnGenerateRow(this, &SRecipeBrowserPanelImpl::GenerateRecipeRow)
+                            .OnSelectionChanged(this, &SRecipeBrowserPanelImpl::OnRecipeSelectionChanged)
                         ]
                         + SSplitter::Slot()
                         .Value(0.65f)
@@ -221,7 +223,7 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "NewRecipe", "New"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnCreateRecipe)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnCreateRecipe)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -229,8 +231,8 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "DuplicateRecipe", "Duplicate"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnDuplicateRecipe)
-                    .IsEnabled(this, &SRecipeBrowserPanel::HasSelection)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnDuplicateRecipe)
+                    .IsEnabled(this, &SRecipeBrowserPanelImpl::HasSelection)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -238,8 +240,8 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "DeleteRecipe", "Delete"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnDeleteRecipe)
-                    .IsEnabled(this, &SRecipeBrowserPanel::HasSelection)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnDeleteRecipe)
+                    .IsEnabled(this, &SRecipeBrowserPanelImpl::HasSelection)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -247,7 +249,7 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "ValidateRecipes", "Validate"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnValidateRecipes)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnValidateRecipes)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -255,7 +257,7 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "ImportCSV", "Import CSV"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnImportCSV)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnImportCSV)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -263,7 +265,7 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "ExportCSV", "Export CSV"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnExportCSV)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnExportCSV)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
@@ -271,15 +273,15 @@ namespace RecipeBrowser
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "SaveRecipe", "Save"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnSaveRecipe)
-                    .IsEnabled(this, &SRecipeBrowserPanel::HasSelection)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnSaveRecipe)
+                    .IsEnabled(this, &SRecipeBrowserPanelImpl::HasSelection)
                 ]
                 + SHorizontalBox::Slot()
                 .AutoWidth()
                 [
                     SNew(SButton)
                     .Text(NSLOCTEXT("RecipeBrowser", "OpenLibrary", "Open Library"))
-                    .OnClicked(this, &SRecipeBrowserPanel::OnOpenLibrary)
+                    .OnClicked(this, &SRecipeBrowserPanelImpl::OnOpenLibrary)
                 ];
         }
 
@@ -572,28 +574,24 @@ namespace RecipeBrowser
                 return false;
             }
 
-            void* ParentHandle = nullptr;
+            const void* ParentWindowHandle = nullptr;
             if (FSlateApplication::IsInitialized())
             {
-                ParentHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
+                ParentWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
             }
 
             const FString DialogTitle = bOpenDialog ? TEXT("Import Recipes From CSV") : TEXT("Export Recipes To CSV");
             const FString FileTypes = TEXT("CSV Files (*.csv)|*.csv");
             const FString DefaultPath = FPaths::ProjectDir();
 
+            OutFiles.Reset();
             if (bOpenDialog)
             {
-                return DesktopPlatform->OpenFileDialog(ParentHandle, DialogTitle, DefaultPath, TEXT(""), FileTypes, EFileDialogFlags::None, OutFiles);
+                return DesktopPlatform->OpenFileDialog(ParentWindowHandle, DialogTitle, DefaultPath, TEXT(""), FileTypes, EFileDialogFlags::None, OutFiles);
             }
 
-            FString OutFile;
-            bool bResult = DesktopPlatform->SaveFileDialog(ParentHandle, DialogTitle, DefaultPath, TEXT("Recipes.csv"), FileTypes, EFileDialogFlags::None, OutFile);
-            if (bResult)
-            {
-                OutFiles = { OutFile };
-            }
-            return bResult;
+            const bool bResult = DesktopPlatform->SaveFileDialog(ParentWindowHandle, DialogTitle, DefaultPath, TEXT("Recipes.csv"), FileTypes, EFileDialogFlags::None, OutFiles);
+            return bResult && OutFiles.Num() > 0;
         }
 
         FString GetDefaultPackageRoot() const
@@ -633,8 +631,9 @@ void UWBP_RecipeBrowser::NativeDestruct()
 
 TSharedRef<SWidget> UWBP_RecipeBrowser::RebuildWidget()
 {
-    RecipeBrowserPanel = SNew(SRecipeBrowserPanel);
-    return RecipeBrowserPanel.ToSharedRef();
+    TSharedRef<SRecipeBrowserPanelImpl> Panel = SNew(SRecipeBrowserPanelImpl);
+    RecipeBrowserPanel = Panel;
+    return Panel;
 }
 
 void UWBP_RecipeBrowser::ReleaseSlateResources(bool bReleaseChildren)
@@ -647,7 +646,10 @@ void UWBP_RecipeBrowser::RefreshRecipes()
 {
     if (RecipeBrowserPanel.IsValid())
     {
-        RecipeBrowserPanel->RefreshRecipeList();
+        if (TSharedPtr<SRecipeBrowserPanelImpl> Panel = StaticCastSharedPtr<SRecipeBrowserPanelImpl>(RecipeBrowserPanel))
+        {
+            Panel->RefreshRecipeList();
+        }
     }
 }
 

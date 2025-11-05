@@ -10,7 +10,7 @@
 #include "Crafting/CraftingRecipeRows.h"
 #include "EditorAssetLibrary.h"
 #include "Factories/DataAssetFactory.h"
-#include "Misc/CsvParser.h"
+#include "Serialization/Csv/CsvParser.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
