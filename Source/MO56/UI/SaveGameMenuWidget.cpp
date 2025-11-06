@@ -2,11 +2,12 @@
 
 #include "Components/ScrollBox.h"
 #include "Engine/GameInstance.h"
-#include "Save/MO56SaveSubsystem.h"
-#include "Save/MO56SaveGame.h"
-#include "UI/SaveGameDataWidget.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "MO56PlayerController.h"
+#include "Save/MO56SaveGame.h"
+#include "Save/MO56SaveSubsystem.h"
+#include "UI/SaveGameDataWidget.h"
 
 void USaveGameMenuWidget::NativeConstruct()
 {
@@ -109,32 +110,35 @@ void USaveGameMenuWidget::RebuildEntries(const TArray<FSaveGameSummary>& Summari
 
 void USaveGameMenuWidget::HandleEntryLoadRequested(const FSaveGameSummary& Summary)
 {
-        bool bLoaded = false;
-
-        if (AMO56PlayerController* PC = Cast<AMO56PlayerController>(GetOwningPlayer()))
+        APlayerController* PlayerController = GetOwningPlayer();
+        if (!PlayerController)
         {
+                PlayerController = UGameplayStatics::GetPlayerController(this, 0);
+        }
+
+        if (AMO56PlayerController* MOController = Cast<AMO56PlayerController>(PlayerController))
+        {
+                bool bRequested = false;
+
                 if (Summary.SaveId.IsValid())
                 {
-                        bLoaded = PC->RequestLoadGameById(Summary.SaveId);
+                        bRequested = MOController->RequestLoadGameById(Summary.SaveId);
                 }
                 else
                 {
-                        bLoaded = PC->RequestLoadGameBySlot(Summary.SlotName, Summary.UserIndex);
+                        bRequested = MOController->RequestLoadGameBySlot(Summary.SlotName, Summary.UserIndex);
                 }
-        }
-        else if (UMO56SaveSubsystem* Subsystem = ResolveSubsystem())
-        {
-                if (Summary.SaveId.IsValid())
+
+                if (bRequested)
                 {
-                        Subsystem->LoadSave(Summary.SaveId);
-                        bLoaded = true;
+                        OnSaveLoaded.Broadcast();
                 }
+
+                return;
         }
 
-        if (bLoaded)
-        {
-                OnSaveLoaded.Broadcast();
-        }
+        UE_LOG(LogTemp, Error,
+                TEXT("SaveGameMenuWidget: No valid MO56 PlayerController. Set PlayerControllerClass to BP_MO56PlayerController in the Loading Screen map."));
 }
 
 UMO56SaveSubsystem* USaveGameMenuWidget::ResolveSubsystem() const

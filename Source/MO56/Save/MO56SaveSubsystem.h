@@ -112,7 +112,7 @@ public:
         void StartNewGame(const FString& LevelName = TEXT("M_TestLevel"));
 
         UFUNCTION(BlueprintCallable, Category = "Save")
-        void LoadSave(const FGuid& SaveId);
+        bool LoadSave(const FGuid& SaveId);
 
         UFUNCTION(BlueprintCallable, Category = "Save")
         bool SaveCurrentGame();
@@ -278,6 +278,7 @@ private:
         void HandleDeferredBeginPlay(TWeakObjectPtr<UWorld> WorldPtr);
         void RunServerPossessionPass(UWorld& World);
         void HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPtr);
+        void HandlePersistentPawnRetry(TWeakObjectPtr<APlayerController> PlayerControllerPtr);
 
         void SpawnPersistentPawnsFromSave();
         APawn* FindPersistentPawnById(const FGuid& PawnId) const;
@@ -322,6 +323,7 @@ private:
         void RefreshCharacterSaveData(const FGuid& CharacterId);
         void HandleAutosaveTimerElapsed();
         void SchedulePostPossessionValidation(UWorld& World);
+        void QueuePersistentPawnRetry(APlayerController* PlayerController);
 
         FString MakeSlotName(const FGuid& SaveId) const;
         FString GetSaveDir() const;
@@ -340,5 +342,14 @@ private:
         FGuid GetStoredPersistentPlayerId(AMO56PlayerController* Controller) const;
         void RememberPersistentPlayerId(AMO56PlayerController* Controller, const FGuid& PlayerId);
         int32 ResolveLocalPlayerIndex(const ULocalPlayer* LocalPlayer) const;
+
+        struct FPendingPossessionRetry
+        {
+                int32 AttemptCount = 0;
+                bool bPending = false;
+        };
+
+        static constexpr int32 MaxPossessionRetryCount = 10;
+        TMap<TWeakObjectPtr<APlayerController>, FPendingPossessionRetry> PendingPossessionRetries;
 };
 

@@ -91,7 +91,9 @@ void UGameMenuWidget::HandleLoadGameClicked()
                         }
                         else
                         {
-                                SaveSubsystem->LoadGame();
+                                UE_LOG(LogMO56, Error,
+                                        TEXT("GameMenuWidget: No AMO56PlayerController available to request load. Configure"
+                                             " PlayerControllerClass to BP_MO56PlayerController."));
                         }
                         return;
                 }
