@@ -6,12 +6,33 @@
 #include "Skills/InspectableComponent.h"
 #include "Skills/SkillSystemComponent.h"
 #include "Skills/SkillTypes.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "GameFramework/PlayerController.h"
 #include "Input/Events.h"
+#include "InputCoreTypes.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SOverlay.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
+
+void UWorldActorContextMenuWidget::NativeConstruct()
+{
+        Super::NativeConstruct();
+
+        bIsFocusable = true; // allow key events
+        SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+        SetPositionInViewport(FVector2D(0.f, 0.f), false); // center
+        SetFocus(); // try to capture keyboard focus
+}
+
+void UWorldActorContextMenuWidget::SetupAsCenteredModal(APlayerController* OwningPC)
+{
+        ModalOwnerPC = OwningPC;
+        ApplyModalInput();
+}
 
 void UWorldActorContextMenuWidget::InitializeMenu(UInspectableComponent* Inspectable, USkillSystemComponent* InSkillSystem, const TArray<FSkillInspectionParams>& InParams, TArray<FContextAction>&& AdditionalActions)
 {
@@ -58,6 +79,57 @@ void UWorldActorContextMenuWidget::DismissMenu()
         RemoveFromParent();
 }
 
+void UWorldActorContextMenuWidget::ApplyModalInput()
+{
+        if (bModalInputApplied)
+        {
+                return;
+        }
+
+        if (APlayerController* PC = ModalOwnerPC.Get())
+        {
+                bPrevShowMouseCursor = PC->bShowMouseCursor;
+                bPrevEnableClick = PC->bEnableClickEvents;
+                bPrevEnableMouseOver = PC->bEnableMouseOverEvents;
+                bPrevIgnoreLook = PC->IsLookInputIgnored();
+                bPrevIgnoreMove = PC->IsMoveInputIgnored();
+
+                PC->bShowMouseCursor = true;
+                PC->bEnableClickEvents = true;
+                PC->bEnableMouseOverEvents = true;
+                PC->SetIgnoreLookInput(true);
+                PC->SetIgnoreMoveInput(true);
+
+                // Focus UI, do not lock, show cursor
+                UWidgetBlueprintLibrary::SetInputMode_GameAndUIEx(PC, this, EMouseLockMode::DoNotLock, true);
+
+                bModalInputApplied = true;
+        }
+}
+
+void UWorldActorContextMenuWidget::RestoreInput()
+{
+        if (!bModalInputApplied)
+        {
+                return;
+        }
+
+        if (APlayerController* PC = ModalOwnerPC.Get())
+        {
+                PC->SetIgnoreLookInput(bPrevIgnoreLook);
+                PC->SetIgnoreMoveInput(bPrevIgnoreMove);
+                PC->bShowMouseCursor = bPrevShowMouseCursor;
+                PC->bEnableClickEvents = bPrevEnableClick;
+                PC->bEnableMouseOverEvents = bPrevEnableMouseOver;
+
+                FInputModeGameOnly GameOnly;
+                PC->SetInputMode(GameOnly);
+        }
+
+        bModalInputApplied = false;
+        ModalOwnerPC.Reset();
+}
+
 TSharedRef<SWidget> UWorldActorContextMenuWidget::RebuildWidget()
 {
         const FSlateBrush* BackgroundBrush = FAppStyle::Get().GetBrush("Menu.Background");
@@ -89,12 +161,31 @@ TSharedRef<SWidget> UWorldActorContextMenuWidget::RebuildWidget()
                 }
         }
 
-        return SAssignNew(RootWidget, SBorder)
-                .BorderImage(BackgroundBrush)
-                .Padding(4.f)
-                [
-                        MenuContent
-                ];
+        // Fullscreen overlay: background button catches outside clicks, content is centered on top
+        return SAssignNew(RootWidget, SOverlay)
+                + SOverlay::Slot()
+                        .HAlign(HAlign_Fill)
+                        .VAlign(VAlign_Fill)
+                        [
+                                SNew(SButton)
+                                .ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
+                                .OnClicked(FOnClicked::CreateUObject(this, &UWorldActorContextMenuWidget::HandleBackgroundClicked))
+                                [
+                                        SNew(SSpacer) // invisible filler
+                                        .Size(FVector2D(1.f, 1.f))
+                                ]
+                        ]
+                + SOverlay::Slot()
+                        .HAlign(HAlign_Center)
+                        .VAlign(VAlign_Center)
+                        [
+                                SNew(SBorder)
+                                .BorderImage(BackgroundBrush)
+                                .Padding(4.f)
+                                [
+                                        MenuContent
+                                ]
+                        ];
 }
 
 void UWorldActorContextMenuWidget::ReleaseSlateResources(bool bReleaseChildren)
@@ -107,13 +198,31 @@ void UWorldActorContextMenuWidget::NativeDestruct()
 {
         CloseInternal();
         OnMenuDismissed.Broadcast();
+        RestoreInput();
         Super::NativeDestruct();
 }
 
 void UWorldActorContextMenuWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
 {
+        // Intentionally do nothing so the menu persists until explicit dismissal
         Super::NativeOnMouseLeave(InMouseEvent);
+}
+
+FReply UWorldActorContextMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+        const FKey Key = InKeyEvent.GetKey();
+        if (Key == EKeys::E || Key == EKeys::Escape)
+        {
+                DismissMenu();
+                return FReply::Handled();
+        }
+        return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
+
+FReply UWorldActorContextMenuWidget::HandleBackgroundClicked()
+{
         DismissMenu();
+        return FReply::Handled();
 }
 
 FReply UWorldActorContextMenuWidget::HandleEntryClicked(int32 OptionIndex)

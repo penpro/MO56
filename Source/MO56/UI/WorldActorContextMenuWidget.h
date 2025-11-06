@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Blueprint/UserWidget.h"
+#include "Input/Events.h"
 #include "Input/Reply.h"
 #include "Skills/SkillTypes.h"
 #include "Delegates/Delegate.h"
@@ -13,6 +14,7 @@
 class USkillSystemComponent;
 class UInspectableComponent;
 class APawn;
+class APlayerController;
 
 /**
  * Context menu used when right-clicking inspectable world actors.
@@ -44,6 +46,10 @@ public:
                 }
         };
 
+        // Call after AddToViewport when you want modal behavior
+        UFUNCTION(BlueprintCallable, Category="UI|ContextMenu")
+        void SetupAsCenteredModal(APlayerController* OwningPC);
+
         void InitializeMenu(UInspectableComponent* Inspectable, USkillSystemComponent* InSkillSystem, const TArray<FSkillInspectionParams>& InParams, TArray<FContextAction>&& AdditionalActions);
         void InitializeWithActions(TArray<FContextAction>&& Actions);
         void DismissMenu();
@@ -52,16 +58,36 @@ public:
         FOnContextMenuDismissed OnMenuDismissed;
 
 protected:
+        virtual void NativeConstruct() override;
         virtual TSharedRef<SWidget> RebuildWidget() override;
         virtual void ReleaseSlateResources(bool bReleaseChildren) override;
         virtual void NativeDestruct() override;
+
+        // Stop auto-dismiss on hover loss
         virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 
-private:
-        FReply HandleEntryClicked(int32 OptionIndex);
+        // Allow closing with E or Escape
+        virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
+private:
+        // Background click to dismiss
+        FReply HandleBackgroundClicked();
+
+        FReply HandleEntryClicked(int32 OptionIndex);
         void CloseInternal();
         void BuildEntriesFromInspection(const TArray<FSkillInspectionParams>& InParams);
+
+        // Modal input bookkeeping
+        void ApplyModalInput();
+        void RestoreInput();
+
+        TWeakObjectPtr<APlayerController> ModalOwnerPC;
+        bool bModalInputApplied = false;
+        bool bPrevShowMouseCursor = false;
+        bool bPrevEnableClick = false;
+        bool bPrevEnableMouseOver = false;
+        bool bPrevIgnoreLook = false;
+        bool bPrevIgnoreMove = false;
 
         TWeakObjectPtr<UInspectableComponent> InspectableComponent;
         TWeakObjectPtr<USkillSystemComponent> SkillSystem;
