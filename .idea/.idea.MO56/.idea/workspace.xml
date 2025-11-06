@@ -13,9 +13,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6d2d38d0-efe4-4734-96ce-6394a8618915" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/L_LoadingScreen.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/L_LoadingScreen.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/M_TestLevel.umap" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/M_TestLevel.umap" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MainMenuMode.uasset" beforeDir="false" afterPath="$PROJECT_DIR$/Content/MyStuff/MainMenu/BP_MainMenuMode.uasset" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.idea.MO56/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -192,6 +190,7 @@
       <workItem from="1761786871822" duration="563000" />
       <workItem from="1762135108281" duration="697000" />
       <workItem from="1762141296400" duration="30842000" />
+      <workItem from="1762360481373" duration="5148000" />
     </task>
     <servers />
   </component>
