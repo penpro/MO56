@@ -22,6 +22,8 @@
 #include "MO56Character.h"
 #include "MO56PossessionMenuManagerSubsystem.h"
 #include "Save/MO56SaveSubsystem.h"
+#include "EngineUtils.h"
+#include "Components/MOPersistentPawnComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "UI/MO56PossessMenuWidget.h"
 #include "EnhancedInputComponent.h"
@@ -431,7 +433,8 @@ void AMO56PlayerController::ClientReceivePossessablePawns_Implementation(const T
 
 void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FGuid& PawnId)
 {
-        LogDebugEvent(TEXT("ServerRequestPossessPawnById"), FString::Printf(TEXT("PawnId=%s"), *PawnId.ToString(EGuidFormats::DigitsWithHyphens)));
+        LogDebugEvent(TEXT("ServerRequestPossessPawnById"),
+                FString::Printf(TEXT("PawnId=%s"), *PawnId.ToString(EGuidFormats::DigitsWithHyphens)));
 
         if (!PawnId.IsValid())
         {
@@ -443,10 +446,37 @@ void AMO56PlayerController::ServerRequestPossessPawnById_Implementation(const FG
                 if (UMO56SaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UMO56SaveSubsystem>())
                 {
                         FString Reason;
-                        if (!SaveSubsystem->TryAssignAndPossess(this, PawnId, Reason))
+                        if (SaveSubsystem->TryAssignAndPossess(this, PawnId, Reason))
                         {
-                                ClientMessage(FString::Printf(TEXT("Cannot possess: %s"), *Reason));
+                                return;
                         }
+
+                        APawn* TargetPawn = nullptr;
+                        if (UWorld* World = GetWorld())
+                        {
+                                for (TActorIterator<APawn> It(World); It; ++It)
+                                {
+                                        if (UMOPersistentPawnComponent* Persist = It->FindComponentByClass<UMOPersistentPawnComponent>())
+                                        {
+                                                if (Persist->GetPawnId() == PawnId)
+                                                {
+                                                        TargetPawn = *It;
+                                                        break;
+                                                }
+                                        }
+                                }
+                        }
+
+                        if (TargetPawn)
+                        {
+                                LogDebugEvent(TEXT("ServerRequestPossessPawnByIdFallback"),
+                                        FString::Printf(TEXT("FallbackToDirectPossess Target=%s"), *GetNameSafe(TargetPawn)), TargetPawn);
+
+                                HandlePossessPawn(TargetPawn);
+                                return;
+                        }
+
+                        ClientMessage(FString::Printf(TEXT("Cannot possess: %s"), *Reason));
                 }
         }
 }
@@ -507,7 +537,16 @@ void AMO56PlayerController::OnIA_Possession()
                 {
                         if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
                         {
-                                MenuSubsystem->ToggleMenuForLocalPlayer(LocalPlayer);
+                                const bool bMenuOpen = MenuSubsystem->IsMenuOpenForLocalPlayer(LocalPlayer);
+                                if (bMenuOpen)
+                                {
+                                        ClosePossessMenu();
+                                }
+                                else
+                                {
+                                        OpenPossessMenu();
+                                        ServerQueryPossessablePawns();
+                                }
                         }
                 }
         }

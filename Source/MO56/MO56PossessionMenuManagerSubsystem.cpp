@@ -210,7 +210,10 @@ bool UMO56PossessionMenuManagerSubsystem::IsMenuOpenForLocalPlayer(ULocalPlayer*
 
     if (const FMO56MenuState* State = PerPlayerState.Find(LocalPlayer))
     {
-        return State->Menu.IsValid();
+        if (UUserWidget* Menu = State->Menu.Get())
+        {
+            return Menu->IsInViewport();
+        }
     }
 
     return false;
