@@ -1700,6 +1700,18 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                                 PersistentComp->PawnId = PawnData.PawnId;
                                 PersistentComp->bPlayerCandidate = PawnData.bPlayerCandidate;
 
+                                if (PersistentComp->bPlayerCandidate)
+                                {
+                                        ExistingPawn->AutoPossessAI = EAutoPossessAI::Disabled;
+                                        if (AController* C = ExistingPawn->GetController())
+                                        {
+                                                if (AAIController* AI = Cast<AAIController>(C))
+                                                {
+                                                        AI->UnPossess();
+                                                }
+                                        }
+                                }
+
                                 if (PawnData.DisplayName.IsEmpty())
                                 {
                                         if (PersistentComp->DisplayName.IsEmpty())
@@ -1772,6 +1784,18 @@ void UMO56SaveSubsystem::SpawnPersistentPawnsFromSave()
                 {
                         PersistentComp->PawnId = PawnData.PawnId;
                         PersistentComp->bPlayerCandidate = PawnData.bPlayerCandidate;
+
+                        if (PersistentComp->bPlayerCandidate)
+                        {
+                                SpawnedPawn->AutoPossessAI = EAutoPossessAI::Disabled;
+                                if (AController* C = SpawnedPawn->GetController())
+                                {
+                                        if (AAIController* AI = Cast<AAIController>(C))
+                                        {
+                                                AI->UnPossess();
+                                        }
+                                }
+                        }
 
                         if (PawnData.DisplayName.IsEmpty())
                         {
@@ -2429,6 +2453,8 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
                 return;
         }
 
+        bool bNeedsAnotherPass = false;
+
         UWorld* World = WorldPtr.Get();
         for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
         {
@@ -2441,6 +2467,7 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
                 APawn* Pawn = Controller->GetPawn();
                 if (!Pawn)
                 {
+                        bNeedsAnotherPass = true;
                         continue;
                 }
 
@@ -2458,6 +2485,17 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
                                 *PawnIdString,
                                 MO56RoleToString(Pawn->GetLocalRole()),
                                 MO56RoleToString(Pawn->GetRemoteRole()));
+                        bNeedsAnotherPass = true;
+                }
+        }
+
+        if (bNeedsAnotherPass)
+        {
+                if (UWorld* World = WorldPtr.Get())
+                {
+                        TWeakObjectPtr<UWorld> WorldPtr2(World);
+                        FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandlePostLoadValidation, WorldPtr2);
+                        World->GetTimerManager().SetTimer(PostLoadValidationTimerHandle, Delegate, 0.5f, false);
                 }
         }
 }
@@ -2502,6 +2540,23 @@ void UMO56SaveSubsystem::HandlePersistentPawnRetry(TWeakObjectPtr<APlayerControl
         if (RetryState->AttemptCount >= MaxPossessionRetryCount)
         {
                 PendingPossessionRetries.Remove(PlayerControllerPtr);
+                if (APlayerController* PC = PlayerControllerPtr.Get())
+                {
+                        if (!PC->GetPawn())
+                        {
+                                if (AMO56PlayerController* MO = Cast<AMO56PlayerController>(PC))
+                                {
+                                        if (MO->IsLocalController())
+                                        {
+                                                MO->OpenPossessMenu();
+                                        }
+                                        else
+                                        {
+                                                MO->ClientForceOpenPossessMenu();
+                                        }
+                                }
+                        }
+                }
                 return;
         }
 
@@ -2538,7 +2593,8 @@ void UMO56SaveSubsystem::QueuePersistentPawnRetry(APlayerController* PlayerContr
         RetryState.bPending = true;
 
         FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandlePersistentPawnRetry, ControllerKey);
-        World->GetTimerManager().SetTimerForNextTick(Delegate);
+        FTimerHandle TmpHandle;
+        World->GetTimerManager().SetTimer(TmpHandle, Delegate, 0.25f, false);
 }
 
 void UMO56SaveSubsystem::HandleActorSpawned(AActor* Actor)
