@@ -2491,11 +2491,11 @@ void UMO56SaveSubsystem::HandlePostLoadValidation(TWeakObjectPtr<UWorld> WorldPt
 
         if (bNeedsAnotherPass)
         {
-                if (UWorld* World = WorldPtr.Get())
+                if (UWorld* World1 = WorldPtr.Get())
                 {
-                        TWeakObjectPtr<UWorld> WorldPtr2(World);
+                        TWeakObjectPtr<UWorld> WorldPtr2(World1);
                         FTimerDelegate Delegate = FTimerDelegate::CreateUObject(this, &UMO56SaveSubsystem::HandlePostLoadValidation, WorldPtr2);
-                        World->GetTimerManager().SetTimer(PostLoadValidationTimerHandle, Delegate, 0.5f, false);
+                        World1->GetTimerManager().SetTimer(PostLoadValidationTimerHandle, Delegate, 0.5f, false);
                 }
         }
 }
